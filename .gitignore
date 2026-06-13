@@ -1,5 +1,6 @@
 # Python
 _pycache_/
+__pycache__/
 *.py[cod]
 *.pyo
 *.pyd
@@ -17,6 +18,9 @@ dist/
 demo_cache/
 evaluation/
 backend/data/ecss/*.pdf
+ESA-Mission*/
+ESA-Mission*_extracted/
+sentinel/backend/data/esa_raw/
 
 *.bin
 *.pickle
