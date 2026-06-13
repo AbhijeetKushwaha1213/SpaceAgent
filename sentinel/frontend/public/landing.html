@@ -3408,9 +3408,10 @@ function initVideoScrub() {
   const hero  = document.getElementById('s-hero');
   if (!video || !hero) return;
 
-  // Pause video — we control playback manually via currentTime
-  video.pause();
-  video.currentTime = 0;
+  // Play video continuously
+  video.loop = true;
+  video.muted = true;
+  video.play().catch(e => console.log("Auto-play failed, waiting for user interaction:", e));
 
   let videoReady = video.readyState >= 2;
   video.addEventListener('loadeddata', () => { videoReady = true; });
@@ -3435,10 +3436,6 @@ function initVideoScrub() {
     const scrollRange = Math.max(heroHeight - viewH, 1);
     const scrolled    = Math.max(0, Math.min(window.scrollY - heroTop, scrollRange));
     const pct         = scrolled / scrollRange;
-
-    // Set currentTime directly — no lerp so it keeps up with fast scroll
-    const targetTime = pct * video.duration;
-    video.currentTime = targetTime;
 
     // Progress bar — direct width, no CSS transition
     if (fill) fill.style.width = (pct * 100) + '%';
