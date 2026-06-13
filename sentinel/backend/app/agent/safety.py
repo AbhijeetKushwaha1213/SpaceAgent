@@ -35,7 +35,7 @@ from typing import Any
 
 from pydantic import BaseModel, Field
 
-from models import RecoveryStep, RiskLevel, SentinelOutput
+from app.api.models import RecoveryStep, RiskLevel, SentinelOutput
 
 logger = logging.getLogger("sentinel.safety")
 

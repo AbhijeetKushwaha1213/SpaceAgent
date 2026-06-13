@@ -13,9 +13,12 @@ import json
 import os
 import sys
 
-from fault_simulator import SatelliteFaultSimulator
-from dataset_generator import generate_dataset
-from anomaly_detector import ZScoreAnomalyDetector, SATELLITE_NOMINAL_RANGES
+# Ensure backend/ root is on sys.path for standalone execution
+sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
+
+from simulation.fault_simulator import SatelliteFaultSimulator
+from simulation.dataset_generator import generate_dataset
+from app.analytics.anomaly_detector import ZScoreAnomalyDetector, SATELLITE_NOMINAL_RANGES
 
 # ---------------------------------------------------------------------------
 # Constants shared across tests

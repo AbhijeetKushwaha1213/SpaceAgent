@@ -15,7 +15,11 @@ Step 7 test suite. Targets 80+ passing checks with:
 from __future__ import annotations
 
 import math
+import os
 import sys
+
+# Ensure backend/ root is on sys.path for standalone execution
+sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
 
 # ---------------------------------------------------------------------------
 # Test infrastructure (same style as other test_*.py in this project)
@@ -39,8 +43,8 @@ def check(description: str, condition: bool) -> None:
 # Imports
 # ---------------------------------------------------------------------------
 
-from models import RecoveryStep, RiskLevel, SentinelOutput, Hypothesis
-from safety import (
+from app.api.models import RecoveryStep, RiskLevel, SentinelOutput, Hypothesis
+from app.agent.safety import (
     COMMAND_WHITELIST,
     BATTERY_FLOOR_SOC,
     THERMAL_SURVIVAL_LIMIT,
@@ -870,11 +874,12 @@ check("Nominal gyro health (no rate) → permissive", v is None)
 # ═══════════════════════════════════════════════════════════════════════════
 print("\n🧪 TEST 27: Integration — agent.py safety hook\n")
 
-with open("agent.py") as f:
+_agent_path = os.path.join(os.path.dirname(__file__), "..", "app", "agent", "agent.py")
+with open(_agent_path) as f:
     agent_source = f.read()
 
 check("agent.py imports safety module",
-      "from safety import" in agent_source or "import safety" in agent_source)
+      "from app.agent.safety import" in agent_source or "import safety" in agent_source)
 check("agent.py calls validate_recovery_plan",
       "validate_recovery_plan" in agent_source)
 check("agent.py calls apply_validation_to_output",

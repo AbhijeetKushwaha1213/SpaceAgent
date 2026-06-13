@@ -14,10 +14,15 @@ Requirements: 3.1–3.4, 4.1–4.4
 
 import re
 import datetime
+import os
+import sys
 import unittest
 from unittest.mock import patch
 
-from fault_simulator import SatelliteFaultSimulator
+# Ensure backend/ root is on sys.path for standalone execution
+sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
+
+from simulation.fault_simulator import SatelliteFaultSimulator
 
 
 # ---------------------------------------------------------------------------

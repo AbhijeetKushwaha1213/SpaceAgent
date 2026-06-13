@@ -10,8 +10,9 @@ Covers task 2.2:
 
 import unittest
 from unittest.mock import patch, call
+import os, sys; sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
 
-from fault_simulator import SatelliteFaultSimulator
+from simulation.fault_simulator import SatelliteFaultSimulator
 
 
 # ---------------------------------------------------------------------------
@@ -49,13 +50,13 @@ class TestConstructorDefaultSeed(unittest.TestCase):
 
     def test_default_seed_is_42(self):
         """Constructing without arguments should call random.seed(42)."""
-        with patch("fault_simulator.random.seed") as mock_seed:
+        with patch("simulation.fault_simulator.random.seed") as mock_seed:
             SatelliteFaultSimulator()
             mock_seed.assert_called_once_with(42)
 
     def test_default_seed_value_is_42_not_other(self):
         """Verify the default is specifically 42, not any other value."""
-        with patch("fault_simulator.random.seed") as mock_seed:
+        with patch("simulation.fault_simulator.random.seed") as mock_seed:
             SatelliteFaultSimulator()
             args, _ = mock_seed.call_args
             self.assertEqual(args[0], 42)
@@ -66,25 +67,25 @@ class TestConstructorCustomSeed(unittest.TestCase):
 
     def test_custom_seed_is_forwarded(self):
         """A custom seed should be passed directly to random.seed."""
-        with patch("fault_simulator.random.seed") as mock_seed:
+        with patch("simulation.fault_simulator.random.seed") as mock_seed:
             SatelliteFaultSimulator(seed=7)
             mock_seed.assert_called_once_with(7)
 
     def test_custom_seed_zero(self):
         """Seed value 0 should be accepted and forwarded."""
-        with patch("fault_simulator.random.seed") as mock_seed:
+        with patch("simulation.fault_simulator.random.seed") as mock_seed:
             SatelliteFaultSimulator(seed=0)
             mock_seed.assert_called_once_with(0)
 
     def test_custom_seed_large_value(self):
         """Large seed integers should be accepted and forwarded unchanged."""
-        with patch("fault_simulator.random.seed") as mock_seed:
+        with patch("simulation.fault_simulator.random.seed") as mock_seed:
             SatelliteFaultSimulator(seed=999_999_999)
             mock_seed.assert_called_once_with(999_999_999)
 
     def test_seed_not_called_multiple_times(self):
         """random.seed should be called exactly once per construction."""
-        with patch("fault_simulator.random.seed") as mock_seed:
+        with patch("simulation.fault_simulator.random.seed") as mock_seed:
             SatelliteFaultSimulator(seed=123)
             self.assertEqual(mock_seed.call_count, 1)
 
@@ -94,7 +95,7 @@ class TestConstructorNominalRanges(unittest.TestCase):
 
     def setUp(self):
         # Patch random.seed to avoid side effects on the global RNG state.
-        with patch("fault_simulator.random.seed"):
+        with patch("simulation.fault_simulator.random.seed"):
             self.sim = SatelliteFaultSimulator(seed=42)
 
     def test_all_21_attributes_present(self):

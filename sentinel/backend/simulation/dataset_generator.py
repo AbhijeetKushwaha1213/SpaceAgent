@@ -12,7 +12,7 @@ Usage
 Dependencies: fault_simulator (local), json, random, argparse, os (stdlib only).
 """
 
-from fault_simulator import SatelliteFaultSimulator
+from simulation.fault_simulator import SatelliteFaultSimulator
 import json
 import random
 import os

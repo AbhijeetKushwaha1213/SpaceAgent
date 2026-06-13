@@ -453,7 +453,7 @@ def _build_summary(flagged: list[dict], total: int) -> str:
 # ---------------------------------------------------------------------------
 
 if __name__ == "__main__":
-    from fault_simulator import SatelliteFaultSimulator
+    from simulation.fault_simulator import SatelliteFaultSimulator
     import json as _json
 
     FAULT_TYPES = [

@@ -1,0 +1,1 @@
+# SENTINEL — Application Core Package

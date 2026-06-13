@@ -16,8 +16,9 @@ Schema decisions are derived from:
 
 from __future__ import annotations
 
+from datetime import datetime
 from enum import Enum
-from typing import List, Optional
+from typing import Dict, List, Optional
 
 from pydantic import BaseModel, Field, field_validator, model_validator
 
@@ -304,3 +305,136 @@ class SSEEvent(BaseModel):
         ge=1,
         description="Agent reasoning step index (for trace events)",
     )
+# ---------------------------------------------------------------------------
+# INPUT SCHEMAS — Crash Dump Intake Validation
+# ---------------------------------------------------------------------------
+
+
+class TelecommandContext(BaseModel):
+    """Behavioral layer: telecommand interval analysis.
+
+    Captures the execution timing pattern of the command correlated with
+    the safe-mode entry event.  The gap classification and percentile come
+    from the statistical baseline built during nominal ops.
+    """
+    event_id: int = Field(..., description="Unique sequence identifier for the telecommand execution log")
+    telecommand: str = Field(..., description="System command identifier (e.g. telecommand_63)")
+    execution_timestamp: datetime = Field(..., description="ISO 8601 timestamp of command execution")
+    gap_seconds: float = Field(..., description="Delta-T in seconds since the previous execution of this command")
+    gap_classification: str = Field(..., description="Statistical interval classification (burst, nominal, stale)")
+    gap_percentile: float = Field(..., description="Historical percentile rating of this execution delta")
+    anomaly_flag: bool = Field(..., description="True if the interval crosses baseline bounds")
+
+
+class TelemetryEntry(BaseModel):
+    """Physiological layer: a single pre-fault telemetry reading.
+
+    Each entry captures one sensor channel at one time-step inside the
+    pre-fault window (e.g. T-120s, T-60s, T-10s).  The `status` field is
+    the output of the Z-score classifier.
+    """
+    timestamp: str = Field(..., description="Relative timeline marker (e.g. T-60s)")
+    parameter: str = Field(..., description="Telemetry channel designation (e.g. V_bat, Gyro_rate_degs)")
+    value: Optional[float] = Field(None, description="Raw scalar reading; None on NaN / dropout")
+    status: str = Field(default="NOMINAL", description="Statistical state: NOMINAL, ANOMALOUS, CRITICAL")
+
+    # --- optional display-helper fields already used by the frontend ---
+    nominal_min: Optional[float] = Field(default=None, description="Lower bound of nominal range")
+    nominal_max: Optional[float] = Field(default=None, description="Upper bound of nominal range")
+
+    @field_validator("status")
+    @classmethod
+    def validate_status_bounds(cls, v: str) -> str:
+        allowed = {"NOMINAL", "ANOMALOUS", "CRITICAL"}
+        upper = v.upper()
+        if upper not in allowed:
+            raise ValueError(f"status must be one of {sorted(allowed)}, got '{v}'")
+        return upper
+
+
+class CrashDumpRequest(BaseModel):
+    """Unified data-intake schema validated by FastAPI before AI processing.
+
+    Design goals:
+      1. Strict validation for required fields (fault_type, scenario_id).
+      2. Backward-compatible: fields added by the new layered schema
+         (incident_id, fault_register, telecommand_context,
+         pre_fault_telemetry_window) have sensible defaults so the existing
+         frontend LOCAL_PRESET_SCENARIOS still pass validation.
+      3. Extra keys (hardware_state, operating_context) are silently
+         forwarded via ``extra = "allow"`` — the LLM prompt sees them.
+    """
+
+    # --- Core identifiers (always required) ---
+    scenario_id: Optional[int] = Field(default=None, description="Scenario identifier used by the demo UI")
+    fault_type: Optional[str] = Field(default=None, description="Fault category, e.g. ADCS_SENSOR_FAULT")
+
+    # --- New structured fields (optional for backward compat) ---
+    incident_id: Optional[str] = Field(
+        default=None,
+        description="Unique alphanumeric identifier for the safe-mode incident case",
+    )
+    fault_register: Optional[str] = Field(
+        default=None,
+        description="Hexadecimal bitmask of HW/SW flags that tripped FDIR",
+    )
+    safe_mode_trigger: Optional[str] = Field(
+        default=None,
+        description="Trigger string that caused safe-mode entry",
+    )
+    telecommand_context: Optional[TelecommandContext] = Field(
+        default=None,
+        description="Behavioral interval log for the correlated command",
+    )
+    pre_fault_telemetry_window: Optional[List[TelemetryEntry]] = Field(
+        default=None,
+        description="Structured pre-fault telemetry (new layered format)",
+    )
+
+    # --- Legacy shape used by the existing frontend preset scenarios ---
+    pre_fault_telemetry: Optional[List[Dict]] = Field(
+        default=None,
+        description="Legacy pre-fault telemetry list (flat dicts from frontend)",
+    )
+    event_log: Optional[List[Dict]] = Field(
+        default=None,
+        description="Raw event log entries from the spacecraft",
+    )
+
+    class Config:
+        extra = "allow"  # forward hardware_state, operating_context, etc.
+        json_schema_extra = {
+            "example": {
+                "scenario_id": 1,
+                "fault_type": "ADCS_SENSOR_FAULT",
+                "incident_id": "INC-2026-0036",
+                "fault_register": "0x00000008",
+                "telecommand_context": {
+                    "event_id": 36,
+                    "telecommand": "telecommand_63",
+                    "execution_timestamp": "2026-06-13T00:15:22Z",
+                    "gap_seconds": 90.0,
+                    "gap_classification": "burst",
+                    "gap_percentile": 16.2,
+                    "anomaly_flag": True,
+                },
+                "pre_fault_telemetry_window": [
+                    {"timestamp": "T-120s", "parameter": "V_bat",
+                     "value": 31.2, "status": "NOMINAL"},
+                    {"timestamp": "T-60s", "parameter": "TCS_HEATER_ZONE_2_TEMP",
+                     "value": 68.4, "status": "ANOMALOUS"},
+                    {"timestamp": "T-10s", "parameter": "TCS_HEATER_ZONE_2_TEMP",
+                     "value": 85.2, "status": "CRITICAL"},
+                ],
+            }
+        }
+
+    @field_validator("fault_type")
+    @classmethod
+    def strip_fault_type(cls, v: Optional[str]) -> Optional[str]:
+        return v.strip() if v else v
+
+    @field_validator("safe_mode_trigger")
+    @classmethod
+    def strip_trigger(cls, v: Optional[str]) -> Optional[str]:
+        return v.strip() if v else v

@@ -18,9 +18,13 @@ Does NOT call any LLM — purely tests prompt assembly logic.
 """
 
 import json
+import os
 import sys
 
-from prompts import (
+# Ensure backend/ root is on sys.path for standalone execution
+sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
+
+from app.agent.prompts import (
     CONFIDENCE_GUIDANCE,
     FAULT_SIGNATURES,
     IDENTITY,

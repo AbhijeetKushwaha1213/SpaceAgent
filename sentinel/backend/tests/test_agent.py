@@ -19,11 +19,15 @@ It mocks the Gemini client to simulate:
 """
 
 import json
+import os
 import sys
 from unittest.mock import MagicMock, patch, PropertyMock
 
-from models import AnalysisStatus, SentinelOutput
-from agent import (
+# Ensure backend/ root is on sys.path for standalone execution
+sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
+
+from app.api.models import AnalysisStatus, SentinelOutput
+from app.agent.agent import (
     AgentConfig,
     AgentError,
     AgentState,
@@ -35,7 +39,7 @@ from agent import (
     _extract_json_from_response,
     _validate_output,
 )
-from prompts import SYSTEM_PROMPT, build_messages
+from app.agent.prompts import SYSTEM_PROMPT, build_messages
 
 
 passed = 0
@@ -491,7 +495,7 @@ check("model_dump_json produces valid JSON",
 # ═══════════════════════════════════════════════════════════════════════════
 print("\n🧪 TEST 15: Integration readiness for future steps")
 
-import agent as agent_module
+import app.agent.agent as agent_module
 source = open(agent_module.__file__).read()
 
 check("Tool hook: query_telemetry mentioned",
@@ -519,7 +523,7 @@ check("ModelMode enum exists",
 # ═══════════════════════════════════════════════════════════════════════════
 print("\n🧪 TEST 16: Repair prompt uses correct field names")
 
-from agent import _REPAIR_PROMPT
+from app.agent.agent import _REPAIR_PROMPT
 
 check("Repair prompt uses 'affected_component'",
       "affected_component" in _REPAIR_PROMPT)

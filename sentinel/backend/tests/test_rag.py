@@ -22,8 +22,11 @@ import os
 import sys
 from unittest.mock import patch, MagicMock
 
+# Ensure backend/ root is on sys.path for standalone execution
+sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
+
 # Import before anything else to verify import works
-from rag import (
+from app.agent.rag import (
     CHROMA_COLLECTION_NAME,
     CHROMA_DB_DIR,
     CHUNK_OVERLAP,
@@ -211,7 +214,7 @@ check("Returns a list", isinstance(results, list))
 check("Elements are strings", all(isinstance(r, str) for r in results))
 check("Strings are non-empty", all(len(r) > 0 for r in results))
 
-from prompts import build_messages
+from app.agent.prompts import build_messages
 messages = build_messages(
     crash_dump_json='{"scenario_id": "test"}',
     anomalous_parameters=["GYRO_A_RATE"],
@@ -308,7 +311,7 @@ check("Status source is fallback_kb", status.last_source == "fallback_kb")
 print("\n🧪 TEST 14: Missing embedding fn → graceful fallback")
 
 reset_rag_state()
-import rag as rag_module
+import app.agent.rag as rag_module
 # Mock the embedding function to return None (simulating missing sentence-transformers)
 original_fn = rag_module._get_embedding_fn
 rag_module._get_embedding_fn = lambda: None
@@ -344,7 +347,7 @@ print("\n🧪 TEST 15: Missing PDFs → graceful fallback")
 # Reset state and clear persisted ChromaDB collection before testing missing-dir fallback.
 # ChromaDB persists to disk independently of ECSS_DATA_DIR, so we must explicitly
 # delete the collection to ensure no stale index is reused when the PDF dir is missing.
-import rag as rag_module
+import app.agent.rag as rag_module
 original_dir = rag_module.ECSS_DATA_DIR
 rag_module.ECSS_DATA_DIR = "/tmp/nonexistent_ecss_dir_12345"
 reset_rag_state()

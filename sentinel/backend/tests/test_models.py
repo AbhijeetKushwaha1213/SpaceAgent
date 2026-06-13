@@ -17,9 +17,13 @@ This script validates:
 """
 
 import json
+import os
 import sys
 
-from models import (
+# Ensure backend/ root is on sys.path for standalone execution
+sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
+
+from app.api.models import (
     AnalysisStatus,
     Hypothesis,
     RecoveryStep,

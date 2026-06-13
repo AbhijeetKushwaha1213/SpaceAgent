@@ -14,8 +14,9 @@ Requirements: 4.6–4.17, 5.1–5.3
 
 import unittest
 from unittest.mock import patch
+import os, sys; sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
 
-from fault_simulator import SatelliteFaultSimulator
+from simulation.fault_simulator import SatelliteFaultSimulator
 
 
 # ---------------------------------------------------------------------------
@@ -274,7 +275,7 @@ class TestApplyNanDropout(unittest.TestCase):
         """When dropout fires, value must become the string 'NaN'."""
         reading = self._make_nominal_reading()
         # Force dropout by patching random.random to return 0.0 (< 0.05).
-        with patch("fault_simulator.random.random", return_value=0.0):
+        with patch("simulation.fault_simulator.random.random", return_value=0.0):
             self.sim._apply_nan_dropout([reading])
         self.assertEqual(reading["value"], "NaN",
             msg="Dropped-out reading should have value='NaN'.")
@@ -282,7 +283,7 @@ class TestApplyNanDropout(unittest.TestCase):
     def test_nan_dropout_sets_anomalous_to_false(self):
         """When dropout fires, anomalous must remain / be set to False (Req 5.3)."""
         reading = self._make_nominal_reading()
-        with patch("fault_simulator.random.random", return_value=0.0):
+        with patch("simulation.fault_simulator.random.random", return_value=0.0):
             self.sim._apply_nan_dropout([reading])
         self.assertIs(reading["anomalous"], False,
             msg="Dropped-out reading should have anomalous=False.")
@@ -291,7 +292,7 @@ class TestApplyNanDropout(unittest.TestCase):
         """When random() >= 0.05, the reading must not be modified."""
         reading = self._make_nominal_reading()
         original_value = reading["value"]
-        with patch("fault_simulator.random.random", return_value=0.99):
+        with patch("simulation.fault_simulator.random.random", return_value=0.99):
             self.sim._apply_nan_dropout([reading])
         self.assertEqual(reading["value"], original_value,
             msg="Reading should be unchanged when dropout probability is not met.")
@@ -303,7 +304,7 @@ class TestApplyNanDropout(unittest.TestCase):
         original_value = reading["value"]
         # Even when random() returns 0.0 (dropout would fire for non-anomalous),
         # an already-anomalous reading must not be mutated.
-        with patch("fault_simulator.random.random", return_value=0.0):
+        with patch("simulation.fault_simulator.random.random", return_value=0.0):
             self.sim._apply_nan_dropout([reading])
         self.assertEqual(reading["value"], original_value,
             msg="Anomalous reading value should not be replaced by dropout.")
@@ -326,7 +327,7 @@ class TestApplyNanDropout(unittest.TestCase):
         """In a mixed list, only non-anomalous readings should be eligible for dropout."""
         nominal = self._make_nominal_reading("V_bat", "T-0s")
         anomalous = self._make_anomalous_reading("I_sa", "T-60s")
-        with patch("fault_simulator.random.random", return_value=0.0):
+        with patch("simulation.fault_simulator.random.random", return_value=0.0):
             self.sim._apply_nan_dropout([nominal, anomalous])
         # Nominal reading should be dropped out.
         self.assertEqual(nominal["value"], "NaN")

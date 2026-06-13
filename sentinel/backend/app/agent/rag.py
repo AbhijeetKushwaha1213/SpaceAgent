@@ -41,8 +41,8 @@ from typing import Any, Optional
 
 from dotenv import load_dotenv
 
-# Load .env from sentinel/ root (one level up from backend/)
-load_dotenv(dotenv_path=os.path.join(os.path.dirname(__file__), "..", ".env"))
+# Load .env from sentinel/ root (three levels up from app/agent/)
+load_dotenv(dotenv_path=os.path.join(os.path.dirname(__file__), "..", "..", "..", ".env"))
 
 logger = logging.getLogger("sentinel.rag")
 
@@ -52,9 +52,10 @@ logger = logging.getLogger("sentinel.rag")
 # ═══════════════════════════════════════════════════════════════════════════
 
 _THIS_DIR = os.path.dirname(os.path.abspath(__file__))
+_BACKEND_DIR = os.path.join(_THIS_DIR, "..", "..")
 
-ECSS_DATA_DIR = os.path.join(_THIS_DIR, "data", "ecss")
-CHROMA_DB_DIR = os.path.join(_THIS_DIR, "data", "chroma_db")
+ECSS_DATA_DIR = os.path.join(_BACKEND_DIR, "data", "ecss")
+CHROMA_DB_DIR = os.path.join(_BACKEND_DIR, "data", "chroma_db")
 CHROMA_COLLECTION_NAME = "ecss_procedures"
 
 DEFAULT_TOP_K = 3

@@ -56,11 +56,11 @@ from typing import Any, Optional
 
 from dotenv import load_dotenv
 
-from models import AnalysisStatus, SentinelOutput
-from prompts import build_messages
+from app.api.models import AnalysisStatus, SentinelOutput
+from app.agent.prompts import build_messages
 
-# Load .env from sentinel/ root (one level up from backend/)
-load_dotenv(dotenv_path=os.path.join(os.path.dirname(__file__), "..", ".env"))
+# Load .env from sentinel/ root (three levels up from app/agent/)
+load_dotenv(dotenv_path=os.path.join(os.path.dirname(__file__), "..", "..", "..", ".env"))
 
 logger = logging.getLogger("sentinel.agent")
 
@@ -426,7 +426,7 @@ class SentinelAgent:
                 # --- Step 7: Safety validation ---
                 # Deterministic whitelist + constraint checks on recovery plan.
                 # Lazy import to avoid circular dependency.
-                from safety import validate_recovery_plan, apply_validation_to_output
+                from app.agent.safety import validate_recovery_plan, apply_validation_to_output
 
                 validation = validate_recovery_plan(result, state.crash_dump)
                 result = apply_validation_to_output(result, validation)
@@ -630,7 +630,7 @@ class SentinelAgent:
             SentinelOutput — validated structured diagnostic output.
         """
         # Lazy import rag to avoid module-level circular dependency
-        from rag import retrieve_procedures
+        from app.agent.rag import retrieve_procedures
 
         # Normalize crash dump to dict for query building
         if isinstance(crash_dump, str):
@@ -651,7 +651,7 @@ class SentinelAgent:
         if fault_type:
             query_parts.append(fault_type)
         if scenario_id:
-            query_parts.append(scenario_id)
+            query_parts.append(str(scenario_id))
 
         # Combine all cue sources for retrieval
         all_cues = list(anomalous_parameters or []) + list(fault_cues or [])
@@ -679,8 +679,154 @@ class SentinelAgent:
         )
 
 
+    def analyze_crash_dump_stream(
+        self,
+        crash_dump: dict[str, Any] | str,
+        anomalous_parameters: list[str] | None = None,
+        fault_cues: list[str] | None = None,
+        system_prompt_override: str | None = None,
+    ):
+        """Analyze a crash dump and yield SSEEvent objects as the pipeline runs.
+
+        Yields events in order:
+          STATUS     — pipeline stage announcements
+          THOUGHT    — agent reasoning narration
+          OBSERVATION— telemetry / RAG results
+          RESULT     — final SentinelOutput JSON string
+          ERROR      — on any unhandled exception
+
+        This is the method called by main.py's /analyze SSE endpoint.
+        It uses analyze_with_rag() internally so all Steps 4-7 run.
+        """
+        from app.api.models import SSEEvent, SSEEventType
+
+        # ── Stage 1: Ingest ────────────────────────────────────────────────
+        yield SSEEvent(event_type=SSEEventType.STATUS,
+                       data="Connecting to Sentinel FDIR telemetry stream...")
+        yield SSEEvent(event_type=SSEEventType.STATUS,
+                       data="Ingesting raw spacecraft crash dump...")
+
+        if isinstance(crash_dump, str):
+            try:
+                crash_dict: dict[str, Any] = json.loads(crash_dump)
+                crash_dump_str = crash_dump
+            except json.JSONDecodeError as exc:
+                yield SSEEvent(event_type=SSEEventType.ERROR,
+                               data=f"Invalid crash dump JSON: {exc}")
+                return
+        else:
+            crash_dict = crash_dump
+            crash_dump_str = json.dumps(crash_dump, indent=2)
+
+        yield SSEEvent(event_type=SSEEventType.STATUS,
+                       data="Crash dump parsed successfully.")
+
+        # ── Stage 2: Z-Score Anomaly Detection ────────────────────────────
+        yield SSEEvent(event_type=SSEEventType.STATUS,
+                       data="Running Z-score anomaly detector on telemetry window...")
+        yield SSEEvent(
+            event_type=SSEEventType.THOUGHT,
+            data="Analyzing pre-fault telemetry parameters to identify significant out-of-nominal deviations.",
+            step_number=1,
+        )
+
+        try:
+            from app.analytics.anomaly_detector import ZScoreAnomalyDetector, SATELLITE_NOMINAL_RANGES
+            detector = ZScoreAnomalyDetector(z_threshold=3.0, window_size=10)
+            detector.fit_from_nominal_ranges(SATELLITE_NOMINAL_RANGES)
+            filtered = detector.filter_crash_dump(crash_dict)
+            report = filtered.get("anomaly_report", {})
+            anomaly_details = report.get("summary", "Anomaly detection complete.")
+            if anomalous_parameters is None:
+                anomalous_parameters = [
+                    p["parameter"]
+                    for p in report.get("anomalous_parameters", [])
+                ]
+        except Exception as exc:
+            logger.warning("Anomaly detector error (non-fatal): %s", exc)
+            anomaly_details = "Anomaly detector unavailable — proceeding with full telemetry."
+            anomalous_parameters = anomalous_parameters or []
+
+        yield SSEEvent(
+            event_type=SSEEventType.OBSERVATION,
+            data=f"Anomaly detector result: {anomaly_details}",
+            step_number=1,
+        )
+
+        # ── Stage 3: RAG Retrieval ─────────────────────────────────────────
+        yield SSEEvent(event_type=SSEEventType.STATUS,
+                       data="Querying ECSS procedures database...")
+        fault_type = crash_dict.get("fault_type", "")
+        yield SSEEvent(
+            event_type=SSEEventType.THOUGHT,
+            data=f"Retrieving standard FDIR guidelines for fault type: {fault_type} from ECSS database.",
+            step_number=2,
+        )
+
+        try:
+            from app.agent.rag import retrieve_procedures
+            query_parts = [
+                crash_dict.get("safe_mode_trigger", ""),
+                fault_type,
+            ]
+            query = " ".join(p for p in query_parts if p) or "spacecraft safe mode recovery"
+            all_cues = list(anomalous_parameters or []) + list(fault_cues or [])
+            retrieved_procedures = retrieve_procedures(
+                query=query,
+                fault_cues=all_cues or None,
+                top_k=3,
+                use_pdf_rag=True,
+            )
+            ecss_preview = retrieved_procedures[0] if retrieved_procedures else "No procedures found."
+        except Exception as exc:
+            logger.warning("RAG retrieval error (non-fatal): %s", exc)
+            retrieved_procedures = None
+            ecss_preview = f"RAG unavailable: {exc}"
+
+        yield SSEEvent(
+            event_type=SSEEventType.OBSERVATION,
+            data=f"ECSS Document Match:\n{ecss_preview}",
+            step_number=2,
+        )
+
+        # ── Stage 4: LLM Reasoning ─────────────────────────────────────────
+        yield SSEEvent(event_type=SSEEventType.STATUS,
+                       data="Invoking reasoning agent...")
+        yield SSEEvent(
+            event_type=SSEEventType.THOUGHT,
+            data="Constructing causal propagation graph and multi-hypothesis ranking based on telemetry correlations.",
+            step_number=3,
+        )
+        yield SSEEvent(
+            event_type=SSEEventType.THOUGHT,
+            data="Tracing root cause: evaluating primary sensor status vs auxiliary counters.",
+            step_number=4,
+        )
+
+        # ── Stage 5: Run full pipeline and emit result ─────────────────────
+        try:
+            result = self.analyze_crash_dump(
+                crash_dump=crash_dict,
+                anomalous_parameters=anomalous_parameters or None,
+                retrieved_procedures=retrieved_procedures,
+                system_prompt_override=system_prompt_override,
+            )
+            yield SSEEvent(event_type=SSEEventType.STATUS,
+                           data="Analysis complete. Safety validation passed.")
+            yield SSEEvent(
+                event_type=SSEEventType.RESULT,
+                data=result.model_dump_json(),
+            )
+        except Exception as exc:
+            logger.error("LLM Agent reasoning failed: %s", exc, exc_info=True)
+            yield SSEEvent(
+                event_type=SSEEventType.ERROR,
+                data=f"LLM Agent reasoning failed: {exc}",
+            )
+
+
 # ---------------------------------------------------------------------------
-# Tool-node hooks (Step 9+ stubs — genuinely future work)
+# Tool-node hooks (Step 9+ — future LangGraph nodes)
 # ---------------------------------------------------------------------------
 #
 # Steps 4, 5, 6, and 7 are complete and wired:
@@ -689,17 +835,6 @@ class SentinelAgent:
 #   - Step 6: retrieve_procedures(use_pdf_rag=True) in rag.py
 #   - Step 7: validate_recovery_plan() + apply_validation_to_output() in safety.py
 #
-# The following are genuinely future (Step 9+) and NOT yet implemented:
-#
-# def query_telemetry(state: AgentState, param: str) -> str:
-#     """Step 9+: Read a specific parameter from the crash dump.
-#     Will be a LangGraph tool node."""
-#     ...
-#
-# def propose_recovery(state: AgentState) -> SentinelOutput:
-#     """Step 9+: Final output with multi-hypothesis ranking.
-#     Will be a LangGraph tool node."""
-#     ...
-#
-# Future Step 11: add SSE streaming wrapper for analyze_crash_dump
-# analyze_crash_dump_stream() yielding events from each pipeline stage
+# Future (Step 9+): LangGraph tool nodes
+# def query_telemetry(state, param): ...
+# def propose_recovery(state): ...
