@@ -98,6 +98,24 @@ const LOCAL_PRESET_SCENARIOS = [
 ];
 
 function App() {
+  const [currentPath, setCurrentPath] = useState(window.location.pathname);
+
+  useEffect(() => {
+    const handlePopState = () => {
+      setCurrentPath(window.location.pathname);
+    };
+    window.addEventListener("popstate", handlePopState);
+    return () => window.removeEventListener("popstate", handlePopState);
+  }, []);
+
+  // Handle scroll restoration & reset scroll to top when changing views
+  useEffect(() => {
+    if ('scrollRestoration' in window.history) {
+      window.history.scrollRestoration = 'manual';
+    }
+    window.scrollTo(0, 0);
+  }, [currentPath]);
+
   const [scenarios, setScenarios] = useState(LOCAL_PRESET_SCENARIOS);
   const [selectedScenarioId, setSelectedScenarioId] = useState(1);
   const [customDump, setCustomDump] = useState("");
@@ -284,6 +302,25 @@ function App() {
 
   const activeScenario = getActiveScenario();
 
+  if (currentPath !== "/dashboard") {
+    return (
+      <iframe
+        src="/landing.html"
+        style={{
+          width: "100%",
+          height: "100vh",
+          border: "none",
+          margin: 0,
+          padding: 0,
+          overflow: "hidden",
+          display: "block",
+          backgroundColor: "#040816"
+        }}
+        title="SENTINEL Landing Page"
+      />
+    );
+  }
+
   return (
     <div className="dashboard-container">
       {/* HEADER */}
@@ -310,6 +347,33 @@ function App() {
             <span>Mode:</span>
             <span className="status-badge safe-mode">SAFE_MODE</span>
           </div>
+          <a href="/" style={{
+            textDecoration: "none",
+            backgroundColor: "rgba(0, 229, 255, 0.1)",
+            color: "#00E5FF",
+            border: "1px solid rgba(0, 229, 255, 0.3)",
+            cursor: "pointer",
+            fontWeight: "bold",
+            padding: "4px 8px",
+            fontSize: "10px",
+            letterSpacing: "0.08em",
+            fontFamily: "monospace",
+            marginLeft: "12px",
+            borderRadius: "3px",
+            display: "inline-flex",
+            alignItems: "center",
+            transition: "all 0.2s ease"
+          }}
+          onMouseOver={(e) => {
+            e.currentTarget.style.backgroundColor = "rgba(0, 229, 255, 0.2)";
+            e.currentTarget.style.boxShadow = "0 0 8px rgba(0, 229, 255, 0.4)";
+          }}
+          onMouseOut={(e) => {
+            e.currentTarget.style.backgroundColor = "rgba(0, 229, 255, 0.1)";
+            e.currentTarget.style.boxShadow = "none";
+          }}>
+            🛰️ MISSION CONTROL
+          </a>
         </div>
       </header>
 
