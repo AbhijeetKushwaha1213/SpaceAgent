@@ -3291,8 +3291,8 @@ function runMockSimulation(telemRows, aiTrace, btn) {
   });
   invTimers.push(setTimeout(() => finishInvestigation(btn), 9500));
 }
-// Auto-start on load
-setTimeout(() => { loadPresetJSON(); launchInvestigation(); }, 1200);
+// Load preset JSON on load (without auto-running simulation)
+setTimeout(() => { loadPresetJSON(); }, 1200);
  
 // ─── COST CALCULATOR ─────────────────────────────────────────────
 let missionDayRate = 50000;
