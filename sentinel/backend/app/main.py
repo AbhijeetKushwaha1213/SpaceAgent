@@ -29,6 +29,9 @@ from app.api.models import SSEEvent, SSEEventType, CrashDumpRequest
 # ---------------------------------------------------------------------------
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger("sentinel.backend")
+# Enable DEBUG for agent sub-loggers so raw LLM responses are visible
+logging.getLogger("sentinel.agent").setLevel(logging.DEBUG)
+logging.getLogger("sentinel.agent.extract").setLevel(logging.DEBUG)
 
 # ---------------------------------------------------------------------------
 # App

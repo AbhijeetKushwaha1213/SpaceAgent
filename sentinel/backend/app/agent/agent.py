@@ -121,7 +121,7 @@ class AgentConfig:
 
     # --- Shared LLM parameters ---
     temperature: float = 0.1              # Low for deterministic JSON output
-    max_tokens: int = 2048                # Enough for 3 hypotheses + recovery
+    max_tokens: int = 4096                # Enough for 3 hypotheses + recovery
     timeout_seconds: float = 90.0         # Hard timeout per Master Planner
     max_retries: int = 1                  # Retry once on malformed output
 
@@ -184,10 +184,20 @@ def _extract_json_from_response(raw: str) -> dict[str, Any]:
 
     Handles common LLM quirks:
       1. Clean JSON (ideal case)
-      2. JSON wrapped in ```json ... ``` code fences
-      3. JSON with leading/trailing prose
+      2. Gemini thinking-model <think>...</think> wrapper (gemini-2.5-flash)
+      3. JSON wrapped in ```json ... ``` code fences
+      4. JSON with leading/trailing prose
     """
+    _logger = logging.getLogger("sentinel.agent.extract")
     text = raw.strip()
+
+    _logger.debug("Raw LLM response (first 500 chars): %s", text[:500])
+
+    # Attempt 0: strip <think>...</think> blocks (gemini-2.5-flash thinking model)
+    think_stripped = re.sub(r"<think>.*?</think>", "", text, flags=re.DOTALL).strip()
+    if think_stripped != text:
+        _logger.debug("Stripped <think> block; remaining length=%d", len(think_stripped))
+        text = think_stripped
 
     # Attempt 1: direct parse
     try:
@@ -206,7 +216,7 @@ def _extract_json_from_response(raw: str) -> dict[str, Any]:
         except json.JSONDecodeError:
             pass
 
-    # Attempt 3: find the first { ... } block
+    # Attempt 3: find the outermost { ... } block
     brace_start = text.find("{")
     brace_end = text.rfind("}")
     if brace_start != -1 and brace_end > brace_start:
@@ -215,6 +225,7 @@ def _extract_json_from_response(raw: str) -> dict[str, Any]:
         except json.JSONDecodeError:
             pass
 
+    _logger.error("Full unparseable LLM response:\n%s", text)
     raise OutputParsingError(
         f"Could not extract valid JSON from LLM response "
         f"(length={len(text)} chars)",
@@ -556,12 +567,26 @@ class SentinelAgent:
                     # For retry flow: include previous assistant response
                     contents.append(msg["content"])
 
-            # Build config
+            # Build config — force JSON output so the model never wraps
+            # its response in prose or thinking tokens.
             from google.genai import types
+
+            # For gemini-2.5-flash (a thinking model), disable the thinking
+            # scratchpad to get clean JSON without <think>...</think> prefix.
+            thinking_config = None
+            if "2.5" in model_id:
+                try:
+                    thinking_config = types.ThinkingConfig(thinking_budget=0)
+                except Exception:
+                    pass  # Older SDK version — skip thinking config
+
             gen_config = types.GenerateContentConfig(
                 temperature=self.config.temperature,
                 max_output_tokens=self.config.max_tokens,
                 system_instruction=system_text,
+                response_mime_type="application/json",  # Force valid JSON output
+                **({"thinking_config": thinking_config}
+                   if thinking_config is not None else {}),
             )
 
             response = self.gemini_client.models.generate_content(
@@ -573,6 +598,10 @@ class SentinelAgent:
             content = response.text
             if not content:
                 raise LLMCallError("Gemini returned empty response content")
+            logger.info(
+                "Gemini raw response (first 300 chars): %s",
+                content[:300].replace("\n", " "),
+            )
             return content
 
         except AgentError:

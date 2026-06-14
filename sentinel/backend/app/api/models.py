@@ -320,9 +320,9 @@ class TelecommandContext(BaseModel):
     event_id: int = Field(..., description="Unique sequence identifier for the telecommand execution log")
     telecommand: str = Field(..., description="System command identifier (e.g. telecommand_63)")
     execution_timestamp: datetime = Field(..., description="ISO 8601 timestamp of command execution")
-    gap_seconds: float = Field(..., description="Delta-T in seconds since the previous execution of this command")
+    gap_seconds: Optional[float] = Field(default=None, description="Delta-T in seconds since the previous execution of this command")
     gap_classification: str = Field(..., description="Statistical interval classification (burst, nominal, stale)")
-    gap_percentile: float = Field(..., description="Historical percentile rating of this execution delta")
+    gap_percentile: Optional[float] = Field(default=None, description="Historical percentile rating of this execution delta")
     anomaly_flag: bool = Field(..., description="True if the interval crosses baseline bounds")
 
 
