@@ -1,7 +1,9 @@
 {
   "scenario_id": 3,
   "fault_type": "OBC_WATCHDOG_OVERFLOW",
-  "source_type": "Synthetic Safe Mode",
+  "provenance": "SYNTHETIC",
+  "source_type": "SYNTHETIC DATA",
+  "safety_status": "VALIDATED",
   "sentinel_output": {
     "hypotheses": [
       {
@@ -40,7 +42,7 @@
     "recovery_plan": [
       {
         "step": 1,
-        "command": "CMD_OBC_MEMORY_DUMP",
+        "command": "CMD_MEMORY_DUMP",
         "rationale": "Capture post-reset memory dump before volatile crash context is lost",
         "wait_seconds": 20,
         "verify": "Memory dump file created and telemetry download initiated",
@@ -48,7 +50,7 @@
       },
       {
         "step": 2,
-        "command": "CMD_RESTART_ATTITUDE_CONTROL_THREAD",
+        "command": "CMD_VERIFY_MEMORY_STATE",
         "rationale": "Restart the attitude_control thread with clean memory allocation",
         "wait_seconds": 30,
         "verify": "CPU_load_pct < 70% and Memory_usage_MB < 300 within 30s",
@@ -56,7 +58,7 @@
       },
       {
         "step": 3,
-        "command": "CMD_WATCHDOG_COUNTER_RESET",
+        "command": "CMD_WATCHDOG_CLEAR",
         "rationale": "Reset watchdog counter after confirming stable CPU state",
         "wait_seconds": 10,
         "verify": "Watchdog_counter = 0 and incrementing normally",
@@ -64,7 +66,7 @@
       },
       {
         "step": 4,
-        "command": "CMD_OBC_HEALTH_MONITOR_ENABLE",
+        "command": "CMD_HEALTH_CHECK",
         "rationale": "Enable enhanced OBC health monitoring to detect recurrence",
         "wait_seconds": 5,
         "verify": "Health monitor telemetry stream active and reporting nominal",
@@ -74,7 +76,9 @@
     "confidence": 0.91,
     "requires_human_review": false,
     "reasoning_summary": "Memory leak in attitude_control thread consumed 495 of 500 MB available. CPU saturated at 100% for 3 minutes. Watchdog counter overflowed at 1002, triggering hardware reset. All non-OBC subsystems nominal. Recovery: memory dump \u2192 restart thread \u2192 reset watchdog \u2192 enable monitoring.",
-    "status": "complete"
+    "status": "complete",
+    "safety_status": "VALIDATED",
+    "blocked_steps": []
   },
   "sse_trace": [
     {
@@ -126,13 +130,13 @@
     },
     {
       "event_type": "status",
-      "data": "Analysis complete. Safety validation passed."
+      "data": "Analysis complete. Safety status: VALIDATED."
     },
     {
       "event_type": "result",
-      "data": "{\"hypotheses\":[{\"rank\":1,\"root_cause\":\"OBC_WATCHDOG_OVERFLOW\",\"affected_component\":\"OBC_FLIGHT_SOFTWARE\",\"confidence\":0.91,\"causal_chain\":[\"CPU load at 100% for sustained period starting at T-180s\",\"Memory leak detected in attitude_control thread (495 of 500 MB used)\",\"Watchdog counter exceeded limit (1002 vs 1000 threshold) at T-10s\",\"OBC executed watchdog reset, booting into safe mode from EEPROM_B\"]},{\"rank\":2,\"root_cause\":\"ADCS_GYRO_SEU\",\"affected_component\":\"ADCS_SOFTWARE\",\"confidence\":0.06,\"causal_chain\":[\"Attitude control thread was the memory leak source\",\"Possible ADCS driver bug, but no SEU or gyro anomaly in telemetry\"]},{\"rank\":3,\"root_cause\":\"MULTI_CASCADE\",\"affected_component\":\"OBC_ADCS_CHAIN\",\"confidence\":0.03,\"causal_chain\":[\"Software\u2013hardware cascade possible if corrupted OBC state affected ADCS\",\"EPS and TCS parameters all nominal, ruling out broader cascade\"]}],\"recovery_plan\":[{\"step\":1,\"command\":\"CMD_OBC_MEMORY_DUMP\",\"rationale\":\"Capture post-reset memory dump before volatile crash context is lost\",\"wait_seconds\":20,\"verify\":\"Memory dump file created and telemetry download initiated\",\"risk\":\"LOW\"},{\"step\":2,\"command\":\"CMD_RESTART_ATTITUDE_CONTROL_THREAD\",\"rationale\":\"Restart the attitude_control thread with clean memory allocation\",\"wait_seconds\":30,\"verify\":\"CPU_load_pct < 70% and Memory_usage_MB < 300 within 30s\",\"risk\":\"MEDIUM\"},{\"step\":3,\"command\":\"CMD_WATCHDOG_COUNTER_RESET\",\"rationale\":\"Reset watchdog counter after confirming stable CPU state\",\"wait_seconds\":10,\"verify\":\"Watchdog_counter = 0 and incrementing normally\",\"risk\":\"LOW\"},{\"step\":4,\"command\":\"CMD_OBC_HEALTH_MONITOR_ENABLE\",\"rationale\":\"Enable enhanced OBC health monitoring to detect recurrence\",\"wait_seconds\":5,\"verify\":\"Health monitor telemetry stream active and reporting nominal\",\"risk\":\"LOW\"}],\"confidence\":0.91,\"requires_human_review\":false,\"reasoning_summary\":\"Memory leak in attitude_control thread consumed 495 of 500 MB available. CPU saturated at 100% for 3 minutes. Watchdog counter overflowed at 1002, triggering hardware reset. All non-OBC subsystems nominal. Recovery: memory dump \u2192 restart thread \u2192 reset watchdog \u2192 enable monitoring.\",\"status\":\"complete\"}"
+      "data": "{\"hypotheses\":[{\"rank\":1,\"root_cause\":\"OBC_WATCHDOG_OVERFLOW\",\"affected_component\":\"OBC_FLIGHT_SOFTWARE\",\"confidence\":0.91,\"causal_chain\":[\"CPU load at 100% for sustained period starting at T-180s\",\"Memory leak detected in attitude_control thread (495 of 500 MB used)\",\"Watchdog counter exceeded limit (1002 vs 1000 threshold) at T-10s\",\"OBC executed watchdog reset, booting into safe mode from EEPROM_B\"]},{\"rank\":2,\"root_cause\":\"ADCS_GYRO_SEU\",\"affected_component\":\"ADCS_SOFTWARE\",\"confidence\":0.06,\"causal_chain\":[\"Attitude control thread was the memory leak source\",\"Possible ADCS driver bug, but no SEU or gyro anomaly in telemetry\"]},{\"rank\":3,\"root_cause\":\"MULTI_CASCADE\",\"affected_component\":\"OBC_ADCS_CHAIN\",\"confidence\":0.03,\"causal_chain\":[\"Software\u2013hardware cascade possible if corrupted OBC state affected ADCS\",\"EPS and TCS parameters all nominal, ruling out broader cascade\"]}],\"recovery_plan\":[{\"step\":1,\"command\":\"CMD_MEMORY_DUMP\",\"rationale\":\"Capture post-reset memory dump before volatile crash context is lost\",\"wait_seconds\":20,\"verify\":\"Memory dump file created and telemetry download initiated\",\"risk\":\"LOW\"},{\"step\":2,\"command\":\"CMD_VERIFY_MEMORY_STATE\",\"rationale\":\"Restart the attitude_control thread with clean memory allocation\",\"wait_seconds\":30,\"verify\":\"CPU_load_pct < 70% and Memory_usage_MB < 300 within 30s\",\"risk\":\"MEDIUM\"},{\"step\":3,\"command\":\"CMD_WATCHDOG_CLEAR\",\"rationale\":\"Reset watchdog counter after confirming stable CPU state\",\"wait_seconds\":10,\"verify\":\"Watchdog_counter = 0 and incrementing normally\",\"risk\":\"LOW\"},{\"step\":4,\"command\":\"CMD_HEALTH_CHECK\",\"rationale\":\"Enable enhanced OBC health monitoring to detect recurrence\",\"wait_seconds\":5,\"verify\":\"Health monitor telemetry stream active and reporting nominal\",\"risk\":\"LOW\"}],\"confidence\":0.91,\"requires_human_review\":false,\"reasoning_summary\":\"Memory leak in attitude_control thread consumed 495 of 500 MB available. CPU saturated at 100% for 3 minutes. Watchdog counter overflowed at 1002, triggering hardware reset. All non-OBC subsystems nominal. Recovery: memory dump \u2192 restart thread \u2192 reset watchdog \u2192 enable monitoring.\",\"status\":\"complete\",\"safety_status\":\"VALIDATED\",\"blocked_steps\":[]}"
     }
   ],
-  "generated_at": "2026-06-14T05:56:10.716963+00:00",
-  "note": "This is a pre-generated demo fallback. The SentinelOutput was crafted to match the synthetic crash dump scenario. It is NOT the result of a live LLM call."
+  "generated_at": "2026-08-08T16:09:41.432050+00:00",
+  "note": "DEMO / REPLAY payload. Pre-generated fallback, hand-written to match the synthetic crash dump scenario. It is NOT the result of a live LLM call and NOT a validated diagnosis. Its recovery commands HAVE been checked against the SENTINEL command registry and the deterministic safety validator with an empty crash-dump context, so physical constraint predicates were UNKNOWN (permissive) at generation time."
 }

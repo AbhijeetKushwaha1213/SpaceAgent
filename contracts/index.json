@@ -1,0 +1,262 @@
+{
+  "api_version": "v1",
+  "canonical_telemetry_field": "pre_fault_telemetry_window",
+  "contract_version": "1.0.0",
+  "deprecated_telemetry_fields": [
+    "pre_fault_telemetry"
+  ],
+  "enums": {
+    "Actor": [
+      "SYSTEM",
+      "OPERATOR"
+    ],
+    "AnalysisStatus": [
+      "complete",
+      "partial",
+      "timeout",
+      "error"
+    ],
+    "AuditStage": [
+      "input",
+      "detection",
+      "state_estimation",
+      "rag",
+      "llm",
+      "hypotheses",
+      "physics_validation",
+      "safety_validation",
+      "diagnosis",
+      "operator_decision"
+    ],
+    "BaselineSource": [
+      "OBSERVED_PROVIDED",
+      "OBSERVED_WINDOW",
+      "RANGE_DERIVED",
+      "NONE"
+    ],
+    "BlockSeverity": [
+      "CRITICAL",
+      "HIGH",
+      "MEDIUM",
+      "LOW"
+    ],
+    "ChannelProvenance": [
+      "REPO_DETECTOR_TABLE",
+      "REPO_SIMULATOR_TABLE",
+      "REPO_SCENARIO_DATA",
+      "SENTINEL_SAFETY_POLICY",
+      "SENTINEL_CLASSIFICATION",
+      "UNKNOWN"
+    ],
+    "CheckFamily": [
+      "PHYSICAL_CONSISTENCY",
+      "TELEMETRY_CONSISTENCY",
+      "STATE_TRANSITION_CONSISTENCY",
+      "ACTUATOR_FEASIBILITY",
+      "SENSOR_CONSISTENCY",
+      "ENERGY_CONSISTENCY",
+      "THERMAL_CONSISTENCY"
+    ],
+    "CheckOutcome": [
+      "PASS",
+      "FAIL",
+      "NOT_APPLICABLE",
+      "INDETERMINATE"
+    ],
+    "Confidence": [
+      "HIGH",
+      "MEDIUM",
+      "LOW"
+    ],
+    "Criticality": [
+      "CRITICAL",
+      "HIGH",
+      "MEDIUM",
+      "LOW"
+    ],
+    "DataType": [
+      "FLOAT",
+      "INT",
+      "BOOL",
+      "BITMASK",
+      "ENUM"
+    ],
+    "DetectorName": [
+      "HARD_LIMIT",
+      "DISCRETE_STATE",
+      "COUNTER",
+      "DATA_QUALITY",
+      "ZSCORE",
+      "ROBUST_ZSCORE",
+      "RATE_OF_CHANGE",
+      "TREND",
+      "PERSISTENCE",
+      "SUDDEN_CHANGE"
+    ],
+    "OperatorDecisionType": [
+      "ACKNOWLEDGED",
+      "APPROVED",
+      "REJECTED",
+      "MODIFIED",
+      "ESCALATED",
+      "EXECUTED",
+      "DEFERRED",
+      "COMMENT"
+    ],
+    "PhysicsStatus": [
+      "VALID",
+      "INVALID",
+      "UNCERTAIN"
+    ],
+    "Provenance": [
+      "REAL",
+      "SYNTHETIC",
+      "SYNTHETIC_FROM_REAL_METADATA",
+      "DEMO",
+      "UNKNOWN"
+    ],
+    "RiskLevel": [
+      "LOW",
+      "MEDIUM",
+      "HIGH",
+      "BLOCKED"
+    ],
+    "RunStatus": [
+      "IN_PROGRESS",
+      "COMPLETED",
+      "FAILED",
+      "ABANDONED"
+    ],
+    "SSEEventType": [
+      "thought",
+      "action",
+      "observation",
+      "result",
+      "error",
+      "status"
+    ],
+    "SafetyStatus": [
+      "NOT_VALIDATED",
+      "VALIDATED",
+      "PARTIALLY_BLOCKED",
+      "BLOCKED",
+      "REQUIRES_HUMAN_REVIEW"
+    ],
+    "SamplingRate": [
+      "HIGH_RATE",
+      "MEDIUM_RATE",
+      "LOW_RATE",
+      "ON_CHANGE",
+      "UNKNOWN"
+    ],
+    "Severity": [
+      "CRITICAL",
+      "HIGH",
+      "MEDIUM",
+      "LOW",
+      "INFO"
+    ],
+    "StageStatus": [
+      "OK",
+      "DEGRADED",
+      "FAILED",
+      "SKIPPED",
+      "NOT_RUN",
+      "NOT_IMPLEMENTED"
+    ],
+    "Subsystem": [
+      "EPS",
+      "AOCS",
+      "TCS",
+      "OBC",
+      "COMMS",
+      "PYLD",
+      "UNKNOWN"
+    ],
+    "SubsystemID": [
+      "ADCS",
+      "EPS",
+      "OBC",
+      "TCS",
+      "COMMS",
+      "PYLD",
+      "SYSTEM"
+    ],
+    "TelemetryStatus": [
+      "NOMINAL",
+      "WARNING",
+      "ANOMALOUS",
+      "CRITICAL",
+      "NOMINAL_CONTEXT",
+      "LABELLED_ANOMALY",
+      "UNKNOWN"
+    ],
+    "ValueClass": [
+      "CONTINUOUS",
+      "COUNTER",
+      "STATUS",
+      "FLAG"
+    ]
+  },
+  "models": [
+    "Anomaly",
+    "AnomalyProvenance",
+    "AnomalyReport",
+    "AuditRecord",
+    "AuditStatusResponse",
+    "BlockedCommand",
+    "ChainVerification",
+    "ChannelFinding",
+    "ConstraintCheck",
+    "ContractInfo",
+    "CrashDumpRequest",
+    "DetectorRunInfo",
+    "Hypothesis",
+    "LLMOverrideAttempt",
+    "OperatorDecisionAccepted",
+    "OperatorDecisionInput",
+    "PhysicsValidationReport",
+    "PhysicsVerdict",
+    "RecoveryStep",
+    "ResidualRef",
+    "RunHeader",
+    "RunListResponse",
+    "RunOutcome",
+    "RunSummary",
+    "SSEEvent",
+    "Scenario",
+    "ScenarioListResponse",
+    "SentinelOutput",
+    "StageEntry",
+    "TelecommandContext",
+    "TelemetryEntry"
+  ],
+  "routes": [
+    "/analyze",
+    "/api/analyze",
+    "/api/analyze",
+    "/api/detect",
+    "/api/detect/channels",
+    "/api/health",
+    "/api/scenarios",
+    "/api/v1/analyze",
+    "/api/v1/audit/status",
+    "/api/v1/channels",
+    "/api/v1/channels/{channel_id}",
+    "/api/v1/contract",
+    "/api/v1/detect",
+    "/api/v1/detect/channels",
+    "/api/v1/health",
+    "/api/v1/physics",
+    "/api/v1/physics/constraints",
+    "/api/v1/runs",
+    "/api/v1/runs/{run_id}",
+    "/api/v1/runs/{run_id}/decisions",
+    "/api/v1/runs/{run_id}/verify",
+    "/api/v1/scenarios",
+    "/detect",
+    "/detect/channels",
+    "/health",
+    "/scenarios"
+  ]
+}

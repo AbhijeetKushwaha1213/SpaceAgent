@@ -17,29 +17,43 @@ from typing import Optional
 # Module-level nominal ranges constant
 # ---------------------------------------------------------------------------
 
-SATELLITE_NOMINAL_RANGES: dict[str, tuple[float, float]] = {
-    "V_bat":                (28.0,   33.6),
-    "SoC_pct":              (20.0,  100.0),
-    "I_sa":                 (0.0,    12.0),
-    "V_bus":                (26.6,   29.4),
-    "Heater_power_W":       (0.0,    50.0),
-    "RW_speed_rpm":         (-6000.0, 6000.0),
-    "Gyro_rate_degs":       (0.0,     7.0),
-    "Star_tracker_status":  (0.0,     0.0),
-    "Sun_sensor_angle_deg": (0.0,    90.0),
-    "Attitude_error_deg":   (0.0,     0.01),
-    "OBC_temp_C":           (-10.0,  60.0),
-    "CPU_load_pct":         (0.0,    70.0),
-    "Memory_usage_MB":      (0.0,   500.0),
-    "Watchdog_counter":     (0.0,  1000.0),
-    "SEU_counter":          (0.0,     0.0),
-    "Fault_register":       (0.0,     0.0),
-    "Safe_mode_entry_count":(0.0,     5.0),
-    "Transponder_lock":     (1.0,     1.0),
-    "SNR_dB":               (10.0,   40.0),
-    "Component_temp_C":     (-20.0,  65.0),
-    "Heater_enable_flag":   (0.0,     1.0),
-}
+# Phase 5: DERIVED, not declared.
+#
+# This dict held the numbers for 21 channels and was the de facto authority —
+# app/detection/channels.py imported it. Meanwhile simulation/fault_simulator.py
+# held its own table for the same channels, and 17 of the 21 disagreed. The
+# numbers now live in app/ingest/channel_dict.py, and this name is kept as a
+# derived view so existing callers keep working.
+#
+# It maps each channel to its HARD LIMITS, which is what this table always
+# contained despite being called "nominal ranges": the values drove limit
+# violations, not a description of healthy operation. The dictionary records the
+# nominal operating band separately.
+#
+# A test asserts this view still equals the pre-Phase-5 literal table, so the
+# derivation cannot silently change what the detector flags.
+
+def _hard_limits_by_channel() -> dict[str, tuple[float, float]]:
+    from app.ingest.channel_dict import CHANNELS
+
+    ranges: dict[str, tuple[float, float]] = {}
+    for channel_id, definition in CHANNELS.items():
+        lo, hi = definition.hard_limits
+        if lo is None or hi is None:
+            # A channel with no declared limits has no entry here rather than a
+            # fabricated one; the z-score detector skips channels it cannot bound.
+            continue
+        ranges[channel_id] = (float(lo), float(hi))
+    return ranges
+
+
+SATELLITE_NOMINAL_RANGES: dict[str, tuple[float, float]] = _hard_limits_by_channel()
+"""Channel -> hard limits, derived from app.ingest.channel_dict.
+
+Retained under its original name for backward compatibility. Prefer
+``app.ingest.hard_limits(channel)`` in new code — this name is misleading, since
+these are limits rather than a nominal operating band.
+"""
 
 
 # ---------------------------------------------------------------------------
@@ -334,7 +348,18 @@ class ZScoreAnomalyDetector:
         dict
             A filtered crash dump with ``"anomaly_report"`` added.
         """
-        telemetry = crash_dump.get("pre_fault_telemetry", [])
+        # Phase 3: read the CANONICAL window rather than the deprecated
+        # ``pre_fault_telemetry`` field directly. The adapter merges both shapes,
+        # so this baseline detector now sees the same readings the Phase 2
+        # pipeline does — previously it saw only the legacy list, so a channel
+        # present solely in the window was invisible to it.
+        try:
+            from app.api.adapters import canonical_window_dicts
+
+            telemetry = canonical_window_dicts(crash_dump)
+        except Exception:
+            telemetry = crash_dump.get("pre_fault_telemetry", [])
+
         report    = self.detect(telemetry)
 
         # Collect the set of flagged parameter names for fast lookup

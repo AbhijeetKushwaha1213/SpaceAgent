@@ -7,6 +7,18 @@ Hybrid retrieval layer with two paths:
                     sentence-transformers (all-MiniLM-L6-v2, local/free),
                     stores/queries via ChromaDB (local persistent mode)
 
+COMMAND NAMING RULE (Phase 1)
+-----------------------------
+Every CMD_* token appearing in a FALLBACK_KB entry MUST be a command_id defined
+in app/validation/command_registry.py. The procedure layer does not invent
+command names. app/validation/conflicts.py fails the build on any CMD_* token
+here that the registry does not define, which is what stops this file from
+recommending commands the safety validator would then block.
+
+Before Phase 1 twelve commands cited below were absent from the whitelist, so a
+model that followed a retrieved procedure exactly had its entire plan rejected —
+including the immediate remedy for thermal runaway.
+
 The public API is:
   retrieve_procedures(query, fault_cues, top_k, use_pdf_rag) → list[str]
 
@@ -215,8 +227,8 @@ drive electronics. Wait 30s. Verify: I_sa > 2A within 30s. Risk: LOW.
 3. CMD_SWITCH_SOLAR_ARRAY — If Array A fails, switch to Array B or \
 alternative power path. Wait 30s. Verify: I_sa recovery on alternate array. \
 Risk: MEDIUM.
-4. CMD_BATTERY_CONSERVATION — Shed non-critical loads to preserve remaining \
-battery capacity. Wait 10s. Verify: SoC stabilizes. Risk: LOW.
+4. CMD_POWER_SHED_NONESSENTIAL — Shed non-critical loads to preserve \
+remaining battery capacity. Wait 10s. Verify: SoC stabilizes. Risk: LOW.
 5. CMD_SAFE_MODE_EXIT — Only after power generation is confirmed restored. \
 Wait 30s. Verify: V_bat > 27V and rising. Risk: LOW.
 
@@ -871,6 +883,226 @@ def retrieve_procedures(
     return _retrieve_from_fallback(query, fault_cues, top_k)
 
 
+def retrieve_procedures_traced(
+    query: str = "",
+    fault_cues: list[str] | None = None,
+    top_k: int = DEFAULT_TOP_K,
+    use_pdf_rag: bool = True,
+) -> tuple[list[str], dict[str, Any]]:
+    """``retrieve_procedures()`` plus a structured account of where it looked.
+
+    Phase 4. The audit trail has to record retrieved SOURCES, not just retrieved
+    text. Source attribution did exist, but only as a human-readable header
+    glued onto the front of each PDF snippet ("[ECSS Retrieved — file.pdf,
+    page 12 ...]") and not at all for fallback-KB hits. Recovering it by parsing
+    that header back out would make the audit trail depend on a display string.
+
+    Returns:
+        ``(snippets, trace)`` where snippets is exactly what
+        ``retrieve_procedures()`` returns, and trace carries:
+
+          backend          "pdf_rag" | "fallback_kb"  — which store answered
+          query            the combined query text actually issued
+          top_k            the requested result count
+          snippet_count    number of snippets returned
+          sources          one entry per snippet, with its real metadata
+          rag_status       PDF-RAG availability at the time of the call
+
+    The snippets are returned unchanged, so a caller can pass them straight to
+    the LLM and know the audit record describes the same text.
+    """
+    combined_query = query
+    if fault_cues:
+        combined_query += " " + " ".join(fault_cues)
+
+    if use_pdf_rag and combined_query.strip():
+        pdf = _try_pdf_rag_traced(combined_query, top_k)
+        if pdf is not None:
+            snippets, sources = pdf
+            return snippets, {
+                "backend": "pdf_rag",
+                "query": combined_query,
+                "top_k": top_k,
+                "snippet_count": len(snippets),
+                "sources": sources,
+                "rag_status": _status_snapshot(),
+            }
+
+    _rag_status.last_source = "fallback_kb"
+    entries = _rank_fallback_entries(query, fault_cues, top_k)
+    snippets = [entry.content for _score, entry in entries]
+    sources = [
+        {
+            "source_kind": "fallback_kb",
+            "identifier": entry.fault_class,
+            "title": entry.title,
+            "match_score": score,
+            "matched_cues": [
+                cue for cue in entry.trigger_cues
+                if cue.lower() in _combined_lower(query, fault_cues)
+            ],
+            "chars": len(entry.content),
+            "content_sha256": _sha256_16(entry.content),
+        }
+        for score, entry in entries
+    ]
+    return snippets, {
+        "backend": "fallback_kb",
+        "query": combined_query,
+        "top_k": top_k,
+        "snippet_count": len(snippets),
+        "sources": sources,
+        "rag_status": _status_snapshot(),
+    }
+
+
+def _status_snapshot() -> dict[str, Any]:
+    """Immutable copy of RAG availability, for the audit record."""
+    return {
+        "initialized": _rag_status.initialized,
+        "pdf_rag_available": _rag_status.available,
+        "pdf_count": _rag_status.pdf_count,
+        "chunk_count": _rag_status.chunk_count,
+        "last_error": _rag_status.last_error,
+    }
+
+
+def _sha256_16(text: str) -> str:
+    import hashlib
+
+    return hashlib.sha256(text.encode("utf-8")).hexdigest()[:16]
+
+
+def _combined_lower(query: str, fault_cues: list[str] | None) -> str:
+    combined = (query or "").lower()
+    if fault_cues:
+        combined += " " + " ".join(c.lower() for c in fault_cues)
+    return combined
+
+
+def _try_pdf_rag_traced(
+    query: str,
+    top_k: int,
+) -> tuple[list[str], list[dict[str, Any]]] | None:
+    """PDF RAG retrieval that also returns per-chunk source metadata.
+
+    Mirrors ``_try_pdf_rag()`` exactly — same filters, same formatting, same
+    ordering — and additionally surfaces the ChromaDB metadata it already reads.
+    Returns None on the same conditions, so the caller's fallback logic is
+    unchanged.
+    """
+    global _rag_status
+
+    if not _rag_status.initialized:
+        if not initialize_pdf_rag():
+            return None
+
+    if not _rag_status.available or _chroma_collection is None:
+        return None
+
+    try:
+        results = _chroma_collection.query(
+            query_texts=[query],
+            n_results=min(top_k, _rag_status.chunk_count or top_k),
+        )
+    except Exception as e:
+        logger.warning("ChromaDB query failed: %s", e)
+        _rag_status.last_error = f"Query failed: {e}"
+        return None
+
+    if not results or not results.get("documents"):
+        return None
+
+    documents = results["documents"][0]
+    metadatas = results.get("metadatas", [[]])[0]
+    distances = results.get("distances", [[]])[0]
+    if not documents:
+        return None
+
+    formatted: list[str] = []
+    sources: list[dict[str, Any]] = []
+    for i, doc_text in enumerate(documents):
+        if not doc_text or len(doc_text.strip()) < 20:
+            continue
+
+        printable_ratio = sum(
+            1 for c in doc_text if 32 <= ord(c) < 127 or c in ("\n", "\t", "\r")
+        ) / max(len(doc_text), 1)
+        if printable_ratio < 0.70:
+            continue
+
+        meta = metadatas[i] if i < len(metadatas) else {}
+        source = meta.get("source", "ECSS standard")
+        page = meta.get("page", "?")
+        dist = distances[i] if i < len(distances) else None
+
+        dist_str = f" (distance: {dist:.3f})" if dist is not None else ""
+        header = f"[ECSS Retrieved — {source}, page {page}{dist_str}]"
+        formatted.append(f"{header}\n{doc_text.strip()}")
+        sources.append({
+            "source_kind": "pdf_rag",
+            "identifier": str(source),
+            "title": str(source),
+            "page": page,
+            "distance": dist,
+            "chars": len(doc_text.strip()),
+            "content_sha256": _sha256_16(doc_text.strip()),
+        })
+
+    if not formatted:
+        return None
+
+    _rag_status.last_source = "pdf_rag"
+    return formatted, sources
+
+
+def _rank_fallback_entries(
+    query: str,
+    fault_cues: list[str] | None,
+    top_k: int,
+) -> list[tuple[int, KBEntry]]:
+    """The fallback-KB ranking, returning entries WITH their match scores.
+
+    Extracted from ``_retrieve_from_fallback()`` so the audit trail can record
+    which entry matched and how strongly. ``_retrieve_from_fallback()`` now
+    delegates here, so there is exactly one ranking implementation and the
+    audited scores are the scores that chose the snippets.
+    """
+    combined_text = _combined_lower(query, fault_cues)
+
+    scored: list[tuple[int, KBEntry]] = []
+    for entry in FALLBACK_KB:
+        score = sum(
+            1 for cue in entry.trigger_cues
+            if cue.lower() in combined_text
+        )
+        scored.append((score, entry))
+
+    scored.sort(key=lambda x: x[0], reverse=True)
+    matched_positive = [(s, e) for s, e in scored if s > 0]
+
+    if not matched_positive:
+        logger.info(
+            "No KB entries matched query/cues — returning MULTI_CASCADE "
+            "as catch-all"
+        )
+        results: list[tuple[int, KBEntry]] = [(0, _KB_MULTI_CASCADE)]
+        for score, entry in scored:
+            if entry.fault_class != "MULTI_CASCADE" and len(results) < top_k:
+                results.append((score, entry))
+        return results[:top_k]
+
+    if len(matched_positive) >= top_k:
+        return matched_positive[:top_k]
+
+    out: list[tuple[int, KBEntry]] = list(matched_positive)
+    matched_classes = {e.fault_class for _s, e in matched_positive}
+    for score, entry in scored:
+        if entry.fault_class not in matched_classes and len(out) < top_k:
+            out.append((score, entry))
+    return out[:top_k]
+
+
 def _retrieve_from_fallback(
     query: str,
     fault_cues: list[str] | None,
@@ -886,49 +1118,17 @@ def _retrieve_from_fallback(
         (score=0 entries included to meet top_k) so callers always get
         the requested number of entries when KB is large enough.
       - If no entry scores > 0, returns MULTI_CASCADE as the first entry
+
+    Phase 4: the ranking itself now lives in ``_rank_fallback_entries()``, which
+    returns entries together with their scores. This function keeps its original
+    signature and return type. Sharing one implementation means the match scores
+    written to the audit trail are the scores that actually selected these
+    snippets, not a re-derivation that could disagree.
     """
-    combined_text = query.lower()
-    if fault_cues:
-        combined_text += " " + " ".join(c.lower() for c in fault_cues)
-
-    scored: list[tuple[int, KBEntry]] = []
-    for entry in FALLBACK_KB:
-        score = sum(
-            1 for cue in entry.trigger_cues
-            if cue.lower() in combined_text
-        )
-        scored.append((score, entry))
-
-    # Sort by score descending, preserving original order for equal scores
-    scored.sort(key=lambda x: x[0], reverse=True)
-
-    # Find the best-matching entries
-    matched_positive = [entry for score, entry in scored if score > 0]
-
-    if not matched_positive:
-        # No entries matched — always lead with MULTI_CASCADE catch-all,
-        # then pad with other KB entries up to top_k
-        logger.info(
-            "No KB entries matched query/cues — returning MULTI_CASCADE "
-            "as catch-all"
-        )
-        results: list[KBEntry] = [_KB_MULTI_CASCADE]
-        for _score, entry in scored:
-            if entry.fault_class != "MULTI_CASCADE" and len(results) < top_k:
-                results.append(entry)
-        return [entry.content for entry in results[:top_k]]
-
-    # Have some matched entries; pad with next-best if needed
-    if len(matched_positive) >= top_k:
-        return [entry.content for entry in matched_positive[:top_k]]
-
-    # Fewer matches than requested: add unmatched entries in order
-    results_with_data: list[KBEntry] = list(matched_positive)
-    matched_classes = {e.fault_class for e in matched_positive}
-    for _score, entry in scored:
-        if entry.fault_class not in matched_classes and len(results_with_data) < top_k:
-            results_with_data.append(entry)
-    return [entry.content for entry in results_with_data[:top_k]]
+    return [
+        entry.content
+        for _score, entry in _rank_fallback_entries(query, fault_cues, top_k)
+    ]
 
 
 def retrieve_by_fault_class(

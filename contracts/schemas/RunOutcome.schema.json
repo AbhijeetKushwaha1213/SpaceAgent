@@ -1,0 +1,74 @@
+{
+  "$defs": {
+    "RunStatus": {
+      "description": "Terminal state of a run.",
+      "enum": [
+        "IN_PROGRESS",
+        "COMPLETED",
+        "FAILED",
+        "ABANDONED"
+      ],
+      "title": "RunStatus",
+      "type": "string"
+    }
+  },
+  "additionalProperties": false,
+  "description": "Terminal facts, written once when a run finishes.",
+  "properties": {
+    "entry_count": {
+      "default": 0,
+      "minimum": 0,
+      "title": "Entry Count",
+      "type": "integer"
+    },
+    "error": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Error"
+    },
+    "final_hash": {
+      "default": "0000000000000000000000000000000000000000000000000000000000000000",
+      "description": "entry_hash of the last entry — the run's tamper seal",
+      "title": "Final Hash",
+      "type": "string"
+    },
+    "finished_at": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Finished At"
+    },
+    "status": {
+      "$ref": "#/definitions/RunStatus",
+      "default": "IN_PROGRESS"
+    },
+    "total_duration_ms": {
+      "anyOf": [
+        {
+          "minimum": 0.0,
+          "type": "number"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Total Duration Ms"
+    }
+  },
+  "title": "RunOutcome",
+  "type": "object"
+}

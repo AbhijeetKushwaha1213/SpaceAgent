@@ -1,0 +1,64 @@
+{
+  "$defs": {
+    "DetectorName": {
+      "description": "Which detector produced a finding.",
+      "enum": [
+        "HARD_LIMIT",
+        "DISCRETE_STATE",
+        "COUNTER",
+        "DATA_QUALITY",
+        "ZSCORE",
+        "ROBUST_ZSCORE",
+        "RATE_OF_CHANGE",
+        "TREND",
+        "PERSISTENCE",
+        "SUDDEN_CHANGE"
+      ],
+      "title": "DetectorName",
+      "type": "string"
+    }
+  },
+  "description": "Per-detector accounting, so a silent detector is visible.",
+  "properties": {
+    "anomalies_found": {
+      "default": 0,
+      "title": "Anomalies Found",
+      "type": "integer"
+    },
+    "channels_flagged": {
+      "default": 0,
+      "title": "Channels Flagged",
+      "type": "integer"
+    },
+    "detector": {
+      "$ref": "#/definitions/DetectorName"
+    },
+    "enabled": {
+      "default": true,
+      "title": "Enabled",
+      "type": "boolean"
+    },
+    "notes": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Notes"
+    },
+    "readings_examined": {
+      "default": 0,
+      "title": "Readings Examined",
+      "type": "integer"
+    }
+  },
+  "required": [
+    "detector"
+  ],
+  "title": "DetectorRunInfo",
+  "type": "object"
+}

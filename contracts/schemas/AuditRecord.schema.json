@@ -1,0 +1,322 @@
+{
+  "$defs": {
+    "Actor": {
+      "description": "Who produced an entry.",
+      "enum": [
+        "SYSTEM",
+        "OPERATOR"
+      ],
+      "title": "Actor",
+      "type": "string"
+    },
+    "RunHeader": {
+      "additionalProperties": false,
+      "description": "Immutable facts established when a run starts.",
+      "properties": {
+        "audit_schema_version": {
+          "default": "1.0.0",
+          "title": "Audit Schema Version",
+          "type": "string"
+        },
+        "contract_version": {
+          "default": "1.0.0",
+          "title": "Contract Version",
+          "type": "string"
+        },
+        "fault_type": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Fault Type"
+        },
+        "incident_id": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Incident Id"
+        },
+        "input_sha256": {
+          "default": "",
+          "description": "SHA-256 of the canonical input crash dump, for dedup and proof",
+          "title": "Input Sha256",
+          "type": "string"
+        },
+        "origin": {
+          "default": "unknown",
+          "description": "How the run was requested, e.g. 'POST /api/v1/analyze'. Recorded so a run triggered by a test or a script is distinguishable from one an operator started.",
+          "title": "Origin",
+          "type": "string"
+        },
+        "provenance": {
+          "default": "UNKNOWN",
+          "description": "REAL | SYNTHETIC | SYNTHETIC_FROM_REAL_METADATA | DEMO | UNKNOWN. Normalized on construction: an unrecognised value becomes UNKNOWN, never REAL.",
+          "title": "Provenance",
+          "type": "string"
+        },
+        "run_id": {
+          "minLength": 8,
+          "title": "Run Id",
+          "type": "string"
+        },
+        "scenario_id": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Catalogue scenario id, when the input was one",
+          "title": "Scenario Id"
+        },
+        "source_note": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Source Note"
+        },
+        "source_type": {
+          "default": "",
+          "description": "Display label DERIVED from provenance, never authored",
+          "title": "Source Type",
+          "type": "string"
+        },
+        "started_at": {
+          "description": "ISO-8601 UTC",
+          "title": "Started At",
+          "type": "string"
+        }
+      },
+      "required": [
+        "run_id",
+        "started_at"
+      ],
+      "title": "RunHeader",
+      "type": "object"
+    },
+    "RunOutcome": {
+      "additionalProperties": false,
+      "description": "Terminal facts, written once when a run finishes.",
+      "properties": {
+        "entry_count": {
+          "default": 0,
+          "minimum": 0,
+          "title": "Entry Count",
+          "type": "integer"
+        },
+        "error": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Error"
+        },
+        "final_hash": {
+          "default": "0000000000000000000000000000000000000000000000000000000000000000",
+          "description": "entry_hash of the last entry — the run's tamper seal",
+          "title": "Final Hash",
+          "type": "string"
+        },
+        "finished_at": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Finished At"
+        },
+        "status": {
+          "$ref": "#/definitions/RunStatus",
+          "default": "IN_PROGRESS"
+        },
+        "total_duration_ms": {
+          "anyOf": [
+            {
+              "minimum": 0.0,
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Total Duration Ms"
+        }
+      },
+      "title": "RunOutcome",
+      "type": "object"
+    },
+    "RunStatus": {
+      "description": "Terminal state of a run.",
+      "enum": [
+        "IN_PROGRESS",
+        "COMPLETED",
+        "FAILED",
+        "ABANDONED"
+      ],
+      "title": "RunStatus",
+      "type": "string"
+    },
+    "Stage": {
+      "description": "The pipeline stages an audit record can carry.\n\nOrdered as the architecture runs them: telemetry → detection → state\nestimation → hypotheses → physics/safety validation → recommendation. The\nLLM sits between evidence gathering and validation, and is recorded as one\nstage among several rather than as the pipeline.",
+      "enum": [
+        "input",
+        "detection",
+        "state_estimation",
+        "rag",
+        "llm",
+        "hypotheses",
+        "physics_validation",
+        "safety_validation",
+        "diagnosis",
+        "operator_decision"
+      ],
+      "title": "Stage",
+      "type": "string"
+    },
+    "StageEntry": {
+      "additionalProperties": false,
+      "description": "One append-only entry in a run's log.\n\nFrozen. The store has no update path and the database aborts UPDATE, so an\nentry is immutable at three levels: the object, the API, and the schema.",
+      "properties": {
+        "actor": {
+          "$ref": "#/definitions/Actor",
+          "default": "SYSTEM",
+          "description": "SYSTEM for pipeline output, OPERATOR for a human decision"
+        },
+        "duration_ms": {
+          "anyOf": [
+            {
+              "minimum": 0.0,
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Measured wall-clock duration of the stage. None when the stage did not execute, so a NOT_IMPLEMENTED stage cannot report a runtime.",
+          "title": "Duration Ms"
+        },
+        "entry_hash": {
+          "description": "This entry's chain hash",
+          "title": "Entry Hash",
+          "type": "string"
+        },
+        "payload": {
+          "additionalProperties": true,
+          "description": "Stage detail, already redacted",
+          "title": "Payload",
+          "type": "object"
+        },
+        "payload_sha256": {
+          "description": "SHA-256 of the canonical payload",
+          "title": "Payload Sha256",
+          "type": "string"
+        },
+        "prev_hash": {
+          "description": "entry_hash of the previous entry",
+          "title": "Prev Hash",
+          "type": "string"
+        },
+        "recorded_at": {
+          "description": "ISO-8601 UTC instant the entry was written",
+          "title": "Recorded At",
+          "type": "string"
+        },
+        "seq": {
+          "description": "1-indexed position within the run",
+          "minimum": 1,
+          "title": "Seq",
+          "type": "integer"
+        },
+        "stage": {
+          "$ref": "#/definitions/Stage"
+        },
+        "status": {
+          "$ref": "#/definitions/StageStatus"
+        },
+        "summary": {
+          "description": "One line an operator can read without opening the payload",
+          "minLength": 1,
+          "title": "Summary",
+          "type": "string"
+        }
+      },
+      "required": [
+        "seq",
+        "stage",
+        "status",
+        "recorded_at",
+        "summary",
+        "payload_sha256",
+        "prev_hash",
+        "entry_hash"
+      ],
+      "title": "StageEntry",
+      "type": "object"
+    },
+    "StageStatus": {
+      "description": "Outcome of a stage. The distinctions here are the point of the enum.",
+      "enum": [
+        "OK",
+        "DEGRADED",
+        "FAILED",
+        "SKIPPED",
+        "NOT_RUN",
+        "NOT_IMPLEMENTED"
+      ],
+      "title": "StageStatus",
+      "type": "string"
+    }
+  },
+  "description": "A complete run: header, append-only entries, outcome.\n\nThe entry list IS the record. The typed accessors below read from it rather\nthan duplicating it, so a summary can never disagree with the log.",
+  "properties": {
+    "entries": {
+      "items": {
+        "$ref": "#/definitions/StageEntry"
+      },
+      "title": "Entries",
+      "type": "array"
+    },
+    "header": {
+      "$ref": "#/definitions/RunHeader"
+    },
+    "outcome": {
+      "$ref": "#/definitions/RunOutcome"
+    }
+  },
+  "required": [
+    "header"
+  ],
+  "title": "AuditRecord",
+  "type": "object"
+}

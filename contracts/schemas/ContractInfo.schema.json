@@ -1,0 +1,52 @@
+{
+  "description": "Response for GET /api/v1/contract — what contract this backend serves.\n\nExists so the contract tests, CI, and a running frontend can all ask the\nsame question of a live server rather than inferring it.",
+  "properties": {
+    "api_version": {
+      "default": "v1",
+      "title": "Api Version",
+      "type": "string"
+    },
+    "canonical_telemetry_field": {
+      "default": "pre_fault_telemetry_window",
+      "description": "The canonical telemetry representation",
+      "title": "Canonical Telemetry Field",
+      "type": "string"
+    },
+    "contract_version": {
+      "default": "1.0.0",
+      "title": "Contract Version",
+      "type": "string"
+    },
+    "deprecated_telemetry_fields": {
+      "description": "Accepted on input and merged into the canonical field by app.api.adapters.canonical_window(). Never read directly.",
+      "items": {
+        "type": "string"
+      },
+      "title": "Deprecated Telemetry Fields",
+      "type": "array"
+    },
+    "safety_status_values": {
+      "items": {
+        "type": "string"
+      },
+      "title": "Safety Status Values",
+      "type": "array"
+    },
+    "subsystem_values": {
+      "items": {
+        "type": "string"
+      },
+      "title": "Subsystem Values",
+      "type": "array"
+    },
+    "telemetry_status_values": {
+      "items": {
+        "type": "string"
+      },
+      "title": "Telemetry Status Values",
+      "type": "array"
+    }
+  },
+  "title": "ContractInfo",
+  "type": "object"
+}

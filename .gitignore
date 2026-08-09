@@ -20,7 +20,19 @@ dist/
 ESA-Mission*/
 ESA-Mission*_extracted/
 
+# Audit trail (Phase 4).
+# Runtime artifact, and it is sensitive: a record holds the input telemetry, the
+# raw model output and the operator names attached to each decision. It is also
+# append-only by design, so a record committed by accident cannot be edited out
+# of the working tree afterwards — only the whole file removed.
+sentinel/backend/data/audit/
+*.sqlite3
+*.sqlite3-wal
+*.sqlite3-shm
 
 
 
 
+
+.kiro/
+frontend/src/generated/

@@ -1,0 +1,163 @@
+{
+  "$defs": {
+    "RunStatus": {
+      "description": "Terminal state of a run.",
+      "enum": [
+        "IN_PROGRESS",
+        "COMPLETED",
+        "FAILED",
+        "ABANDONED"
+      ],
+      "title": "RunStatus",
+      "type": "string"
+    },
+    "RunSummary": {
+      "additionalProperties": false,
+      "description": "Listing row. Enough to choose a run without loading its payloads.",
+      "properties": {
+        "entry_count": {
+          "default": 0,
+          "title": "Entry Count",
+          "type": "integer"
+        },
+        "fault_type": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Fault Type"
+        },
+        "finished_at": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Finished At"
+        },
+        "operator_decision_count": {
+          "default": 0,
+          "title": "Operator Decision Count",
+          "type": "integer"
+        },
+        "origin": {
+          "default": "unknown",
+          "title": "Origin",
+          "type": "string"
+        },
+        "provenance": {
+          "title": "Provenance",
+          "type": "string"
+        },
+        "run_id": {
+          "title": "Run Id",
+          "type": "string"
+        },
+        "scenario_id": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Scenario Id"
+        },
+        "source_type": {
+          "default": "",
+          "title": "Source Type",
+          "type": "string"
+        },
+        "started_at": {
+          "title": "Started At",
+          "type": "string"
+        },
+        "status": {
+          "$ref": "#/definitions/RunStatus"
+        },
+        "total_duration_ms": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Total Duration Ms"
+        }
+      },
+      "required": [
+        "run_id",
+        "started_at",
+        "status",
+        "provenance"
+      ],
+      "title": "RunSummary",
+      "type": "object"
+    }
+  },
+  "additionalProperties": false,
+  "description": "Envelope for ``GET /api/v1/runs``.",
+  "properties": {
+    "audit_schema_version": {
+      "default": "1.0.0",
+      "title": "Audit Schema Version",
+      "type": "string"
+    },
+    "contract_version": {
+      "default": "1.0.0",
+      "title": "Contract Version",
+      "type": "string"
+    },
+    "count": {
+      "description": "Runs in this page",
+      "minimum": 0,
+      "title": "Count",
+      "type": "integer"
+    },
+    "limit": {
+      "minimum": 1,
+      "title": "Limit",
+      "type": "integer"
+    },
+    "offset": {
+      "minimum": 0,
+      "title": "Offset",
+      "type": "integer"
+    },
+    "runs": {
+      "items": {
+        "$ref": "#/definitions/RunSummary"
+      },
+      "title": "Runs",
+      "type": "array"
+    },
+    "total": {
+      "description": "Runs held by the store in total",
+      "minimum": 0,
+      "title": "Total",
+      "type": "integer"
+    }
+  },
+  "required": [
+    "total",
+    "count",
+    "limit",
+    "offset"
+  ],
+  "title": "RunListResponse",
+  "type": "object"
+}

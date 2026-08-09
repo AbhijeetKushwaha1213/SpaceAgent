@@ -1,0 +1,48 @@
+{
+  "$defs": {
+    "SSEEventType": {
+      "description": "Event types streamed over SSE to the frontend.",
+      "enum": [
+        "thought",
+        "action",
+        "observation",
+        "result",
+        "error",
+        "status"
+      ],
+      "title": "SSEEventType",
+      "type": "string"
+    }
+  },
+  "description": "A single SSE event sent from backend to frontend.\n\nPerson 3 uses `event_type` to route data to the correct UI panel:\n  - THOUGHT/ACTION/OBSERVATION → Panel 2 (Reasoning Trace)\n  - RESULT → Panel 3 (Causal DAG) + Panel 4 (Recovery Plan)\n  - ERROR → Error toast\n  - STATUS → Header status indicator",
+  "properties": {
+    "data": {
+      "description": "Payload — plain text for trace events, JSON for RESULT",
+      "title": "Data",
+      "type": "string"
+    },
+    "event_type": {
+      "$ref": "#/definitions/SSEEventType"
+    },
+    "step_number": {
+      "anyOf": [
+        {
+          "minimum": 1,
+          "type": "integer"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "description": "Agent reasoning step index (for trace events)",
+      "title": "Step Number"
+    }
+  },
+  "required": [
+    "event_type",
+    "data"
+  ],
+  "title": "SSEEvent",
+  "type": "object"
+}

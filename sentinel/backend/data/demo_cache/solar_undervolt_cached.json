@@ -1,7 +1,9 @@
 {
   "scenario_id": 2,
   "fault_type": "EPS_SOLAR_UNDERVOLT",
-  "source_type": "Synthetic Safe Mode",
+  "provenance": "SYNTHETIC",
+  "source_type": "SYNTHETIC DATA",
+  "safety_status": "VALIDATED",
   "sentinel_output": {
     "hypotheses": [
       {
@@ -40,7 +42,7 @@
     "recovery_plan": [
       {
         "step": 1,
-        "command": "CMD_EPS_STATUS_REPORT",
+        "command": "CMD_POWER_CHECK",
         "rationale": "Query current battery voltage, SoC, and solar array status before recovery",
         "wait_seconds": 10,
         "verify": "Battery and solar array readings received successfully",
@@ -48,7 +50,7 @@
       },
       {
         "step": 2,
-        "command": "CMD_SHED_NON_ESSENTIAL_LOADS",
+        "command": "CMD_POWER_SHED_NONESSENTIAL",
         "rationale": "Reduce power draw to preserve remaining battery capacity",
         "wait_seconds": 15,
         "verify": "Non-essential subsystems (PYLD, heaters) powered off; V_bus stable",
@@ -56,7 +58,7 @@
       },
       {
         "step": 3,
-        "command": "CMD_SOLAR_ARRAY_RELAY_CYCLE",
+        "command": "CMD_SOLAR_ARRAY_A_RESET",
         "rationale": "Cycle solar array relay to potentially restore connection",
         "wait_seconds": 45,
         "verify": "I_sa > 2.0A indicating partial or full array reconnection",
@@ -64,7 +66,7 @@
       },
       {
         "step": 4,
-        "command": "CMD_ATTITUDE_SUN_POINT_SAFE",
+        "command": "CMD_SUN_ACQUISITION",
         "rationale": "Re-orient spacecraft for maximum solar illumination if array relay succeeded",
         "wait_seconds": 60,
         "verify": "Sun_sensor_angle_deg < 10\u00b0 and I_sa trending upward",
@@ -74,7 +76,9 @@
     "confidence": 0.94,
     "requires_human_review": false,
     "reasoning_summary": "Solar array A complete current loss at T-300s caused progressive battery depletion. V_bat dropped to 21.8V and SoC to 14.2%. Load shedding was initiated but insufficient to prevent safe-mode entry. Recovery: status check \u2192 load shed \u2192 relay cycle \u2192 sun-point.",
-    "status": "complete"
+    "status": "complete",
+    "safety_status": "VALIDATED",
+    "blocked_steps": []
   },
   "sse_trace": [
     {
@@ -126,13 +130,13 @@
     },
     {
       "event_type": "status",
-      "data": "Analysis complete. Safety validation passed."
+      "data": "Analysis complete. Safety status: VALIDATED."
     },
     {
       "event_type": "result",
-      "data": "{\"hypotheses\":[{\"rank\":1,\"root_cause\":\"EPS_SOLAR_UNDERVOLT\",\"affected_component\":\"SOLAR_ARRAY_A\",\"confidence\":0.94,\"causal_chain\":[\"Solar array current I_sa dropped to 0.0A at T-300s (expected 8.5A)\",\"Battery voltage V_bat fell to 21.8V (below 28V lower limit)\",\"State of Charge dropped to 14.2% triggering load shedding\",\"FDIR entered safe mode via EPS_UNDER_VOLT flag\"]},{\"rank\":2,\"root_cause\":\"MULTI_CASCADE\",\"affected_component\":\"EPS_TCS_CHAIN\",\"confidence\":0.04,\"causal_chain\":[\"Possible cascade if thermal conditions caused solar cell degradation\",\"OBC_temp_C at 18.2\u00b0C is nominal \u2014 no thermal evidence\"]},{\"rank\":3,\"root_cause\":\"COMMS_TRANSPONDER_LOSS\",\"affected_component\":\"COMMS_SUBSYSTEM\",\"confidence\":0.02,\"causal_chain\":[\"Communications loss could mask ground recovery commands\",\"No comms anomaly visible in telemetry or event log\"]}],\"recovery_plan\":[{\"step\":1,\"command\":\"CMD_EPS_STATUS_REPORT\",\"rationale\":\"Query current battery voltage, SoC, and solar array status before recovery\",\"wait_seconds\":10,\"verify\":\"Battery and solar array readings received successfully\",\"risk\":\"LOW\"},{\"step\":2,\"command\":\"CMD_SHED_NON_ESSENTIAL_LOADS\",\"rationale\":\"Reduce power draw to preserve remaining battery capacity\",\"wait_seconds\":15,\"verify\":\"Non-essential subsystems (PYLD, heaters) powered off; V_bus stable\",\"risk\":\"LOW\"},{\"step\":3,\"command\":\"CMD_SOLAR_ARRAY_RELAY_CYCLE\",\"rationale\":\"Cycle solar array relay to potentially restore connection\",\"wait_seconds\":45,\"verify\":\"I_sa > 2.0A indicating partial or full array reconnection\",\"risk\":\"MEDIUM\"},{\"step\":4,\"command\":\"CMD_ATTITUDE_SUN_POINT_SAFE\",\"rationale\":\"Re-orient spacecraft for maximum solar illumination if array relay succeeded\",\"wait_seconds\":60,\"verify\":\"Sun_sensor_angle_deg < 10\u00b0 and I_sa trending upward\",\"risk\":\"LOW\"}],\"confidence\":0.94,\"requires_human_review\":false,\"reasoning_summary\":\"Solar array A complete current loss at T-300s caused progressive battery depletion. V_bat dropped to 21.8V and SoC to 14.2%. Load shedding was initiated but insufficient to prevent safe-mode entry. Recovery: status check \u2192 load shed \u2192 relay cycle \u2192 sun-point.\",\"status\":\"complete\"}"
+      "data": "{\"hypotheses\":[{\"rank\":1,\"root_cause\":\"EPS_SOLAR_UNDERVOLT\",\"affected_component\":\"SOLAR_ARRAY_A\",\"confidence\":0.94,\"causal_chain\":[\"Solar array current I_sa dropped to 0.0A at T-300s (expected 8.5A)\",\"Battery voltage V_bat fell to 21.8V (below 28V lower limit)\",\"State of Charge dropped to 14.2% triggering load shedding\",\"FDIR entered safe mode via EPS_UNDER_VOLT flag\"]},{\"rank\":2,\"root_cause\":\"MULTI_CASCADE\",\"affected_component\":\"EPS_TCS_CHAIN\",\"confidence\":0.04,\"causal_chain\":[\"Possible cascade if thermal conditions caused solar cell degradation\",\"OBC_temp_C at 18.2\u00b0C is nominal \u2014 no thermal evidence\"]},{\"rank\":3,\"root_cause\":\"COMMS_TRANSPONDER_LOSS\",\"affected_component\":\"COMMS_SUBSYSTEM\",\"confidence\":0.02,\"causal_chain\":[\"Communications loss could mask ground recovery commands\",\"No comms anomaly visible in telemetry or event log\"]}],\"recovery_plan\":[{\"step\":1,\"command\":\"CMD_POWER_CHECK\",\"rationale\":\"Query current battery voltage, SoC, and solar array status before recovery\",\"wait_seconds\":10,\"verify\":\"Battery and solar array readings received successfully\",\"risk\":\"LOW\"},{\"step\":2,\"command\":\"CMD_POWER_SHED_NONESSENTIAL\",\"rationale\":\"Reduce power draw to preserve remaining battery capacity\",\"wait_seconds\":15,\"verify\":\"Non-essential subsystems (PYLD, heaters) powered off; V_bus stable\",\"risk\":\"LOW\"},{\"step\":3,\"command\":\"CMD_SOLAR_ARRAY_A_RESET\",\"rationale\":\"Cycle solar array relay to potentially restore connection\",\"wait_seconds\":45,\"verify\":\"I_sa > 2.0A indicating partial or full array reconnection\",\"risk\":\"MEDIUM\"},{\"step\":4,\"command\":\"CMD_SUN_ACQUISITION\",\"rationale\":\"Re-orient spacecraft for maximum solar illumination if array relay succeeded\",\"wait_seconds\":60,\"verify\":\"Sun_sensor_angle_deg < 10\u00b0 and I_sa trending upward\",\"risk\":\"LOW\"}],\"confidence\":0.94,\"requires_human_review\":false,\"reasoning_summary\":\"Solar array A complete current loss at T-300s caused progressive battery depletion. V_bat dropped to 21.8V and SoC to 14.2%. Load shedding was initiated but insufficient to prevent safe-mode entry. Recovery: status check \u2192 load shed \u2192 relay cycle \u2192 sun-point.\",\"status\":\"complete\",\"safety_status\":\"VALIDATED\",\"blocked_steps\":[]}"
     }
   ],
-  "generated_at": "2026-06-14T05:56:10.716605+00:00",
-  "note": "This is a pre-generated demo fallback. The SentinelOutput was crafted to match the synthetic crash dump scenario. It is NOT the result of a live LLM call."
+  "generated_at": "2026-08-08T16:09:41.431600+00:00",
+  "note": "DEMO / REPLAY payload. Pre-generated fallback, hand-written to match the synthetic crash dump scenario. It is NOT the result of a live LLM call and NOT a validated diagnosis. Its recovery commands HAVE been checked against the SENTINEL command registry and the deterministic safety validator with an empty crash-dump context, so physical constraint predicates were UNKNOWN (permissive) at generation time."
 }

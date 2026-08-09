@@ -97,7 +97,8 @@ GYRO_SEU_OUTPUT = SentinelOutput(
         ),
         RecoveryStep(
             step=3,
-            command="CMD_SWITCH_TO_GYRO_B",
+            # Phase 1: was CMD_SWITCH_TO_GYRO_B, which no registry entry defines.
+            command="CMD_GYRO_SWITCH_TO_BACKUP",
             rationale="Switch to backup gyroscope B as redundant path if GYRO_A reset fails",
             wait_seconds=20,
             verify="GYRO_B health status nominal and attitude error decreasing",
@@ -105,7 +106,8 @@ GYRO_SEU_OUTPUT = SentinelOutput(
         ),
         RecoveryStep(
             step=4,
-            command="CMD_ATTITUDE_RECOVERY_SUN_POINT",
+            # Phase 1: was CMD_ATTITUDE_RECOVERY_SUN_POINT (not in registry).
+            command="CMD_SUN_ACQUISITION",
             rationale="Re-establish sun-pointing attitude to restore power-positive state",
             wait_seconds=60,
             verify="Attitude_error_deg < 0.5° and solar array current I_sa > 5.0A",
@@ -160,7 +162,8 @@ SOLAR_UNDERVOLT_OUTPUT = SentinelOutput(
     recovery_plan=[
         RecoveryStep(
             step=1,
-            command="CMD_EPS_STATUS_REPORT",
+            # Phase 1: was CMD_EPS_STATUS_REPORT (not in registry).
+            command="CMD_POWER_CHECK",
             rationale="Query current battery voltage, SoC, and solar array status before recovery",
             wait_seconds=10,
             verify="Battery and solar array readings received successfully",
@@ -168,7 +171,8 @@ SOLAR_UNDERVOLT_OUTPUT = SentinelOutput(
         ),
         RecoveryStep(
             step=2,
-            command="CMD_SHED_NON_ESSENTIAL_LOADS",
+            # Phase 1: was CMD_SHED_NON_ESSENTIAL_LOADS (not in registry).
+            command="CMD_POWER_SHED_NONESSENTIAL",
             rationale="Reduce power draw to preserve remaining battery capacity",
             wait_seconds=15,
             verify="Non-essential subsystems (PYLD, heaters) powered off; V_bus stable",
@@ -176,7 +180,8 @@ SOLAR_UNDERVOLT_OUTPUT = SentinelOutput(
         ),
         RecoveryStep(
             step=3,
-            command="CMD_SOLAR_ARRAY_RELAY_CYCLE",
+            # Phase 1: was CMD_SOLAR_ARRAY_RELAY_CYCLE (not in registry).
+            command="CMD_SOLAR_ARRAY_A_RESET",
             rationale="Cycle solar array relay to potentially restore connection",
             wait_seconds=45,
             verify="I_sa > 2.0A indicating partial or full array reconnection",
@@ -184,7 +189,8 @@ SOLAR_UNDERVOLT_OUTPUT = SentinelOutput(
         ),
         RecoveryStep(
             step=4,
-            command="CMD_ATTITUDE_SUN_POINT_SAFE",
+            # Phase 1: was CMD_ATTITUDE_SUN_POINT_SAFE (not in registry).
+            command="CMD_SUN_ACQUISITION",
             rationale="Re-orient spacecraft for maximum solar illumination if array relay succeeded",
             wait_seconds=60,
             verify="Sun_sensor_angle_deg < 10° and I_sa trending upward",
@@ -239,7 +245,8 @@ OBC_WATCHDOG_OUTPUT = SentinelOutput(
     recovery_plan=[
         RecoveryStep(
             step=1,
-            command="CMD_OBC_MEMORY_DUMP",
+            # Phase 1: was CMD_OBC_MEMORY_DUMP (not in registry).
+            command="CMD_MEMORY_DUMP",
             rationale="Capture post-reset memory dump before volatile crash context is lost",
             wait_seconds=20,
             verify="Memory dump file created and telemetry download initiated",
@@ -247,7 +254,11 @@ OBC_WATCHDOG_OUTPUT = SentinelOutput(
         ),
         RecoveryStep(
             step=2,
-            command="CMD_RESTART_ATTITUDE_CONTROL_THREAD",
+            # Phase 1: was CMD_RESTART_ATTITUDE_CONTROL_THREAD. SENTINEL has no
+            # per-thread restart capability, so the invented command is replaced
+            # by the registry command that serves the procedure's actual intent:
+            # confirm memory is stable after the reboot.
+            command="CMD_VERIFY_MEMORY_STATE",
             rationale="Restart the attitude_control thread with clean memory allocation",
             wait_seconds=30,
             verify="CPU_load_pct < 70% and Memory_usage_MB < 300 within 30s",
@@ -255,7 +266,8 @@ OBC_WATCHDOG_OUTPUT = SentinelOutput(
         ),
         RecoveryStep(
             step=3,
-            command="CMD_WATCHDOG_COUNTER_RESET",
+            # Phase 1: was CMD_WATCHDOG_COUNTER_RESET (not in registry).
+            command="CMD_WATCHDOG_CLEAR",
             rationale="Reset watchdog counter after confirming stable CPU state",
             wait_seconds=10,
             verify="Watchdog_counter = 0 and incrementing normally",
@@ -263,7 +275,8 @@ OBC_WATCHDOG_OUTPUT = SentinelOutput(
         ),
         RecoveryStep(
             step=4,
-            command="CMD_OBC_HEALTH_MONITOR_ENABLE",
+            # Phase 1: was CMD_OBC_HEALTH_MONITOR_ENABLE (not in registry).
+            command="CMD_HEALTH_CHECK",
             rationale="Enable enhanced OBC health monitoring to detect recurrence",
             wait_seconds=5,
             verify="Health monitor telemetry stream active and reporting nominal",
@@ -300,7 +313,13 @@ def _build_sse_trace(fault_type: str, output: SentinelOutput) -> list[dict]:
         {"event_type": "thought", "data": "Constructing causal propagation graph from telemetry patterns.", "step_number": 3},
         {"event_type": "thought", "data": f"Rank-1 hypothesis: {h1.root_cause if h1 else 'N/A'} (confidence: {h1.confidence if h1 else 0:.0%})", "step_number": 3},
         {"event_type": "action", "data": f"Generating {len(output.recovery_plan)}-step recovery plan with safety validation.", "step_number": 4},
-        {"event_type": "status", "data": "Analysis complete. Safety validation passed."},
+        # Phase 1: was the unconditional "Analysis complete. Safety validation
+        # passed." Now reports the actual validated status of this payload.
+        {"event_type": "status", "data": (
+            f"Analysis complete. Safety status: {output.safety_status.value}"
+            + (f" ({len(output.blocked_steps)} step(s) blocked)."
+               if output.blocked_steps else ".")
+        )},
         {"event_type": "result", "data": output.model_dump_json()},
     ]
 
@@ -309,26 +328,34 @@ def _build_sse_trace(fault_type: str, output: SentinelOutput) -> list[dict]:
 # Main
 # ---------------------------------------------------------------------------
 
+# Phase 0: use the shared provenance vocabulary so these cached payloads carry
+# the same labels as everything else. These are hand-written demo outputs, not
+# model output, which the per-file ``note`` also states.
+from app.api.provenance import Provenance, display_label  # noqa: E402
+
 CACHE_SPECS = [
     {
         "filename": "gyro_seu_cached.json",
         "scenario_id": 1,
         "fault_type": "ADCS_GYRO_SEU",
-        "source_type": "Synthetic Safe Mode",
+        "provenance": Provenance.SYNTHETIC.value,
+        "source_type": display_label(Provenance.SYNTHETIC),
         "output": GYRO_SEU_OUTPUT,
     },
     {
         "filename": "solar_undervolt_cached.json",
         "scenario_id": 2,
         "fault_type": "EPS_SOLAR_UNDERVOLT",
-        "source_type": "Synthetic Safe Mode",
+        "provenance": Provenance.SYNTHETIC.value,
+        "source_type": display_label(Provenance.SYNTHETIC),
         "output": SOLAR_UNDERVOLT_OUTPUT,
     },
     {
         "filename": "obc_watchdog_cached.json",
         "scenario_id": 3,
         "fault_type": "OBC_WATCHDOG_OVERFLOW",
-        "source_type": "Synthetic Safe Mode",
+        "provenance": Provenance.SYNTHETIC.value,
+        "source_type": display_label(Provenance.SYNTHETIC),
         "output": OBC_WATCHDOG_OUTPUT,
     },
 ]
@@ -338,21 +365,50 @@ def main():
     cache_dir = os.path.join(_BACKEND_ROOT, "data", "demo_cache")
     os.makedirs(cache_dir, exist_ok=True)
 
+    # Phase 1: run the REAL safety validator over each hand-written output before
+    # caching it. Previously these payloads were written straight to disk with no
+    # validation, which is how 10 commands that the whitelist rejected ended up
+    # in a cache that gets replayed to operators. The cached safety_status is now
+    # an actual validation result rather than an assertion.
+    from app.agent.safety import apply_validation_to_output, validate_recovery_plan
+
     for spec in CACHE_SPECS:
-        output = spec["output"]
+        raw_output = spec["output"]
+
+        # No crash dump is available at generation time, so physical-constraint
+        # predicates evaluate to UNKNOWN (permissive). Registry membership,
+        # command-format and risk escalation are still fully enforced.
+        validation = validate_recovery_plan(raw_output, {})
+        output = apply_validation_to_output(raw_output, validation)
+
+        if validation.blocked_steps:
+            print(
+                f"  ⚠ {spec['filename']}: "
+                f"{len(validation.blocked_steps)} command(s) blocked — "
+                + ", ".join(
+                    f"{b.original_step.command} ({b.violation_code})"
+                    for b in validation.blocked_steps
+                )
+            )
+
         trace = _build_sse_trace(spec["fault_type"], output)
 
         cache_entry = {
             "scenario_id": spec["scenario_id"],
             "fault_type": spec["fault_type"],
+            "provenance": spec["provenance"],
             "source_type": spec["source_type"],
+            "safety_status": output.safety_status.value,
             "sentinel_output": json.loads(output.model_dump_json()),
             "sse_trace": trace,
             "generated_at": datetime.now(timezone.utc).isoformat(),
             "note": (
-                "This is a pre-generated demo fallback. "
-                "The SentinelOutput was crafted to match the synthetic crash dump scenario. "
-                "It is NOT the result of a live LLM call."
+                "DEMO / REPLAY payload. Pre-generated fallback, hand-written to match "
+                "the synthetic crash dump scenario. It is NOT the result of a live LLM "
+                "call and NOT a validated diagnosis. Its recovery commands HAVE been "
+                "checked against the SENTINEL command registry and the deterministic "
+                "safety validator with an empty crash-dump context, so physical "
+                "constraint predicates were UNKNOWN (permissive) at generation time."
             ),
         }
 

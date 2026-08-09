@@ -59,25 +59,87 @@ in safe mode"""
 
 
 # ═══════════════════════════════════════════════════════════════════════════
-# SECTION 3 — NOMINAL THRESHOLDS
+# SECTION 3 — CHANNEL SEMANTICS (no thresholds)
 # ═══════════════════════════════════════════════════════════════════════════
+#
+# Phase 5 removed the numeric thresholds from the prompt.
+#
+# What was here: a hand-written table of nominal ranges and critical values —
+# "V_bat: 28.0–33.6V nominal | Critical: <22V", "TEMP_OBC: -10 to +50°C" — a
+# third copy of numbers that also lived in analytics/anomaly_detector.py and
+# simulation/fault_simulator.py. It had already drifted: it claimed an OBC
+# temperature nominal maximum of 50 °C where the detector used 60 °C.
+#
+# Two reasons it is gone rather than regenerated with correct numbers:
+#
+#   1. Authority. Limit checking is deterministic and belongs to the detection
+#      pipeline, which compares against app/ingest/channel_dict.py. A threshold
+#      in the prompt invites the model to do that arithmetic itself and reach a
+#      different answer, and the model's answer is the one the operator reads.
+#
+#   2. Redundancy. The model no longer needs the numbers. Every reading in the
+#      crash dump carries its own nominal_min / nominal_max, and the detector's
+#      findings — channel, value, limit, threshold, severity — are supplied
+#      separately. The numbers reach the model as evidence about this run rather
+#      than as a rule to apply.
+#
+# What replaces it is semantic grounding with no numeric content: what each
+# channel measures, and what a deviation implies physically. That is generated
+# from the dictionary, so it cannot drift, and it carries no authority a
+# deterministic layer has to defer to.
 
-NOMINAL_THRESHOLDS = """\
-NOMINAL THRESHOLDS AND ANOMALY INDICATORS:
-- V_bat: 28.0–33.6V nominal | Critical: <22V
-- SoC: 20–100% nominal | Critical: <15%
-- I_sa: 0–12A nominal | Anomaly: sudden drop to 0A while spacecraft is in \
-sunlight (not eclipse)
-- GYRO_A_RATE / GYRO_B_RATE: 0–7 deg/s nominal | Anomaly: NaN or constant \
-value = sensor failure
-- CPU_LOAD: <70% nominal | Anomaly: sustained 100% = software loop
-- ATTITUDE_ERROR: <0.01 deg nominal | Anomaly: >5 deg sustained = ADCS fault
-- SEU_COUNTER: 0 in nominal orbit | Anomaly: sudden spike = cosmic ray hit
-- WATCHDOG_COUNTER: resets periodically | Anomaly: overflow = software hang
-- TRANSPONDER_LOCK: 1 nominal | Anomaly: 0 = loss of comm link
-- SNR: >10 dB nominal | Anomaly: <5 dB = severe signal degradation
-- TEMP_OBC: -10 to +50°C nominal | Critical: >85°C = thermal runaway
-- HEATER_ZONE_*: cycles on/off | Anomaly: stuck ON = potential thermal runaway"""
+def build_channel_semantics_section() -> str:
+    """Describe each channel's meaning, WITHOUT any threshold values.
+
+    Generated from ``app.ingest.channel_dict`` so the prompt cannot fall out of
+    step with the dictionary. Deliberately omits nominal_range, hard_limits and
+    expected_states: those are the deterministic layer's authority, and the
+    prompt is not permitted to restate them.
+    """
+    try:
+        from app.ingest.channel_dict import CHANNELS, Subsystem, all_channels
+    except Exception:  # pragma: no cover — dictionary is in-tree
+        return (
+            "TELEMETRY CHANNEL REFERENCE:\n"
+            "Unavailable. Rely on the bounds carried by each reading and on the "
+            "detector findings supplied with the crash dump."
+        )
+
+    lines = [
+        "TELEMETRY CHANNEL REFERENCE (meaning only — NO thresholds):",
+        "",
+        "Engineering limits are deliberately NOT given here. They are enforced",
+        "by SENTINEL's deterministic detection layer, which compares each",
+        "reading against the authoritative channel dictionary and supplies you",
+        "with the resulting findings. Each reading in the crash dump also",
+        "carries its own nominal_min and nominal_max. Do not infer a limit, and",
+        "do not overrule a detector finding with your own arithmetic.",
+        "",
+    ]
+
+    by_subsystem: dict[str, list] = {}
+    for definition in all_channels():
+        by_subsystem.setdefault(definition.subsystem.value, []).append(definition)
+
+    for subsystem in sorted(by_subsystem):
+        lines.append(f"{subsystem}:")
+        for definition in by_subsystem[subsystem]:
+            lines.append(
+                f"- {definition.channel_id} ({definition.display_name}, "
+                f"{definition.unit or 'no unit'}, {definition.value_class.value}, "
+                f"criticality {definition.criticality.value}): "
+                f"{definition.physical_meaning}"
+            )
+        lines.append("")
+
+    return "\n".join(lines).rstrip()
+
+
+CHANNEL_SEMANTICS = build_channel_semantics_section()
+
+#: Retained under the original name so existing imports keep working. It no
+#: longer contains thresholds; a test asserts no numeric limit appears in it.
+NOMINAL_THRESHOLDS = CHANNEL_SEMANTICS
 
 
 # ═══════════════════════════════════════════════════════════════════════════
@@ -115,8 +177,8 @@ load returns to nominal, exit safe mode
 low-gain antenna BEFORE rebooting OBC.
 
 4. TCS_THERMAL_RUNAWAY — Heater stuck ON causing overheating:
-   Signature: HEATER_ZONE_* stuck ON + component temperature exceeding \
-survival limit (>85°C)
+   Signature: HEATER_ZONE_* stuck ON + component temperature climbing past \
+its survival limit
    Causal chain: heater control fault → temperature rises unchecked → \
 exceeds thermal limit → safe mode
    Recovery: disable affected heater zone, wait for cooling, verify \
@@ -125,7 +187,7 @@ temperature drop, exit safe mode
 cause permanent hardware damage.
 
 5. COMMS_TRANSPONDER_LOSS — Communications link failure:
-   Signature: TRANSPONDER_LOCK drops to 0, SNR falls below 5 dB
+   Signature: TRANSPONDER_LOCK drops to 0, SNR falling sharply beforehand
    Causal chain: transponder failure → loss of comm link → ground cannot \
 command → safe mode (if auto-triggered)
    Recovery: switch to backup transponder, verify signal acquisition, \
@@ -152,8 +214,11 @@ requires_human_review to true for cascades."""
 SAFETY_RULES = """\
 CRITICAL SAFETY RULES — YOU MUST NEVER VIOLATE THESE:
 
-1. NEVER command battery discharge below 15% SoC.
-   If SoC is already below 20%, any power-consuming command is HIGH risk.
+1. NEVER propose a power-consuming command when the battery state of charge is \
+already low.
+   SENTINEL enforces a numeric floor deterministically and will refuse such a \
+command outright. The exact figure is not yours to apply — treat a depressed SoC \
+as a reason to prefer observation over action, and say so in your rationale.
 
 2. NEVER command attitude maneuvers without first verifying gyroscope health.
    A maneuver with a failed gyro can cause uncontrolled tumble.
@@ -172,8 +237,10 @@ requires_human_review to true.
 6. NEVER fabricate telemetry parameter names. Only reference parameters that \
 appear in the crash dump you received.
 
-7. NEVER invent commands that do not follow the CMD_UPPER_SNAKE_CASE naming \
-convention.
+7. NEVER invent a command. Every "command" value in recovery_plan MUST be one \
+of the APPROVED COMMANDS listed below, copied exactly. Any command outside that \
+list is rejected by the deterministic safety validator, and a plan made \
+entirely of rejected commands returns no recovery plan at all.
 
 8. If you are uncertain about the root cause, say so. Lower your confidence. \
 Do not guess with high confidence. Intellectual honesty is a safety feature."""
@@ -212,7 +279,7 @@ Required schema:
   "recovery_plan": [
     {
       "step": 1,
-      "command": "<CMD_UPPER_SNAKE_CASE>",
+      "command": "<one of the APPROVED COMMANDS, copied exactly>",
       "rationale": "<why this command at this point in the sequence>",
       "wait_seconds": <int>,
       "verify": "<condition to check after wait>",
@@ -275,15 +342,121 @@ uncertainty in a real spacecraft environment."""
 # ASSEMBLED SYSTEM PROMPT
 # ═══════════════════════════════════════════════════════════════════════════
 
+# ═══════════════════════════════════════════════════════════════════════════
+# SECTION 7b — APPROVED COMMANDS (generated from the command registry)
+# ═══════════════════════════════════════════════════════════════════════════
+#
+# Phase 1. The prompt previously told the model only to follow a naming
+# convention ("CMD_UPPER_SNAKE_CASE") and never showed it the allowed commands,
+# so it had to guess the vocabulary while a deterministic validator rejected
+# anything it guessed wrong. The enabled command set is now injected verbatim
+# from app/validation/command_registry.py — the same source the validator uses.
+# Nothing here is hand-maintained; add commands to the registry instead.
+
+
+def build_approved_commands_section() -> str:
+    """Render the enabled registry commands as a prompt section."""
+    from app.validation.command_registry import COMMAND_REGISTRY, enabled_command_ids
+
+    by_subsystem: dict[str, list[str]] = {}
+    for cid in enabled_command_ids():
+        spec = COMMAND_REGISTRY[cid]
+        by_subsystem.setdefault(spec.subsystem.value, []).append(cid)
+
+    lines = [
+        "APPROVED COMMANDS — the ONLY commands you may place in recovery_plan.",
+        "Copy a command_id exactly. Any other value is rejected outright.",
+        "",
+    ]
+    for subsystem in sorted(by_subsystem):
+        lines.append(f"{subsystem}:")
+        for cid in sorted(by_subsystem[subsystem]):
+            spec = COMMAND_REGISTRY[cid]
+            note = ""
+            if spec.required_preconditions:
+                note = " [requires: " + ", ".join(
+                    c.value for c in spec.required_preconditions
+                ) + "]"
+            lines.append(
+                f"  {cid} — {spec.description} "
+                f"(risk: {spec.risk_level.value}){note}"
+            )
+        lines.append("")
+    return "\n".join(lines).rstrip()
+
+
+APPROVED_COMMANDS = build_approved_commands_section()
+
+
 SYSTEM_PROMPT = "\n\n".join([
     IDENTITY,
     SUBSYSTEM_DEFINITIONS,
-    NOMINAL_THRESHOLDS,
+    CHANNEL_SEMANTICS,
     FAULT_SIGNATURES,
     SAFETY_RULES,
+    APPROVED_COMMANDS,
     OUTPUT_FORMAT,
     CONFIDENCE_GUIDANCE,
 ])
+
+
+# ═══════════════════════════════════════════════════════════════════════════
+# PROMPT VERSIONING
+# ═══════════════════════════════════════════════════════════════════════════
+#
+# Phase 4. An audit record has to name the prompt that produced an output,
+# otherwise a run cannot be reproduced: the same crash dump under a different
+# system prompt is a different experiment.
+#
+# Two identifiers, because they answer different questions:
+#
+#   PROMPT_VERSION  a human-assigned label. Bump it deliberately when the
+#                   prompt's INTENT changes, so the label means something to a
+#                   reviewer reading a run from six months ago.
+#
+#   prompt_fingerprint()  a content hash, computed from the assembled text.
+#                   This one cannot be forgotten. If someone edits a threshold
+#                   in NOMINAL_THRESHOLDS and does not bump PROMPT_VERSION, the
+#                   fingerprint still changes and two runs remain
+#                   distinguishable. A hand-maintained version alone would
+#                   quietly claim the runs were comparable.
+
+PROMPT_VERSION = "1.0.0"
+"""Human-assigned system prompt version. Bump on any intentional change."""
+
+
+def prompt_fingerprint(system_prompt: str | None = None) -> str:
+    """Return a short content hash of the system prompt actually used.
+
+    Args:
+        system_prompt: The prompt text. Defaults to SYSTEM_PROMPT. Pass the
+            override when an ablation study replaced it, so the audit record
+            reflects what was really sent rather than what normally would be.
+
+    Returns:
+        First 16 hex characters of the SHA-256 of the prompt text. Short enough
+        to read in a log line, long enough that a collision is not a practical
+        concern for this purpose.
+    """
+    import hashlib
+
+    text = SYSTEM_PROMPT if system_prompt is None else system_prompt
+    return hashlib.sha256(text.encode("utf-8")).hexdigest()[:16]
+
+
+def prompt_identity(system_prompt: str | None = None) -> dict[str, object]:
+    """Describe the prompt for the audit record.
+
+    ``is_override`` is recorded explicitly because an ablation run whose prompt
+    was replaced must never be mistaken for a default-configuration run.
+    """
+    return {
+        "prompt_version": PROMPT_VERSION,
+        "prompt_fingerprint": prompt_fingerprint(system_prompt),
+        "prompt_chars": len(SYSTEM_PROMPT if system_prompt is None
+                            else system_prompt),
+        "is_override": system_prompt is not None,
+    }
 
 
 # ═══════════════════════════════════════════════════════════════════════════

@@ -112,13 +112,24 @@ check("Sections are modular (7 sections joined)", SYSTEM_PROMPT.count("\n\n") >=
 print("\n🧪 TEST 2: Safety rules completeness")
 
 REQUIRED_SAFETY_PHRASES = [
-    "battery discharge below 15%",
+    # Phase 5 removed "battery discharge below 15%". The 15% figure is
+    # BATTERY_FLOOR_SOC in app/validation/conditions.py, enforced deterministically
+    # — the validator refuses the command whether or not the model knows the
+    # number. Restating it in the prompt duplicated an authoritative threshold and
+    # would go stale if the policy changed. The rule itself is still present, now
+    # phrased as a preference for observation over action on a depressed SoC.
+    "power-consuming command when the battery state of charge is already low",
     "attitude maneuvers without first verifying gyroscope health",
     "restart the OBC without first confirming communications lock",
     "requires_human_review",
     "confidence is below 0.70",
     "NEVER fabricate telemetry parameter names",
-    "CMD_UPPER_SNAKE_CASE",
+    # Phase 1: rule 7 no longer points at a naming convention. Telling the model
+    # only to follow CMD_UPPER_SNAKE_CASE meant it had to guess the command
+    # vocabulary while a deterministic validator rejected every wrong guess.
+    # It is now shown the registry's enabled command IDs and told to copy one.
+    "NEVER invent a command",
+    "APPROVED COMMANDS",
     "Intellectual honesty",
 ]
 
@@ -388,17 +399,33 @@ print("=" * 60)
 # Structure
 print("\n  STRUCTURE:")
 check("Modular sections (importable individually)", True)
+# Phase 1 inserted APPROVED_COMMANDS between SAFETY_RULES and OUTPUT_FORMAT.
+# It is generated from app/validation/command_registry.py, so the prompt and the
+# safety validator cannot disagree about which commands exist.
+from app.agent.prompts import APPROVED_COMMANDS  # noqa: E402
+
 check("System prompt assembled from named constants",
       SYSTEM_PROMPT == "\n\n".join([
           IDENTITY, SUBSYSTEM_DEFINITIONS, NOMINAL_THRESHOLDS,
-          FAULT_SIGNATURES, SAFETY_RULES, OUTPUT_FORMAT,
+          FAULT_SIGNATURES, SAFETY_RULES, APPROVED_COMMANDS, OUTPUT_FORMAT,
           CONFIDENCE_GUIDANCE,
       ]))
+check("Approved-commands section is generated from the registry", (
+    lambda: all(
+        c in APPROVED_COMMANDS
+        for c in __import__(
+            "app.validation.command_registry", fromlist=["x"]
+        ).enabled_command_ids()
+    ))())
 check("Prompt builder is a pure function (no side effects)", True)
 
 # Safety
 print("\n  SAFETY:")
-check("Battery 15% rule present", "15%" in SAFETY_RULES)
+# Phase 5: the battery rule is present but no longer carries the numeric floor.
+# The number belongs to app/validation/conditions.py, which enforces it.
+check("Battery SoC rule present without a numeric floor",
+      "state of charge is already low" in SAFETY_RULES
+      and "15%" not in SAFETY_RULES)
 check("Gyro health before maneuver rule present",
       "gyroscope health" in SAFETY_RULES.lower()
       or "gyro health" in SAFETY_RULES.lower())

@@ -71,9 +71,509 @@ except ImportError:
 
 
 from app.api.models import AnalysisStatus, SentinelOutput
-from app.agent.prompts import build_messages
+from app.agent.prompts import build_messages, prompt_identity
 
 logger = logging.getLogger("sentinel.agent")
+
+
+# ---------------------------------------------------------------------------
+# Phase 4 — audit instrumentation helpers
+# ---------------------------------------------------------------------------
+#
+# The recorder is threaded through the pipeline and each stage is written as it
+# completes. Nothing here reconstructs a record after the fact, so an entry
+# exists only if that stage actually ran.
+#
+# Every helper is a no-op when recorder is None, which keeps auditing optional
+# and keeps the existing call signatures working unchanged.
+
+
+def _audit_record_input(recorder: Any, crash_dict: dict[str, Any]) -> None:
+    """Record the input telemetry, its provenance, and the scenario it is from."""
+    from app.audit import Stage, StageStatus
+    from app.api.adapters import canonical_window_dicts, coverage_report
+    from app.api.provenance import display_label, normalize
+
+    try:
+        readings = canonical_window_dicts(crash_dict)
+        coverage = coverage_report(crash_dict)
+    except Exception as exc:  # pragma: no cover — adapter is in-tree
+        recorder.record(
+            Stage.INPUT, StageStatus.DEGRADED,
+            f"input recorded without canonical telemetry: {exc}",
+            {"error": str(exc), "scenario_id": crash_dict.get("scenario_id")},
+        )
+        return
+
+    # Two provenance facts, kept separate because they can legitimately differ
+    # and collapsing them loses information. The payload declares what its
+    # NUMBERS are (e.g. SYNTHETIC), while the run may be a DEMO replay of that
+    # payload. Recording only one would either hide that the run was rehearsed or
+    # hide that the underlying telemetry was generated.
+    declared = normalize(crash_dict.get("provenance"))
+    run_provenance = recorder.header.provenance
+    recorder.record(
+        Stage.INPUT,
+        StageStatus.OK,
+        (
+            f"{len(readings)} canonical reading(s) across "
+            f"{len(coverage['canonical_channels'])} channel(s); "
+            f"run provenance {run_provenance}"
+            + (f", payload declares {declared}"
+               if declared != run_provenance else "")
+        ),
+        {
+            "scenario_id": crash_dict.get("scenario_id"),
+            "incident_id": crash_dict.get("incident_id"),
+            "fault_type": crash_dict.get("fault_type"),
+            "safe_mode_trigger": crash_dict.get("safe_mode_trigger"),
+            "fault_register": crash_dict.get("fault_register"),
+            "run_provenance": run_provenance,
+            "run_source_type": display_label(run_provenance),
+            "declared_provenance": declared,
+            "declared_source_type": display_label(declared),
+            "provenance_differs": declared != run_provenance,
+            "source_note": crash_dict.get("source_note"),
+            # The readings themselves, so the run can be replayed from the record
+            # alone rather than depending on the catalogue still holding this
+            # scenario in the same form.
+            "telemetry": readings,
+            "telemetry_coverage": coverage,
+            "canonical_field": "pre_fault_telemetry_window",
+            "telecommand_context": crash_dict.get("telecommand_context"),
+            "hardware_state": crash_dict.get("hardware_state"),
+            "operating_context": crash_dict.get("operating_context"),
+            "event_log": crash_dict.get("event_log"),
+        },
+    )
+
+
+def _audit_record_detection(recorder: Any, report: Any, duration_ms: float | None,
+                            error: str | None = None) -> None:
+    """Record the deterministic detection result, or that it did not run."""
+    from app.audit import Stage, StageStatus
+
+    if report is None:
+        recorder.record(
+            Stage.DETECTION,
+            StageStatus.FAILED if error else StageStatus.NOT_RUN,
+            f"detection unavailable: {error}" if error
+            else "detection did not run for this analysis",
+            {"error": error, "claim": "No anomaly claim is made for this run."},
+            duration_ms=duration_ms if error else None,
+        )
+        return
+
+    recorder.record(
+        Stage.DETECTION,
+        StageStatus.OK,
+        (
+            f"{report.anomaly_count} anomaly(ies) on "
+            f"{report.anomalous_channels}/{report.total_channels} channel(s), "
+            f"max severity {report.max_severity.value}"
+        ),
+        report.model_dump(mode="json"),
+        duration_ms=duration_ms,
+    )
+
+
+def _audit_record_rag(recorder: Any, snippets: list[str] | None,
+                      trace: dict[str, Any] | None, duration_ms: float | None,
+                      error: str | None = None) -> None:
+    """Record retrieval results AND the sources they came from."""
+    from app.audit import Stage, StageStatus
+    from app.audit.record import sha256_hex
+
+    if error is not None:
+        recorder.record(
+            Stage.RAG, StageStatus.FAILED,
+            f"procedure retrieval failed: {error}",
+            {"error": error,
+             "claim": "The LLM received no retrieved procedure context."},
+            duration_ms=duration_ms,
+        )
+        return
+
+    snippets = snippets or []
+    if trace is None:
+        # Procedures were handed in by the caller — an evaluation harness, or a
+        # replay. Retrieval did not happen during this run, and the record must
+        # not imply that it did.
+        recorder.record(
+            Stage.RAG, StageStatus.DEGRADED,
+            f"{len(snippets)} procedure(s) supplied by the caller; "
+            f"no retrieval performed in this run",
+            {
+                "backend": "caller_supplied",
+                "sources": [],
+                "sources_available": False,
+                "snippet_count": len(snippets),
+                "snippet_hashes": [sha256_hex(s)[:16] for s in snippets],
+                "claim": (
+                    "Source attribution is unavailable because this run did not "
+                    "perform retrieval."
+                ),
+            },
+            duration_ms=duration_ms,
+        )
+        return
+
+    recorder.record(
+        Stage.RAG, StageStatus.OK,
+        (
+            f"{trace.get('snippet_count', len(snippets))} procedure(s) from "
+            f"{trace.get('backend', 'unknown')}"
+        ),
+        {**trace, "sources_available": True,
+         "snippet_hashes": [sha256_hex(s)[:16] for s in snippets]},
+        duration_ms=duration_ms,
+    )
+
+
+def _audit_record_llm(
+    recorder: Any,
+    config: Any,
+    messages: list[dict[str, str]],
+    raw_responses: list[str],
+    attempts: int,
+    duration_ms: float,
+    system_prompt_override: str | None,
+    error: str | None = None,
+) -> None:
+    """Record provider, model, mode, prompt identity and the raw output.
+
+    The full system prompt is NOT stored. It is identified by version plus a
+    content fingerprint, and every message is stored with its SHA-256, so a
+    reconstruction can be verified byte-for-byte against the record. Storing
+    ~16 KB of unchanging prompt text on every run would bloat the store without
+    adding anything the fingerprint does not already pin down.
+
+    The raw LLM output IS stored, because it cannot be reconstructed.
+    """
+    from app.audit import Stage, StageStatus
+    from app.audit.record import llm_identity, sha256_hex, truncate_text
+
+    payload: dict[str, Any] = {
+        **llm_identity(config),
+        **prompt_identity(system_prompt_override),
+        "attempts": attempts,
+        "messages": [
+            {
+                "role": m.get("role"),
+                "chars": len(m.get("content", "")),
+                "sha256": sha256_hex(m.get("content", "")),
+            }
+            for m in messages
+        ],
+        "raw_responses": [truncate_text(r) for r in raw_responses],
+        "response_count": len(raw_responses),
+        "prompt_text_stored": False,
+        "reproducibility_note": (
+            "The system prompt is pinned by prompt_version and "
+            "prompt_fingerprint; message SHA-256 values allow a reconstruction "
+            "to be verified. Raw responses are stored verbatim."
+        ),
+    }
+
+    if error is not None:
+        payload["error"] = error
+        recorder.record(
+            Stage.LLM, StageStatus.FAILED,
+            f"LLM stage failed after {attempts} attempt(s): {error}",
+            payload, duration_ms=duration_ms,
+        )
+        return
+
+    recorder.record(
+        Stage.LLM, StageStatus.OK,
+        (
+            f"{payload['provider']} / {payload['model']} "
+            f"(mode={payload['mode']}, prompt={payload['prompt_version']}"
+            f"@{payload['prompt_fingerprint']}, {attempts} attempt(s))"
+        ),
+        payload, duration_ms=duration_ms,
+    )
+
+
+def _audit_record_hypotheses(recorder: Any, result: SentinelOutput) -> None:
+    """Record the ranked hypotheses, labelled as model output."""
+    from app.audit import Stage, StageStatus
+
+    recorder.record(
+        Stage.HYPOTHESES, StageStatus.OK,
+        (
+            f"{len(result.hypotheses)} hypothesis(es), top "
+            f"'{result.hypotheses[0].root_cause}' at "
+            f"{result.hypotheses[0].confidence:.2f} confidence"
+        ),
+        {
+            "generated_by": "LLM",
+            "is_validated_diagnosis": False,
+            "claim": (
+                "Ranked hypotheses produced by the language model. Confidence "
+                "is the model's own estimate; it is not a calibrated "
+                "probability and no physical consistency check has been applied."
+            ),
+            "hypotheses": [h.model_dump(mode="json") for h in result.hypotheses],
+        },
+    )
+
+
+def _audit_record_safety(recorder: Any, validation: Any,
+                         duration_ms: float | None,
+                         skipped: bool = False) -> None:
+    """Record the deterministic safety verdict, including what was refused."""
+    from app.audit import Stage, StageStatus
+
+    if skipped:
+        recorder.record(
+            Stage.SAFETY_VALIDATION, StageStatus.SKIPPED,
+            "safety validation deliberately bypassed (ablation mode)",
+            {
+                "skip_safety": True,
+                "safety_status": "NOT_VALIDATED",
+                "claim": (
+                    "No safety claim is made for this plan. The recovery steps "
+                    "below were NOT checked against the command registry or the "
+                    "operating constraints."
+                ),
+            },
+        )
+        return
+
+    recorder.record(
+        Stage.SAFETY_VALIDATION, StageStatus.OK,
+        (
+            f"{validation.safety_status.value}: "
+            f"{len(validation.validated_steps)} approved, "
+            f"{len(validation.blocked_steps)} blocked"
+        ),
+        {
+            "safety_status": validation.safety_status.value,
+            "is_safe": validation.is_safe,
+            "all_blocked": validation.all_blocked,
+            "requires_human_review": validation.requires_human_review,
+            "safety_summary": validation.safety_summary,
+            "approved_commands": [s.command for s in validation.validated_steps],
+            "blocked_steps": [
+                b.model_dump(mode="json") for b in validation.blocked_for_api()
+            ],
+            "validator": "app.agent.safety.validate_recovery_plan",
+            "registry": "app.validation.command_registry",
+        },
+        duration_ms=duration_ms,
+    )
+
+
+def _audit_record_diagnosis(recorder: Any, result: SentinelOutput,
+                            total_ms: float) -> None:
+    """Record the final output and the recommended actions."""
+    from app.audit import Stage, StageStatus
+
+    recorder.record(
+        Stage.DIAGNOSIS, StageStatus.OK,
+        (
+            f"status={result.status.value}, safety={result.safety_status.value}, "
+            f"{len(result.recovery_plan)} recommended action(s), "
+            f"review_required={result.requires_human_review}"
+        ),
+        {
+            "sentinel_output": result.model_dump(mode="json"),
+            "recommended_actions": [
+                s.model_dump(mode="json") for s in result.recovery_plan
+            ],
+            "action_count": len(result.recovery_plan),
+            "requires_human_review": result.requires_human_review,
+            "authority": (
+                "Recommendation only. No command is dispatched by SENTINEL; "
+                "execution requires an operator decision, which is recorded "
+                "separately as an operator_decision entry."
+            ),
+            "pipeline_duration_ms": total_ms,
+        },
+    )
+
+
+# Each stage is recorded at the point in the pipeline where it runs, so the entry
+# sequence reads as the architecture: detection → state estimation → hypotheses →
+# physics validation → safety validation. Writing them together would put physics
+# validation before the hypotheses it is supposed to check, and the log would
+# misrepresent the intended order.
+
+
+def _audit_record_state_estimation(recorder: Any, crash_dump: Any) -> None:
+    """Record the Phase 7 state estimate and its residuals.
+
+    Replaces the NOT_IMPLEMENTED placeholder that stood here from Phase 4, whose
+    stated reason was that no state estimator or dynamics model existed. One now
+    does, so the entry carries a result.
+
+    The stage is deterministic and consults no language model. It runs BEFORE the
+    LLM in the pipeline, which is the point: the residuals are evidence the model
+    is given, not something it produces.
+
+    A failure here is recorded and swallowed. Physical consistency checking is
+    corroboration, and an investigation that dies because a simplified model
+    raised would be worse than one that proceeds with the stage marked FAILED.
+    """
+    from app.audit import Stage, StageStatus
+
+    if recorder.has(Stage.STATE_ESTIMATION):
+        return
+
+    started = time.perf_counter()
+    try:
+        from app.estimation import compute_residuals, estimate_states
+
+        dump = crash_dump if isinstance(crash_dump, dict) else None
+        sequence = estimate_states(dump)
+        report = compute_residuals(dump, sequence)
+    except Exception as exc:  # pragma: no cover — estimation is in-tree
+        logger.warning("State estimation error (non-fatal): %s", exc)
+        recorder.record(
+            Stage.STATE_ESTIMATION, StageStatus.FAILED,
+            f"state estimation raised {type(exc).__name__}",
+            {
+                "error": f"{type(exc).__name__}: {exc}",
+                "estimator": "app.estimation.residuals.compute_residuals",
+                "claim": (
+                    "No physical consistency claim is made for this run. The "
+                    "stage was attempted and raised."
+                ),
+            },
+            duration_ms=(time.perf_counter() - started) * 1000.0,
+        )
+        return
+
+    decided = [r for r in report.residuals if r.status.is_decided]
+
+    # DEGRADED rather than OK when nothing could be decided. The stage ran, so
+    # NOT_RUN would be wrong, and OK would imply a check that in fact produced no
+    # verdict on anything.
+    status = StageStatus.OK if decided else StageStatus.DEGRADED
+
+    final_state = (
+        sequence.timed_states[-1].as_dict() if sequence.timed_states else None
+    )
+
+    recorder.record(
+        Stage.STATE_ESTIMATION, status,
+        report.summary,
+        {
+            "residual_report": report.as_dict(),
+            "state_estimate": {
+                "state_count": len(sequence),
+                "timed_state_count": len(sequence.timed_states),
+                "channels_seen": list(sequence.channels_seen),
+                "channels_modelled": list(sequence.channels_modelled),
+                "channels_ignored": list(sequence.channels_ignored),
+                "final_state": final_state,
+                "full_sequence_stored": False,
+                "full_sequence_omitted_because": (
+                    "The complete snapshot sequence runs to roughly 65 kB per "
+                    "run. The final state is the one the vehicle reached and is "
+                    "what the residuals were computed against; state_count "
+                    "records how many snapshots existed."
+                ),
+            },
+            "estimator": "app.estimation.residuals.compute_residuals",
+            "parameters": "app.estimation.parameters",
+            "pipeline": (
+                "telemetry -> state estimate -> model prediction -> residuals"
+            ),
+            "runs_before_llm": True,
+            "uses_llm": False,
+            "flight_qualified": False,
+            "claim": (
+                "Simplified research-grade consistency checking. NOT flight "
+                "software and NOT a model of any specific spacecraft. A residual "
+                "shows disagreement with the assumptions recorded in "
+                "residual_report.assumed_parameters, not with the vehicle. An "
+                "UNDECIDABLE residual is not a passing check."
+            ),
+        },
+        duration_ms=(time.perf_counter() - started) * 1000.0,
+    )
+
+
+def _audit_record_physics_validation(recorder: Any, crash_dump: Any) -> None:
+    """Record the Phase 8 physics verdict for every candidate hypothesis.
+
+    Replaces the NOT_IMPLEMENTED placeholder that stood here from Phase 4. Phase 7
+    made physical consistency MEASURED; this makes it ENFORCED, in the sense that
+    a hypothesis the models contradict is recorded as INVALID and demoted.
+
+    The verdicts are computed from the DETERMINISTIC Phase 6 candidate set, not
+    from whatever the LLM proposes. That ordering is the point: the audit record
+    carries an independent physical assessment that exists whether or not the
+    model agrees with it, and ``reconcile_llm_claim()`` in
+    ``app/validation/physics.py`` has no branch that lets a model change one.
+
+    A failure here is recorded and swallowed, for the same reason as state
+    estimation: an investigation that dies because a simplified model raised
+    would be worse than one that proceeds with the stage marked FAILED.
+    """
+    from app.audit import Stage, StageStatus
+
+    if recorder.has(Stage.PHYSICS_VALIDATION):
+        return
+
+    started = time.perf_counter()
+    try:
+        from app.validation.physics import validate_crash_dump
+
+        dump = crash_dump if isinstance(crash_dump, dict) else {}
+        report, hypotheses, _residuals, _sequence = validate_crash_dump(dump)
+    except Exception as exc:  # pragma: no cover — validation is in-tree
+        logger.warning("Physics validation error (non-fatal): %s", exc)
+        recorder.record(
+            Stage.PHYSICS_VALIDATION, StageStatus.FAILED,
+            f"physics validation raised {type(exc).__name__}",
+            {
+                "error": f"{type(exc).__name__}: {exc}",
+                "validator": "app.validation.physics.validate_crash_dump",
+                "claim": (
+                    "No physical validity claim is made for this run. The stage "
+                    "was attempted and raised."
+                ),
+            },
+            duration_ms=(time.perf_counter() - started) * 1000.0,
+        )
+        return
+
+    # DEGRADED when nothing could be decided either way. The stage ran, so
+    # NOT_RUN is wrong, and OK would imply verdicts that were in fact all
+    # UNCERTAIN.
+    decided = report.invalidated or report.validated
+    status = StageStatus.OK if decided else StageStatus.DEGRADED
+
+    recorder.record(
+        Stage.PHYSICS_VALIDATION, status,
+        report.summary,
+        {
+            "physics_report": report.model_dump(mode="json"),
+            "hypothesis_source": "app.diagnosis.generate_hypotheses",
+            "hypotheses_considered": [
+                h.fault_id for h in getattr(hypotheses, "hypotheses", [])
+            ],
+            "validator": "app.validation.physics.validate_hypotheses",
+            "constraints": "app.validation.physics.CONSTRAINTS",
+            "uses_llm": False,
+            "llm_can_override": False,
+            "runs_on_deterministic_candidates": True,
+            "flight_qualified": False,
+            "claim": (
+                "Deterministic physics validation of the DETERMINISTIC Phase 6 "
+                "candidate set. No language model was consulted and none can "
+                "change a verdict. An INVALID verdict shows inconsistency with "
+                "the simplified Phase 7 models and the assumptions recorded in "
+                "physics_report.assumed_parameters, which is grounds to downgrade "
+                "a hypothesis rather than proof about hardware. UNCERTAIN is not "
+                "a pass."
+            ),
+        },
+        duration_ms=(time.perf_counter() - started) * 1000.0,
+    )
 
 
 # ---------------------------------------------------------------------------
@@ -88,6 +588,15 @@ class ModelMode(str, Enum):
     BASE = "base"          # Gemini Flash — primary hosted path
     TUNED = "tuned"        # Tuned Gemini model / fine-tuned endpoint
     FALLBACK = "fallback"  # Local/open model (Phi-3-mini, Qwen2.5, Ollama)
+    STUB = "stub"          # No inference at all — returns a supplied response
+
+    # STUB exists for Phase 4. Tests and the worked example need to exercise the
+    # full pipeline without an API key, and the obvious shortcut — monkeypatching
+    # _call_llm while leaving the config on BASE — makes the audit record claim
+    # that gemini-2.5-flash produced the output. That is a fabricated provenance
+    # claim inside the very artifact whose purpose is provenance. In STUB mode
+    # llm_identity() reports provider "none_stubbed_response" and
+    # inference_performed=False, so the record states plainly that no model ran.
 
 
 # ---------------------------------------------------------------------------
@@ -119,6 +628,12 @@ class AgentConfig:
     fallback_base_url: str = "http://localhost:11434/v1"  # Ollama default
     fallback_api_key: str = "ollama"      # Ollama doesn't need a real key
 
+    # --- Stub (no inference; tests and the worked example) ---
+    stub_response: str = ""
+    """Response returned verbatim in STUB mode. No model is called."""
+    stub_label: str = ""
+    """Short name for the stub, recorded in the audit trail as the 'model'."""
+
     # --- Shared LLM parameters ---
     temperature: float = 0.1              # Low for deterministic JSON output
     max_tokens: int = 4096                # Enough for 3 hypotheses + recovery
@@ -142,6 +657,8 @@ class AgentConfig:
             return self.tuned_model_id
         if self.mode == ModelMode.FALLBACK:
             return self.fallback_model
+        if self.mode == ModelMode.STUB:
+            return f"stub:{self.stub_label or 'inline'}"
         return self.model
 
 
@@ -246,6 +763,46 @@ def _validate_output(parsed: dict[str, Any]) -> SentinelOutput:
             f"SentinelOutput validation failed: {e}",
             parsed_data=parsed,
         )
+
+
+def _format_safety_status(result: SentinelOutput) -> str:
+    """Render the pipeline's closing status line from the validation outcome.
+
+    Phase 1. Replaces the hardcoded "Analysis complete. Safety validation
+    passed." which was emitted regardless of how many commands were blocked.
+    """
+    from app.api.models import SafetyStatus
+
+    status = result.safety_status
+    blocked = len(result.blocked_steps)
+
+    if status is SafetyStatus.BLOCKED:
+        return (
+            f"Analysis complete. SAFETY STATUS: BLOCKED — all {blocked} "
+            f"proposed recovery step(s) were rejected. No recovery plan is "
+            f"offered. Operator review required."
+        )
+    if status is SafetyStatus.PARTIALLY_BLOCKED:
+        return (
+            f"Analysis complete. SAFETY STATUS: PARTIALLY_BLOCKED — "
+            f"{blocked} step(s) rejected, {len(result.recovery_plan)} "
+            f"approved. Operator review required."
+        )
+    if status is SafetyStatus.REQUIRES_HUMAN_REVIEW:
+        return (
+            "Analysis complete. SAFETY STATUS: REQUIRES_HUMAN_REVIEW — no step "
+            "was blocked, but the plan needs operator authorisation."
+        )
+    if status is SafetyStatus.VALIDATED:
+        return (
+            f"Analysis complete. SAFETY STATUS: VALIDATED — all "
+            f"{len(result.recovery_plan)} step(s) passed the registry and "
+            f"constraint checks."
+        )
+    return (
+        "Analysis complete. SAFETY STATUS: NOT_VALIDATED — deterministic "
+        "safety validation did not run, so no safety claim is made."
+    )
 
 
 _REPAIR_PROMPT = (
@@ -377,6 +934,7 @@ class SentinelAgent:
         retrieved_procedures: list[str] | None = None,
         system_prompt_override: str | None = None,
         skip_safety: bool = False,
+        recorder: Any = None,
     ) -> SentinelOutput:
         """Run the SENTINEL diagnostic pipeline on a crash dump.
 
@@ -394,6 +952,11 @@ class SentinelAgent:
             skip_safety: If True, bypass deterministic safety validation
                 (Step 7). Only used for ablation studies; never set True
                 on the default demo path.
+            recorder: Optional ``app.audit.AuditRecorder`` (Phase 4). When
+                supplied, each stage is recorded as it completes — including the
+                stages this build does not implement, and including a FAILED
+                entry if the run raises. When None, nothing is recorded and
+                behaviour is exactly as before.
 
         Returns:
             SentinelOutput — validated structured diagnostic output.
@@ -424,6 +987,24 @@ class SentinelAgent:
         state.anomalous_parameters = anomalous_parameters or []
         state.retrieved_procedures = retrieved_procedures or []
 
+        # --- Phase 4: audit prologue -------------------------------------
+        # Recorded here rather than only in the streaming entry point, so a run
+        # started from an evaluation script or a test gets the same complete
+        # coverage map as one started from the API. Each helper skips a stage a
+        # caller already recorded, so nothing is written twice.
+        if recorder is not None:
+            from app.audit import Stage
+
+            if not recorder.has(Stage.INPUT):
+                _audit_record_input(recorder, state.crash_dump)
+            if not recorder.has(Stage.DETECTION):
+                _audit_record_detection(recorder, None, None)
+            _audit_record_state_estimation(recorder, state.crash_dump)
+            if not recorder.has(Stage.RAG):
+                _audit_record_rag(
+                    recorder, retrieved_procedures, None, None,
+                )
+
         # --- Build messages ---
         messages = build_messages(
             crash_dump_json=crash_dump_json,
@@ -431,15 +1012,19 @@ class SentinelAgent:
             retrieved_procedures=retrieved_procedures,
             system_prompt_override=system_prompt_override,
         )
+        audited_messages = list(messages)
 
         # --- Call LLM + parse + validate (with retry) ---
         last_error: Exception | None = None
         attempts = 1 + self.config.max_retries  # 1 initial + N retries
+        llm_elapsed_ms = 0.0
 
         for attempt in range(attempts):
             try:
                 # Call LLM (provider-aware, mode-aware)
+                _llm_started = time.perf_counter()
                 raw_response = self._call_llm(messages)
+                llm_elapsed_ms += (time.perf_counter() - _llm_started) * 1000.0
                 state.raw_llm_responses.append(raw_response)
                 state.llm_calls_made += 1
 
@@ -453,24 +1038,74 @@ class SentinelAgent:
                 # Deterministic whitelist + constraint checks on recovery plan.
                 # Skipped only when skip_safety=True (ablation studies).
                 # Lazy import to avoid circular dependency.
+                # Phase 4: record the LLM stage and the raw hypotheses BEFORE
+                # safety validation runs, so the record shows what the model
+                # proposed independently of what survived validation. Recording
+                # only the post-validation output would hide the cases this
+                # architecture exists to expose — an unsafe command the model
+                # asked for and the validator refused.
+                if recorder is not None:
+                    _audit_record_llm(
+                        recorder, self.config, audited_messages,
+                        state.raw_llm_responses, attempt + 1, llm_elapsed_ms,
+                        system_prompt_override,
+                    )
+                    _audit_record_hypotheses(recorder, result)
+                    # Physics validation runs HERE, between the model's
+                    # hypotheses and the command-safety check — the point in the
+                    # architecture where a physically impossible diagnosis should
+                    # be caught before any command is proposed from it. It
+                    # validates the DETERMINISTIC Phase 6 candidate set rather
+                    # than the model's output, so the record carries an
+                    # independent assessment the model cannot have shaped.
+                    _audit_record_physics_validation(recorder, state.crash_dump)
+
                 if not skip_safety:
                     from app.agent.safety import validate_recovery_plan, apply_validation_to_output
 
+                    _safety_started = time.perf_counter()
                     validation = validate_recovery_plan(result, state.crash_dump)
                     result = apply_validation_to_output(result, validation)
+                    _safety_ms = (time.perf_counter() - _safety_started) * 1000.0
+
+                    if recorder is not None:
+                        _audit_record_safety(recorder, validation, _safety_ms)
 
                     if validation.blocked_steps:
                         logger.info(
-                            "Safety: %d step(s) blocked, %d approved. %s",
+                            "Safety: %d step(s) blocked, %d approved, status=%s. %s",
                             len(validation.blocked_steps),
                             len(validation.validated_steps),
+                            validation.safety_status.value,
                             validation.safety_summary,
                         )
+                    if validation.all_blocked:
+                        logger.warning(
+                            "Safety: ALL %d proposed step(s) blocked — returning "
+                            "safety_status=BLOCKED with an empty recovery plan.",
+                            len(validation.blocked_steps),
+                        )
                 else:
+                    # Phase 1: an unvalidated plan must not inherit a status that
+                    # implies it passed. SentinelOutput defaults safety_status to
+                    # NOT_VALIDATED; make that explicit here.
+                    from app.api.models import SafetyStatus
+
+                    result = result.model_copy(
+                        update={"safety_status": SafetyStatus.NOT_VALIDATED}
+                    )
                     logger.info("Safety validation SKIPPED (ablation mode).")
+                    if recorder is not None:
+                        _audit_record_safety(recorder, None, None, skipped=True)
 
                 # Success — record timing and return
                 state.elapsed_seconds = time.time() - state.start_time
+
+                if recorder is not None:
+                    _audit_record_diagnosis(
+                        recorder, result, state.elapsed_seconds * 1000.0,
+                    )
+
                 logger.info(
                     "Analysis complete in %.1fs (%d LLM call(s), mode=%s, "
                     "model=%s). Confidence: %.2f, requires_human_review: %s",
@@ -502,13 +1137,34 @@ class SentinelAgent:
                     )
                     logger.info("Retrying with repair prompt...")
 
-            except LLMCallError:
-                # Don't retry on API errors (auth, rate limit, network)
+            except LLMCallError as exc:
+                # Don't retry on API errors (auth, rate limit, network).
+                # Phase 4: record the failure before propagating. An LLM call
+                # that failed on authentication is exactly the kind of thing an
+                # auditor needs to see, and the message may echo a key, so it
+                # goes through the recorder's redaction.
+                if recorder is not None:
+                    _audit_record_llm(
+                        recorder, self.config, audited_messages,
+                        state.raw_llm_responses, attempt + 1, llm_elapsed_ms,
+                        system_prompt_override, error=str(exc),
+                    )
                 raise
 
         # All attempts exhausted
         state.elapsed_seconds = time.time() - state.start_time
         state.status = AnalysisStatus.ERROR
+
+        if recorder is not None:
+            from app.audit import Stage
+
+            if not recorder.has(Stage.LLM):
+                _audit_record_llm(
+                    recorder, self.config, audited_messages,
+                    state.raw_llm_responses, attempts, llm_elapsed_ms,
+                    system_prompt_override,
+                    error=f"{type(last_error).__name__}: {last_error}",
+                )
 
         if isinstance(last_error, OutputParsingError):
             raise OutputParsingError(
@@ -533,12 +1189,33 @@ class SentinelAgent:
         Routes to the appropriate provider:
           - base/tuned → Gemini API via google-genai
           - fallback   → OpenAI-compatible API (Ollama, vLLM, etc.)
+          - stub       → no inference; returns config.stub_response
 
         Returns the raw text content of the assistant's response.
         """
+        if self.config.mode == ModelMode.STUB:
+            return self._call_stub()
         if self.config.mode == ModelMode.FALLBACK:
             return self._call_fallback(messages)
         return self._call_gemini(messages)
+
+    def _call_stub(self) -> str:
+        """Return the configured stub response. No inference is performed.
+
+        Raises rather than inventing a response, so a STUB run without a
+        configured response fails loudly instead of producing an output whose
+        origin is unclear.
+        """
+        if not self.config.stub_response:
+            raise LLMCallError(
+                "mode=STUB requires AgentConfig.stub_response to be set; "
+                "refusing to invent a response"
+            )
+        logger.info(
+            "LLM call served from stub '%s' — no inference performed.",
+            self.config.stub_label or "inline",
+        )
+        return self.config.stub_response
 
     def _call_gemini(self, messages: list[dict[str, str]]) -> str:
         """Call Gemini API (base or tuned mode).
@@ -653,6 +1330,7 @@ class SentinelAgent:
         use_pdf_rag: bool = True,
         system_prompt_override: str | None = None,
         skip_safety: bool = False,
+        recorder: Any = None,
     ) -> SentinelOutput:
         """Convenience wrapper: retrieve procedures via RAG then analyze.
 
@@ -681,7 +1359,7 @@ class SentinelAgent:
             SentinelOutput — validated structured diagnostic output.
         """
         # Lazy import rag to avoid module-level circular dependency
-        from app.agent.rag import retrieve_procedures
+        from app.agent.rag import retrieve_procedures, retrieve_procedures_traced
 
         # Normalize crash dump to dict for query building
         if isinstance(crash_dump, str):
@@ -708,18 +1386,44 @@ class SentinelAgent:
         all_cues = list(anomalous_parameters or []) + list(fault_cues or [])
         query = " ".join(query_parts) or "spacecraft safe mode recovery"
 
-        # Retrieve procedure context (Step 4: fallback KB / Step 6: PDF RAG)
-        retrieved_procedures = retrieve_procedures(
-            query=query,
-            fault_cues=all_cues or None,
-            top_k=top_k,
-            use_pdf_rag=use_pdf_rag,
-        )
+        # Retrieve procedure context (Step 4: fallback KB / Step 6: PDF RAG).
+        # Phase 4: when auditing, use the traced variant so the record carries
+        # the retrieved SOURCES, not just the retrieved text. It returns
+        # byte-identical snippets, so the LLM sees the same context either way.
+        _rag_started = time.perf_counter()
+        if recorder is not None:
+            retrieved_procedures, rag_trace = retrieve_procedures_traced(
+                query=query,
+                fault_cues=all_cues or None,
+                top_k=top_k,
+                use_pdf_rag=use_pdf_rag,
+            )
+        else:
+            retrieved_procedures = retrieve_procedures(
+                query=query,
+                fault_cues=all_cues or None,
+                top_k=top_k,
+                use_pdf_rag=use_pdf_rag,
+            )
+            rag_trace = None
+        _rag_ms = (time.perf_counter() - _rag_started) * 1000.0
 
         logger.info(
             "analyze_with_rag: retrieved %d procedure(s) for query: %.60s",
             len(retrieved_procedures), query,
         )
+
+        if recorder is not None:
+            from app.audit import Stage
+
+            if not recorder.has(Stage.INPUT):
+                _audit_record_input(recorder, crash_dict)
+            if not recorder.has(Stage.DETECTION):
+                _audit_record_detection(recorder, None, None)
+            _audit_record_state_estimation(recorder, crash_dict)
+            _audit_record_rag(
+                recorder, retrieved_procedures, rag_trace, _rag_ms,
+            )
 
         # Run LLM reasoning with retrieved context (Step 5: validation)
         return self.analyze_crash_dump(
@@ -728,6 +1432,7 @@ class SentinelAgent:
             retrieved_procedures=retrieved_procedures,
             system_prompt_override=system_prompt_override,
             skip_safety=skip_safety,
+            recorder=recorder,
         )
 
 
@@ -737,6 +1442,7 @@ class SentinelAgent:
         anomalous_parameters: list[str] | None = None,
         fault_cues: list[str] | None = None,
         system_prompt_override: str | None = None,
+        recorder: Any = None,
     ):
         """Analyze a crash dump and yield SSEEvent objects as the pipeline runs.
 
@@ -770,8 +1476,40 @@ class SentinelAgent:
             crash_dict = crash_dump
             crash_dump_str = json.dumps(crash_dump, indent=2)
 
+        # Phase 3: canonicalize ONCE, here at ingestion, so every downstream
+        # stage — detection, safety context extraction, and the LLM prompt —
+        # reads one complete telemetry representation instead of each stage
+        # picking a field. The deprecated pre_fault_telemetry array is left in
+        # place untouched for backward compatibility.
+        try:
+            from app.api.adapters import canonical_window, with_canonical_window
+
+            canonical_count = len(canonical_window(crash_dict))
+            crash_dict = with_canonical_window(crash_dict)
+            crash_dump_str = json.dumps(crash_dict, indent=2)
+        except Exception as exc:  # pragma: no cover — adapter is in-tree
+            logger.warning("Canonicalization skipped (non-fatal): %s", exc)
+            canonical_count = None
+
         yield SSEEvent(event_type=SSEEventType.STATUS,
                        data="Crash dump parsed successfully.")
+        if canonical_count is not None:
+            yield SSEEvent(
+                event_type=SSEEventType.STATUS,
+                data=(
+                    f"Canonical telemetry window resolved: {canonical_count} "
+                    f"reading(s)."
+                ),
+            )
+
+        # Phase 4: record the input against the CANONICALIZED dump, so the audit
+        # record holds the same telemetry the pipeline actually reasoned over.
+        if recorder is not None:
+            _audit_record_input(recorder, crash_dict)
+            yield SSEEvent(
+                event_type=SSEEventType.STATUS,
+                data=f"Audit run opened: {recorder.run_id}",
+            )
 
         # ── Stage 2: Z-Score Anomaly Detection ────────────────────────────
         yield SSEEvent(event_type=SSEEventType.STATUS,
@@ -782,28 +1520,63 @@ class SentinelAgent:
             step_number=1,
         )
 
+        # Phase 2: the staged detection pipeline replaces the single
+        # range-derived z-score call that used to run here. That call could not
+        # flag SEU_counter, Transponder_lock, Star_tracker_status, Fault_register
+        # (degenerate ranges -> sigma 0 -> z always 0.0) or a Watchdog_counter
+        # overflow (wide range -> sigma 166.7 -> z 2.85, under threshold).
+        detection_report = None
+        _detect_started = time.perf_counter()
+        _detect_error: str | None = None
         try:
-            from app.analytics.anomaly_detector import ZScoreAnomalyDetector, SATELLITE_NOMINAL_RANGES
-            detector = ZScoreAnomalyDetector(z_threshold=3.0, window_size=10)
-            detector.fit_from_nominal_ranges(SATELLITE_NOMINAL_RANGES)
-            filtered = detector.filter_crash_dump(crash_dict)
-            report = filtered.get("anomaly_report", {})
-            anomaly_details = report.get("summary", "Anomaly detection complete.")
+            from app.detection import run_detection_on_crash_dump
+
+            detection_report = run_detection_on_crash_dump(crash_dict)
+            anomaly_details = detection_report.summary
             if anomalous_parameters is None:
-                anomalous_parameters = [
-                    p["parameter"]
-                    for p in report.get("anomalous_parameters", [])
-                ]
+                anomalous_parameters = detection_report.anomalous_channel_names()
         except Exception as exc:
-            logger.warning("Anomaly detector error (non-fatal): %s", exc)
-            anomaly_details = "Anomaly detector unavailable — proceeding with full telemetry."
+            logger.warning("Detection pipeline error (non-fatal): %s", exc)
+            _detect_error = str(exc)
+            anomaly_details = (
+                "Detection pipeline unavailable — proceeding with full telemetry. "
+                "No anomaly claim is made."
+            )
             anomalous_parameters = anomalous_parameters or []
+        _detect_ms = (time.perf_counter() - _detect_started) * 1000.0
+
+        if recorder is not None:
+            _audit_record_detection(
+                recorder, detection_report, _detect_ms, _detect_error,
+            )
+            _audit_record_state_estimation(recorder, crash_dict)
 
         yield SSEEvent(
             event_type=SSEEventType.OBSERVATION,
             data=f"Anomaly detector result: {anomaly_details}",
             step_number=1,
         )
+
+        # Emit the per-detector breakdown so the operator can see which stage
+        # found what, rather than only a flat parameter list.
+        if detection_report is not None and detection_report.anomaly_count:
+            for finding in detection_report.channels[:8]:
+                detectors = ", ".join(d.value for d in finding.detectors)
+                yield SSEEvent(
+                    event_type=SSEEventType.OBSERVATION,
+                    data=(
+                        f"{finding.channel}: {finding.severity.value} "
+                        f"({finding.anomaly_count} finding(s) from {detectors}"
+                        f"{'; corroborated' if finding.corroborated else ''})"
+                    ),
+                    step_number=1,
+                )
+            for warning in detection_report.warnings[:3]:
+                yield SSEEvent(
+                    event_type=SSEEventType.OBSERVATION,
+                    data=f"Detection caveat: {warning}",
+                    step_number=1,
+                )
 
         # ── Stage 3: RAG Retrieval ─────────────────────────────────────────
         yield SSEEvent(event_type=SSEEventType.STATUS,
@@ -815,15 +1588,21 @@ class SentinelAgent:
             step_number=2,
         )
 
+        _rag_started = time.perf_counter()
+        rag_trace: dict[str, Any] | None = None
+        _rag_error: str | None = None
         try:
-            from app.agent.rag import retrieve_procedures
+            from app.agent.rag import retrieve_procedures_traced
             query_parts = [
                 crash_dict.get("safe_mode_trigger", ""),
                 fault_type,
             ]
             query = " ".join(p for p in query_parts if p) or "spacecraft safe mode recovery"
             all_cues = list(anomalous_parameters or []) + list(fault_cues or [])
-            retrieved_procedures = retrieve_procedures(
+            # Traced retrieval returns byte-identical snippets to
+            # retrieve_procedures() — verified by test — and additionally yields
+            # the per-snippet source metadata the audit record needs.
+            retrieved_procedures, rag_trace = retrieve_procedures_traced(
                 query=query,
                 fault_cues=all_cues or None,
                 top_k=3,
@@ -833,7 +1612,15 @@ class SentinelAgent:
         except Exception as exc:
             logger.warning("RAG retrieval error (non-fatal): %s", exc)
             retrieved_procedures = None
+            rag_trace = None
+            _rag_error = str(exc)
             ecss_preview = f"RAG unavailable: {exc}"
+        _rag_ms = (time.perf_counter() - _rag_started) * 1000.0
+
+        if recorder is not None:
+            _audit_record_rag(
+                recorder, retrieved_procedures, rag_trace, _rag_ms, _rag_error,
+            )
 
         yield SSEEvent(
             event_type=SSEEventType.OBSERVATION,
@@ -862,9 +1649,17 @@ class SentinelAgent:
                 anomalous_parameters=anomalous_parameters or None,
                 retrieved_procedures=retrieved_procedures,
                 system_prompt_override=system_prompt_override,
+                recorder=recorder,
             )
-            yield SSEEvent(event_type=SSEEventType.STATUS,
-                           data="Analysis complete. Safety validation passed.")
+
+            # Phase 1: this used to emit the literal string
+            #     "Analysis complete. Safety validation passed."
+            # unconditionally — including when every recovery step had just been
+            # blocked. The status is now derived from the validation outcome.
+            yield SSEEvent(
+                event_type=SSEEventType.STATUS,
+                data=_format_safety_status(result),
+            )
             yield SSEEvent(
                 event_type=SSEEventType.RESULT,
                 data=result.model_dump_json(),

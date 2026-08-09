@@ -1,0 +1,76 @@
+{
+  "$defs": {
+    "OperatorDecisionType": {
+      "description": "What a human decided about a run.",
+      "enum": [
+        "ACKNOWLEDGED",
+        "APPROVED",
+        "REJECTED",
+        "MODIFIED",
+        "ESCALATED",
+        "EXECUTED",
+        "DEFERRED",
+        "COMMENT"
+      ],
+      "title": "OperatorDecisionType",
+      "type": "string"
+    }
+  },
+  "additionalProperties": false,
+  "description": "What a client may submit about a run — and nothing more.\n\nDeliberately minimal. There is no field here through which a client could\nsupply a detection result, an LLM output or a safety verdict, and the store\nrejects an OPERATOR actor on any system stage. So the frontend cannot\nfabricate an audit record; it can only add an attributed human decision to\none the server already wrote.\n\nThe server stamps the sequence number, the timestamp and the actor. A\nclient-supplied timestamp is not accepted, because an audit trail whose\nordering the client controls is not an audit trail.",
+  "properties": {
+    "command": {
+      "anyOf": [
+        {
+          "maxLength": 128,
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "description": "Command the decision applies to, if command-specific",
+      "title": "Command"
+    },
+    "decision": {
+      "$ref": "#/definitions/OperatorDecisionType",
+      "description": "What the operator decided"
+    },
+    "operator_id": {
+      "description": "Who decided. Recorded verbatim; no identity check is made.",
+      "maxLength": 128,
+      "minLength": 1,
+      "title": "Operator Id",
+      "type": "string"
+    },
+    "rationale": {
+      "description": "Why. Required — an unexplained decision is not auditable.",
+      "maxLength": 4000,
+      "minLength": 1,
+      "title": "Rationale",
+      "type": "string"
+    },
+    "step_number": {
+      "anyOf": [
+        {
+          "minimum": 1,
+          "type": "integer"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "description": "Recovery step the decision applies to, if step-specific",
+      "title": "Step Number"
+    }
+  },
+  "required": [
+    "decision",
+    "operator_id",
+    "rationale"
+  ],
+  "title": "OperatorDecisionInput",
+  "type": "object"
+}

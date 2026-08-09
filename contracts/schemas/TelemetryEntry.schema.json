@@ -1,0 +1,159 @@
+{
+  "$defs": {
+    "TelemetryStatus": {
+      "description": "Per-reading status label.\n\nPhase 3 widened this from a bare ``str`` validated against three values to a\nclosed enum covering the labels the repository actually uses. The old\nthree-value check rejected real data: presets 5 and 6 use WARNING, and the\nESA-ADB dumps use NOMINAL_CONTEXT and LABELLED_ANOMALY, so\n``CrashDumpRequest.model_validate`` failed on scenarios 4, 5 and 6.\n\n``normalize()`` accepts the aliases found in the existing data so no stored\npayload has to be rewritten.",
+      "enum": [
+        "NOMINAL",
+        "WARNING",
+        "ANOMALOUS",
+        "CRITICAL",
+        "NOMINAL_CONTEXT",
+        "LABELLED_ANOMALY",
+        "UNKNOWN"
+      ],
+      "title": "TelemetryStatus",
+      "type": "string"
+    }
+  },
+  "description": "CANONICAL telemetry reading — one channel at one time step.\n\nPhase 3 made this the single representation of a telemetry sample. It is\ndeliberately SELF-DESCRIBING: everything a detector or a safety check needs\nis on the entry, so no consumer has to reach for a parallel legacy array.\n\nBefore Phase 3 the bounds lived only on the legacy ``pre_fault_telemetry``\ndicts while status and timing lived only on the window entries, which is why\nPhase 2 found a scenario reporting zero anomalies when read from the window\nalone. ``app/api/adapters.py`` merges both into this shape.",
+  "properties": {
+    "anomalous": {
+      "anyOf": [
+        {
+          "type": "boolean"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "description": "Source-supplied anomaly flag, when the source provides one. SENTINEL's own verdict lives in the AnomalyReport, not here.",
+      "title": "Anomalous"
+    },
+    "baseline_mean": {
+      "anyOf": [
+        {
+          "type": "number"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "description": "Observed baseline mean, when the source measured one",
+      "title": "Baseline Mean"
+    },
+    "baseline_std": {
+      "anyOf": [
+        {
+          "type": "number"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "description": "Observed baseline standard deviation, when measured",
+      "title": "Baseline Std"
+    },
+    "nominal_max": {
+      "anyOf": [
+        {
+          "type": "number"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "description": "Upper bound of the nominal range",
+      "title": "Nominal Max"
+    },
+    "nominal_min": {
+      "anyOf": [
+        {
+          "type": "number"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "description": "Lower bound of the nominal range",
+      "title": "Nominal Min"
+    },
+    "parameter": {
+      "description": "Telemetry channel designation, e.g. V_bat, channel_41",
+      "title": "Parameter",
+      "type": "string"
+    },
+    "relative_time_s": {
+      "anyOf": [
+        {
+          "type": "number"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "description": "Parsed offset in seconds; negative is before the event",
+      "title": "Relative Time S"
+    },
+    "status": {
+      "$ref": "#/definitions/TelemetryStatus",
+      "default": "UNKNOWN",
+      "description": "Per-reading status. Defaults to UNKNOWN, never to NOMINAL."
+    },
+    "timestamp": {
+      "description": "Relative timeline marker, e.g. 'T-60s'",
+      "title": "Timestamp",
+      "type": "string"
+    },
+    "unit": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "description": "Unit of measure",
+      "title": "Unit"
+    },
+    "value": {
+      "anyOf": [
+        {
+          "type": "number"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "description": "Numeric reading. None when unusable — see value_text.",
+      "title": "Value"
+    },
+    "value_text": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "description": "The raw reading when it is not a usable number, e.g. 'NaN' or 'DEGRADED'. Preserved so a NaN stays distinguishable from a missing sample; the old schema coerced both to None.",
+      "title": "Value Text"
+    }
+  },
+  "required": [
+    "timestamp",
+    "parameter"
+  ],
+  "title": "TelemetryEntry",
+  "type": "object"
+}

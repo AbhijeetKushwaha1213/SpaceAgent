@@ -3,6 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
 <title>SENTINEL — AI Spacecraft Recovery Copilot</title>
 <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@300;400;500;600;700&family=JetBrains+Mono:wght@300;400;500;700&family=Inter:wght@300;400;500;600&display=swap" rel="stylesheet">
 <!-- Runtime config: sets window.SENTINEL_BACKEND_URL from .env via generate-config.js -->
@@ -940,8 +941,11 @@ body.pmode #dag-container { height: 700px; }
 body.pmode #nav { display: none; }
  
 /* ─── PRESENTATION MODE TOGGLE ──────────────────────────────────── */
+/* Phase 0: the three top-anchored fixed controls below are offset to clear the
+   simulation banner (28px) + mission ribbon (48px) = 76px, so the persistent
+   provenance notice is actually visible rather than sitting behind them. */
 #pmode-toggle {
-  position: fixed; top: 20px; right: 20px; z-index: 1001;
+  position: fixed; top: 88px; right: 20px; z-index: 1001;
   background: rgba(11,18,32,0.92); border: 1px solid var(--border-glow);
   backdrop-filter: blur(12px); color: var(--text-dim);
   font-family: var(--font-mono); font-size: 9px; letter-spacing: 0.15em;
@@ -953,7 +957,7 @@ body.pmode #nav { display: none; }
  
 /* ─── BACKEND TOGGLE ─────────────────────────────────────────────── */
 #backend-toggle {
-  position: fixed; top: 62px; right: 20px; z-index: 1001;
+  position: fixed; top: 130px; right: 20px; z-index: 1001;
   background: rgba(11,18,32,0.92); border: 1px solid var(--border-glow);
   backdrop-filter: blur(12px); color: var(--text-muted);
   font-family: var(--font-mono); font-size: 9px; letter-spacing: 0.12em;
@@ -1041,7 +1045,7 @@ body.pmode #nav { display: none; }
  
 /* ─── CONNECTION INDICATOR ──────────────────────────────────────── */
 .conn-indicator {
-  position: fixed; top: 20px; left: 50%; transform: translateX(-50%);
+  position: fixed; top: 88px; left: 50%; transform: translateX(-50%);
   z-index: 1002; font-family: var(--font-mono); font-size: 9px;
   letter-spacing: 0.15em; text-transform: uppercase;
   background: rgba(11,18,32,0.95); border: 1px solid var(--border);
@@ -1217,7 +1221,35 @@ body.pmode #nav { display: none; }
 .rb-utc { font-size: 13px; color: var(--cyan); letter-spacing: 0.1em; }
 .rb-signal-dot { display: inline-block; width: 6px; height: 6px; border-radius: 50%; background: var(--green); animation: dot-blink 1s infinite; margin-right: 4px; }
 .rb-center { display: flex; align-items: center; gap: 20px; flex: 1; justify-content: center; }
-body { padding-top: 48px; } /* push content below ribbon */
+/* ═══════════════════════════════════════════════════════════════════
+   PERSISTENT SIMULATION BANNER  (Phase 0 — truth in labeling)
+   Always visible. Never auto-hides. Sits above every other fixed layer.
+   This page is a scripted demo; the banner must say so at all times.
+═══════════════════════════════════════════════════════════════════ */
+#sim-banner {
+  position: fixed; top: 0; left: 0; right: 0; z-index: 2100;
+  height: 28px; display: flex; align-items: center; justify-content: center;
+  gap: 10px; padding: 0 16px;
+  background: #F59E0B; color: #1A1200;
+  font-family: var(--font-mono); font-size: 10px; font-weight: 700;
+  letter-spacing: 0.18em; text-transform: uppercase;
+  border-bottom: 1px solid rgba(0,0,0,0.35);
+  box-shadow: 0 1px 12px rgba(0,0,0,0.5);
+}
+#sim-banner .sb-tag {
+  background: #1A1200; color: #F59E0B;
+  padding: 2px 8px; border-radius: 2px; letter-spacing: 0.2em;
+  flex-shrink: 0;
+}
+#sim-banner .sb-text { font-weight: 600; letter-spacing: 0.1em; text-transform: none; }
+@media (max-width: 780px) {
+  #sim-banner { font-size: 8px; letter-spacing: 0.1em; gap: 6px; }
+  #sim-banner .sb-text { font-size: 8px; }
+}
+#mission-ribbon { top: 28px; }        /* pushed down by the banner */
+#telem-strip    { top: 76px; }        /* 28 banner + 48 ribbon */
+body { padding-top: 76px; }           /* banner + ribbon */
+body.strip-visible { padding-top: 114px; } /* banner + ribbon + strip */
 .btn-dashboard {
   background: transparent;
   border: 1px solid var(--cyan);
@@ -1248,7 +1280,7 @@ body { padding-top: 48px; } /* push content below ribbon */
    LIVE TELEMETRY STRIP  (real-time updating chips)
 ═══════════════════════════════════════════════════════════════════ */
 #telem-strip {
-  position: fixed; top: 48px; left: 0; right: 0; z-index: 1999;
+  position: fixed; left: 0; right: 0; z-index: 1999;
   height: 38px; background: rgba(6,10,24,0.96);
   border-bottom: 1px solid var(--border);
   backdrop-filter: blur(12px);
@@ -1271,7 +1303,6 @@ body { padding-top: 48px; } /* push content below ribbon */
 .ts-val.crit { color: #FF6B6B; text-shadow: 0 0 8px rgba(255,107,107,0.5); }
 .ts-chip.flash { background: rgba(239,68,68,0.08); }
 .ts-divider { width: 1px; height: 100%; background: var(--border); flex-shrink: 0; }
-body.strip-visible { padding-top: 86px; }
 
 /* ═══════════════════════════════════════════════════════════════════
    EVENT TIMELINE  (OpenMCT-style)
@@ -1427,51 +1458,66 @@ body.strip-visible { padding-top: 86px; }
 <!-- ── Custom cursor dot (global) ──── -->
 <div id="custom-cursor"></div>
 
+<!-- ═══ PERSISTENT SIMULATION BANNER (Phase 0 — truth in labeling) ═══
+     This page is a scripted demonstration. Values are pre-scripted demo
+     content unless the backend toggle is enabled, in which case the
+     reasoning trace comes from a real backend response.
+     This banner is never hidden and never times out.
+══════════════════════════════════════════════════════════════════════ -->
+<div id="sim-banner" role="note" aria-label="Simulation notice">
+  <span class="sb-tag">Simulation</span>
+  <span class="sb-text">Scripted demonstration using synthetic data. Not live spacecraft telemetry, and not a validated diagnosis.</span>
+</div>
+
 <div id="mission-ribbon">
   <div style="display:flex;align-items:center;gap:12px">
     <div class="rb-logo">⬡ SENTINEL</div>
     <div class="rb-sep"></div>
-    <span class="rb-status-badge nominal" id="rb-status-badge">
-      <span class="rb-signal-dot" style="width:5px;height:5px;flex-shrink:0"></span>
-      <span id="rb-status-text">NOMINAL</span>
+    <span class="rb-status-badge warning" id="rb-status-badge">
+      <span id="rb-status-text">DEMO · SYNTHETIC</span>
     </span>
   </div>
   <div class="rb-center">
     <div class="rb-item">
-      <div class="rb-label">Spacecraft</div>
-      <div class="rb-val cyan" id="rb-spacecraft">MAVEN-LIKE TESTBED</div>
+      <div class="rb-label">Scenario</div>
+      <div class="rb-val cyan" id="rb-spacecraft">SYNTHETIC TESTBED</div>
     </div>
     <div class="rb-sep"></div>
     <div class="rb-item">
-      <div class="rb-label">Mission Time</div>
-      <div class="rb-val" id="rb-mtime">1283 DAYS</div>
+      <div class="rb-label">Data Source</div>
+      <div class="rb-val" id="rb-datasource" style="color:var(--amber)">SYNTHETIC DATA</div>
     </div>
     <div class="rb-sep"></div>
     <div class="rb-item">
-      <div class="rb-label">Signal</div>
-      <div class="rb-val green" id="rb-signal">● CONNECTED</div>
+      <div class="rb-label">Backend</div>
+      <div class="rb-val" id="rb-signal" style="color:var(--text-muted)">NOT CONNECTED</div>
     </div>
     <div class="rb-sep"></div>
     <div class="rb-item">
-      <div class="rb-label">Health</div>
-      <div class="rb-val" id="rb-health" style="color:var(--amber)">42%</div>
+      <div class="rb-label">Spacecraft Health</div>
+      <div class="rb-val" id="rb-health" style="color:var(--text-muted)">NO LINK</div>
     </div>
     <div class="rb-sep"></div>
     <div class="rb-item">
-      <div class="rb-label">AI Agent</div>
-      <div class="rb-val green" id="rb-agent">● ONLINE</div>
+      <div class="rb-label">Evaluation</div>
+      <div class="rb-val" id="rb-agent" style="color:var(--text-muted)">NOT EVALUATED</div>
     </div>
   </div>
   <div style="display:flex;align-items:center;gap:16px">
-    <a href="/dashboard" target="_top" class="btn-dashboard" id="btn-dashboard">LIVE DASHBOARD</a>
+    <a href="/dashboard" target="_top" class="btn-dashboard" id="btn-dashboard">OPERATOR DASHBOARD</a>
     <div class="rb-utc" id="rb-utc">00:00:00 UTC</div>
   </div>
 </div>
 
 <!-- ══════════════════════════════════════════════════════════════
-     LIVE TELEMETRY STRIP  —  real-time updating chips
+     SIMULATED TELEMETRY STRIP
+     Phase 0: values come from STRIP_PRESETS in this file, advanced on a
+     timer. This is not a live feed, so the strip is labelled SIMULATED.
 ══════════════════════════════════════════════════════════════ -->
 <div id="telem-strip">
+  <div class="ts-chip" style="background:rgba(245,158,11,0.12);border-right-color:rgba(245,158,11,0.4)">
+    <span class="ts-val" style="color:var(--amber);font-weight:700;letter-spacing:0.16em">SIMULATED</span>
+  </div>
   <div class="ts-chip">
     <span class="ts-label">Battery</span>
     <span class="ts-val ok" id="ts-battery">28.4V</span>
@@ -1509,8 +1555,10 @@ body.strip-visible { padding-top: 86px; }
     <span class="ts-val ok" id="ts-solar">11.8A</span>
   </div>
   <div class="ts-chip">
-    <span class="ts-label">Lat</span>
-    <span class="ts-val ok" id="ts-lat">23.4°</span>
+    <!-- Phase 0: "Lat" presented a fabricated orbital position. SENTINEL has
+         no orbit determination, so the label no longer claims a position. -->
+    <span class="ts-label">Attitude Dev</span>
+    <span class="ts-val ok" id="ts-lat">—</span>
   </div>
 </div>
 
@@ -1519,7 +1567,9 @@ body.strip-visible { padding-top: 86px; }
 ══════════════════════════════════════════════════════════════ -->
 <div id="replay-overlay">
   <div class="replay-header">
-    <span class="replay-badge">● MISSION REPLAY MODE</span>
+    <!-- Phase 0: replay content is entirely scripted (REPLAY_MISSIONS in this
+         file). Badge states DEMO / REPLAY so it can never read as live. -->
+    <span class="replay-badge" style="background:#F59E0B;color:#1A1200;border-color:#F59E0B">DEMO / REPLAY — SCRIPTED, NOT LIVE</span>
     <span class="replay-mission-name" id="replay-title">Select a Mission Incident</span>
     <div id="replay-progress-bar" class="replay-progress-bar" style="width:200px;margin-right:16px">
       <div class="replay-progress-fill" id="replay-progress-fill"></div>
@@ -1538,25 +1588,25 @@ body.strip-visible { padding-top: 86px; }
         <div style="font-size:18px">🛸</div>
         <div>MAVEN 2022</div>
         <div class="rmb-year">ADCS · IMU FAILURE</div>
-        <div class="rmb-sim">Match: 87% · 8.2s diagnosis</div>
+        <div class="rmb-sim">Scripted replay · match NOT EVALUATED</div>
       </button>
       <button class="replay-mission-btn" onclick="startReplay('soho')">
         <div style="font-size:18px">☀️</div>
         <div>SOHO 1998</div>
         <div class="rmb-year">EPS · GYRO FAILURE</div>
-        <div class="rmb-sim">Match: 74% · 7.5s diagnosis</div>
+        <div class="rmb-sim">Scripted replay · match NOT EVALUATED</div>
       </button>
       <button class="replay-mission-btn" onclick="startReplay('mgs')">
         <div style="font-size:18px">🔴</div>
         <div>Mars Global Surveyor</div>
         <div class="rmb-year">OBC · MEMORY FAULT</div>
-        <div class="rmb-sim">Match: 69% · 6.1s diagnosis</div>
+        <div class="rmb-sim">Scripted replay · match NOT EVALUATED</div>
       </button>
       <button class="replay-mission-btn" onclick="startReplay('kepler')">
         <div style="font-size:18px">🔭</div>
         <div>Kepler 2013</div>
         <div class="rmb-year">ADCS · REACTION WHEEL</div>
-        <div class="rmb-sim">Match: 82% · 9.3s diagnosis</div>
+        <div class="rmb-sim">Scripted replay · match NOT EVALUATED</div>
       </button>
     </div>
   </div>
@@ -1585,14 +1635,16 @@ body.strip-visible { padding-top: 86px; }
 </button>
  
 <!-- ─── BACKEND TOGGLE ────────────────────────────────────────── -->
-<button id="backend-toggle" onclick="toggleBackend()" title="Toggle live FastAPI backend (falls back to mock on failure)">
-  <span class="be-dot"></span> <span id="be-label">Mock Data</span>
+<button id="backend-toggle" onclick="toggleBackend()" title="Arm the live FastAPI backend. While disarmed this page replays a scripted demo and makes no backend call.">
+  <span class="be-dot"></span> <span id="be-label">Scripted Demo Data</span>
 </button>
  
-<!-- ─── CONNECTION MODE INDICATOR ────────────────────────────── -->
-<div class="conn-indicator" id="conn-indicator">
+<!-- ─── DATA PROVENANCE / CONNECTION INDICATOR ───────────────────
+     Rendered visible on load and never auto-hidden — see
+     showConnIndicator(), where the autohide argument is ignored. -->
+<div class="conn-indicator show mock" id="conn-indicator" role="status">
   <span class="conn-dot"></span>
-  <span id="conn-label">Mock Data — Connect Backend for Live Analysis</span>
+  <span id="conn-label">SIMULATION — scripted demo data. Arm the backend for a real analysis.</span>
 </div>
  
 <!-- ─── ABOUT BUTTON ─────────────────────────────────────────── -->
@@ -1609,17 +1661,21 @@ body.strip-visible { padding-top: 86px; }
  
     <div style="font-family:var(--font-mono);font-size:9px;color:var(--text-muted);letter-spacing:0.15em;text-transform:uppercase;margin-bottom:14px">Three Novel Claims</div>
  
+    <!-- Phase 0: this block previously made unverified priority claims ("the
+         first system", "no published paper... combines") and cited a dataset
+         size (847 annotated safe-mode events) that does not exist in this
+         repository. Restated as scope, with current status. -->
     <div class="about-claim">
       <div class="about-claim-num">01</div>
-      <div class="about-claim-text"><strong>LLM causal reasoning over real telemetry.</strong> No published paper, no ESA project, no startup combines chain-of-thought LLM diagnosis + RAG over engineering standards + auditable recovery generation. arxiv:2404.00413 is the closest — and it plays Kerbal Space Program.</div>
+      <div class="about-claim-text"><strong>What this is.</strong> A research prototype exploring whether LLM-assisted reasoning, grounded in retrieved engineering standards and constrained by a deterministic safety validator, can support ground-segment FDIR triage. It is not a flight system and has not been used on a spacecraft.</div>
     </div>
     <div class="about-claim">
       <div class="about-claim-num">02</div>
-      <div class="about-claim-text"><strong>Grounded in ECSS-E-ST-70-11C (July 2024).</strong> ESA's own standard says recovery "shall be undertaken under ground control." SENTINEL is the first system that changes that — with full safety validator and human-confirm gates before any command uplink.</div>
+      <div class="about-claim-text"><strong>Standards context.</strong> ECSS-E-ST-70-11C specifies that recovery is undertaken under ground control. SENTINEL is designed as a ground-segment decision-support tool within that constraint. It does not uplink commands, and every proposed command requires operator authorisation. Compliance with the standard has <strong>not</strong> been assessed.</div>
     </div>
     <div class="about-claim">
       <div class="about-claim-num">03</div>
-      <div class="about-claim-text"><strong>Synthetic crash dump dataset on HuggingFace.</strong> We generated our own corpus — it doesn't exist anywhere else. A research contribution that outlives the hackathon. 847 annotated safe-mode events across 6 mission classes.</div>
+      <div class="about-claim-text"><strong>Dataset status.</strong> The repository contains a synthetic crash-dump corpus generated by <code>simulation/fault_simulator.py</code>, plus a small number of payloads derived from the public ESA Anomaly Detection Benchmark. Synthetic and real-derived data are labelled separately. No dataset has been published.</div>
     </div>
  
     <div class="about-links">
@@ -1683,26 +1739,29 @@ body.strip-visible { padding-top: 86px; }
   </a>
 </nav>
  
-<!-- ═══ ESA COMPLIANCE BADGE ═════════════════════════════════════ -->
+<!-- ═══ DEMO STATE PANEL ═════════════════════════════════════════
+     Phase 0: was labelled "ESA Compliance Monitor" and asserted
+     SPACECRAFT: SAFE MODE ACTIVE plus a blinking AI AGENT: ONLINE. SENTINEL
+     has no compliance assessment and no spacecraft link, so neither claim
+     could be made. Restated as what this page actually is.
+══════════════════════════════════════════════════════════════════════ -->
 <div id="badge">
-  <div class="badge-label">ESA Compliance Monitor</div>
+  <div class="badge-label">Demo State</div>
   <div class="badge-row">
-    <div class="badge-key">STANDARD</div>
-    <div class="badge-val" style="color:var(--amber)">Ground-Controlled Recovery</div>
+    <div class="badge-key">MODE</div>
+    <div class="badge-val" style="color:var(--amber)">SIMULATION</div>
   </div>
   <div class="badge-row">
-    <div class="badge-key">SENTINEL</div>
-    <div class="badge-val green">AI-Assisted Recovery</div>
+    <div class="badge-key">DATA</div>
+    <div class="badge-val" style="color:var(--amber)">SYNTHETIC</div>
   </div>
   <div class="badge-row">
     <div class="badge-key">SPACECRAFT</div>
-    <div class="badge-val red">SAFE MODE ACTIVE</div>
+    <div class="badge-val" style="color:var(--text-muted)">NO LINK</div>
   </div>
   <div class="badge-row">
-    <div class="badge-key">AI AGENT</div>
-    <div class="badge-val green" style="display:flex;align-items:center;gap:6px">
-      <span class="status-dot" style="width:5px;height:5px;border-radius:50%;background:var(--green);display:inline-block;animation:dot-blink 1s infinite"></span>ONLINE
-    </div>
+    <div class="badge-key">ECSS COMPLIANCE</div>
+    <div class="badge-val" style="color:var(--text-muted)">NOT ASSESSED</div>
   </div>
 </div>
  
@@ -1738,28 +1797,33 @@ body.strip-visible { padding-top: 86px; }
     <div class="hero-content">
       <div class="hero-eyebrow">Autonomous Recovery Copilot</div>
       <div class="hero-title">SENTINEL</div>
-      <div class="hero-sub">AI-Powered Spacecraft Recovery System</div>
-      <div class="hero-tagline">Reducing Safe Mode Recovery<br>from <span>Months</span> to <span>Minutes</span></div>
+      <!-- Phase 0: the tagline asserted a months-to-minutes speedup that has
+           never been measured. Restated as the prototype's purpose. -->
+      <div class="hero-sub">Ground-Segment FDIR Copilot · Research Prototype</div>
+      <div class="hero-tagline">Assisting Safe Mode<br><span>Diagnosis</span> and <span>Recovery</span></div>
       <div style="display:flex;gap:14px;justify-content:center;flex-wrap:wrap;margin-bottom:48px">
         <button class="btn-primary" onclick="document.getElementById('s-simulator').scrollIntoView({behavior:'smooth'})">
           Begin Incident Analysis
         </button>
         <button onclick="openReplay()" style="background:rgba(0,229,255,0.06);border:1px solid rgba(0,229,255,0.3);color:var(--cyan);font-family:var(--font-mono);font-size:11px;letter-spacing:0.2em;text-transform:uppercase;padding:16px 28px;border-radius:3px;cursor:pointer;transition:all 0.25s" onmouseover="this.style.background='rgba(0,229,255,0.12)'" onmouseout="this.style.background='rgba(0,229,255,0.06)'">
-          🎬 Mission Replay
+          Demo / Replay
         </button>
       </div>
+      <!-- Phase 0: previously "8s / 99.9% / 87% Match Accuracy". None of those
+           figures came from a reproducible evaluation of this system. They are
+           withheld until backend evaluation produces them. -->
       <div class="hero-stats">
         <div>
-          <div class="hero-stat-val">8s</div>
+          <div class="hero-stat-val" style="font-size:1.5rem;color:var(--text-muted)">NOT EVALUATED</div>
           <div class="hero-stat-label">Diagnosis Time</div>
         </div>
         <div>
-          <div class="hero-stat-val">99.9%</div>
+          <div class="hero-stat-val" style="font-size:1.5rem;color:var(--text-muted)">NOT EVALUATED</div>
           <div class="hero-stat-label">Time Saved</div>
         </div>
         <div>
-          <div class="hero-stat-val">87%</div>
-          <div class="hero-stat-label">Match Accuracy</div>
+          <div class="hero-stat-val" style="font-size:1.5rem;color:var(--text-muted)">NOT EVALUATED</div>
+          <div class="hero-stat-label">Diagnostic Accuracy</div>
         </div>
       </div>
     </div>
@@ -1803,9 +1867,12 @@ body.strip-visible { padding-top: 86px; }
       <div class="pc-unit">Controlled Recovery Only</div>
     </div>
   </div>
+  <!-- Phase 0: the "8 seconds" figure was fabricated. Restated as the open
+       research question it actually is, with no quantitative claim. -->
   <div class="what-if-block fade-in-section" style="transition-delay:0.2s">
-    <div class="what-if-pre">What if</div>
-    <div class="what-if-main">Diagnosis took <em>8 seconds</em><br>instead of 3 months?</div>
+    <div class="what-if-pre">The research question</div>
+    <div class="what-if-main">Can ground-segment FDIR triage<br>be <em>meaningfully accelerated?</em></div>
+    <div style="font-family:var(--font-mono);font-size:10px;color:var(--text-muted);letter-spacing:0.12em;margin-top:18px">SENTINEL HAS NOT YET BEEN EVALUATED AGAINST THIS QUESTION</div>
   </div>
 </section>
  
@@ -1850,16 +1917,18 @@ body.strip-visible { padding-top: 86px; }
       </div>
     </div>
     <textarea id="crash-json" class="crash-textarea" spellcheck="false" placeholder='{
-  "mission": "MAVEN",
-  "timestamp": "2022-09-19T09:12:04Z",
-  "anomaly_type": "IMU_DRIFT",
-  "severity": "CRITICAL",
-  "telemetry": {
-    "IMU_A_ANGULAR_RATE_X": 0.92,
-    "ATTITUDE_ERROR_DEG": 4.62,
-    "RWA_SATURATION_PCT": 87,
-    "OBC_SAFEMODE_TRIGGER": true
-  }
+  "scenario_id": 1,
+  "fault_type": "ADCS_GYRO_SEU",
+  "incident_id": "INC-2026-0036",
+  "fault_register": "0x00000008",
+  "pre_fault_telemetry_window": [
+    {"timestamp": "T-120s", "parameter": "Gyro_rate_degs", "value": 0.5,
+     "unit": "deg/s", "status": "NOMINAL", "nominal_min": 0.0, "nominal_max": 7.0},
+    {"timestamp": "T-60s", "parameter": "Gyro_rate_degs", "value": "NaN",
+     "unit": "deg/s", "status": "CRITICAL", "nominal_min": 0.0, "nominal_max": 7.0},
+    {"timestamp": "T-30s", "parameter": "Attitude_error_deg", "value": 7.3,
+     "unit": "deg", "status": "CRITICAL", "nominal_min": 0.0, "nominal_max": 0.01}
+  ]
 }'></textarea>
     <div class="crash-footer">
       <div class="sim-status" style="margin-top:0;flex:1">
@@ -1873,18 +1942,18 @@ body.strip-visible { padding-top: 86px; }
         </div>
         <div class="sim-stat">
           <div class="sim-stat-label">Streams</div>
-          <div class="sim-stat-val" id="sim-streams" style="color:var(--text-primary)">1,472</div>
+          <div class="sim-stat-val" id="sim-streams" style="color:var(--text-primary)">—</div>
         </div>
+        <!-- Phase 0: was a blinking green "ONLINE" dot that reflected no
+             backend state. Now mirrors the actual data source. -->
         <div class="sim-stat">
-          <div class="sim-stat-label">AI Agent</div>
-          <div class="sim-stat-val" style="color:var(--green);display:flex;align-items:center;gap:6px">
-            <span style="width:6px;height:6px;border-radius:50%;background:var(--green);display:inline-block;animation:dot-blink 1s infinite"></span>ONLINE
-          </div>
+          <div class="sim-stat-label">Data Source</div>
+          <div class="sim-stat-val" style="color:var(--amber)">SYNTHETIC</div>
         </div>
       </div>
       <div style="display:flex;gap:12px;align-items:center;flex-wrap:wrap;justify-content:center">
         <button class="sim-btn" id="sim-launch-btn" onclick="launchInvestigation()" style="width:220px;margin-top:0">
-          ▶ &nbsp; Launch Simulation
+          ▶ &nbsp; Run Scripted Demo
         </button>
         <button onclick="openReplay()" style="background:none;border:1px solid var(--border-glow);color:var(--text-dim);font-family:var(--font-head);font-size:13px;font-weight:500;padding:12px 22px;border-radius:4px;cursor:pointer;transition:all 0.25s;white-space:nowrap" onmouseover="this.style.borderColor='var(--cyan)';this.style.color='var(--text-primary)'" onmouseout="this.style.borderColor='var(--border-glow)';this.style.color='var(--text-dim)'">
           🎬 &nbsp; Mission Replay
@@ -1895,11 +1964,12 @@ body.strip-visible { padding-top: 86px; }
  
 <!-- ═══ SECTION 4: INVESTIGATION (Panel 2 + 3) ════════════════════ -->
 <section id="s-investigation">
+  <!-- Phase 0: the three pills asserted spacecraft and agent state that was
+       never obtained from a backend. Replaced with an honest provenance pill. -->
   <div class="inv-header">
-    <div class="inv-header-title">Live AI Investigation</div>
-    <div class="status-pill red"><span class="status-dot"></span>Safe Mode Active</div>
-    <div class="status-pill cyan"><span class="status-dot"></span>AI Agent Online</div>
-    <div class="status-pill amber"><span class="status-dot"></span>Anomaly Detected</div>
+    <div class="inv-header-title">AI Investigation</div>
+    <div class="status-pill amber"><span class="status-dot"></span>Simulation — Scripted Demo</div>
+    <div class="status-pill"><span class="status-dot"></span>Simulated Safe Mode</div>
     <div style="margin-left:auto;font-family:var(--font-mono);font-size:10px;color:var(--text-muted)" id="inv-clock">T+00:00:00</div>
   </div>
   <div class="inv-grid">
@@ -1921,7 +1991,7 @@ body.strip-visible { padding-top: 86px; }
           <div class="sat-core"></div>
         </div>
         <div class="analyzing-label">Ingesting Telemetry</div>
-        <div class="analyzing-sub" id="telem-channel-count">Scanning 1,472 channels...</div>
+        <div class="analyzing-sub" id="telem-channel-count">Scanning simulated telemetry window...</div>
         <div class="timeout-bar"><div class="timeout-fill" id="telem-timeout-bar"></div></div>
       </div>
       <!-- Error state -->
@@ -1977,7 +2047,7 @@ body.strip-visible { padding-top: 86px; }
         <div class="section-eyebrow" style="text-align:left;margin-bottom:6px">Panel 5 · Mission Cost Calculator</div>
         <div style="font-family:var(--font-head);font-size:1.4rem;font-weight:700">Safe Mode Financial Impact</div>
       </div>
-      <div class="status-pill cyan"><span class="status-dot"></span>Live Calculation</div>
+      <div class="status-pill amber"><span class="status-dot"></span>Illustrative model — operator inputs only</div>
     </div>
     <div class="cost-layout">
       <div class="cost-slider-col">
@@ -2009,23 +2079,26 @@ body.strip-visible { padding-top: 86px; }
           </div>
         </div>
         <div class="cost-vs">VS</div>
+        <!-- Phase 0: this card previously asserted "$0" cost and an "8.2 seconds"
+             diagnosis time. SENTINEL has no measured diagnosis latency, so no
+             saving can be computed. -->
         <div class="cost-result-card good">
           <div class="cost-result-label">With SENTINEL</div>
-          <div class="cost-result-num green">$0</div>
-          <div class="cost-result-unit">Diagnosis: <strong style="color:var(--green)">8.2 seconds</strong></div>
+          <div class="cost-result-num green" style="font-size:1.1rem;color:var(--text-muted)">NOT EVALUATED</div>
+          <div class="cost-result-unit">Diagnosis latency has not been measured</div>
           <div class="cost-breakdown">
-            <div>Anomaly detected: <span style="color:var(--green)">Instant</span></div>
-            <div>Root cause: <span style="color:var(--green)">8.2s</span></div>
-            <div>Recovery plan: <span style="color:var(--green)">+34s</span></div>
+            <div>Anomaly detected: <span style="color:var(--text-muted)">NOT EVALUATED</span></div>
+            <div>Root cause: <span style="color:var(--text-muted)">NOT EVALUATED</span></div>
+            <div>Recovery plan: <span style="color:var(--text-muted)">NOT EVALUATED</span></div>
           </div>
         </div>
         <div class="cost-result-card delta">
           <div class="cost-result-label">Time Saved</div>
-          <div class="cost-result-num cyan" id="cost-pct">99.999%</div>
-          <div class="cost-result-unit">Reduction in downtime</div>
+          <div class="cost-result-num cyan" id="cost-pct" style="font-size:1.1rem;color:var(--text-muted)">NOT EVALUATED</div>
+          <div class="cost-result-unit">Requires a measured diagnosis time to compute</div>
           <div style="margin-top:12px">
             <div style="font-family:var(--font-mono);font-size:9px;color:var(--text-muted);margin-bottom:4px">SAVINGS REALIZED</div>
-            <div style="font-family:var(--font-head);font-size:1.4rem;font-weight:700;color:var(--cyan)" id="cost-saved">$1,500,000</div>
+            <div style="font-family:var(--font-head);font-size:1.4rem;font-weight:700;color:var(--text-muted)" id="cost-saved">NOT EVALUATED</div>
           </div>
         </div>
       </div>
@@ -2039,17 +2112,23 @@ body.strip-visible { padding-top: 86px; }
   <div class="section-header fade-in-section">
     <div class="section-eyebrow">Causal Analysis</div>
     <div class="section-title">Failure Propagation Chain</div>
-    <p class="section-desc">SENTINEL constructs a causal directed acyclic graph showing how a single sensor anomaly cascades into full safe mode entry.</p>
+    <!-- Phase 0: the graph below is a fixed 6-node chain defined in dagData in
+         this file. It is not inferred from telemetry. -->
+    <p class="section-desc">An illustrative causal chain showing how a single sensor anomaly could cascade into safe mode entry. This graph is <strong>fixed demo content</strong>, not inferred from telemetry, and its node confidences are <strong>NOT EVALUATED</strong>.</p>
   </div>
   <div id="dag-container" class="fade-in-section" style="transition-delay:0.1s">
     <div id="vis-network"></div>
     <div class="dag-side-panel" id="dag-panel">
       <div class="dag-panel-title" id="dag-panel-title">ADCS</div>
+      <!-- Phase 0: Confidence/Indicators were hardcoded per node (92%, 43) and
+           produced by no model. Shown as NOT EVALUATED until a backend
+           response supplies them. -->
       <div class="dag-panel-row"><span class="dag-panel-key">Subsystem</span><span class="dag-panel-val" id="dp-sub">ADCS</span></div>
-      <div class="dag-panel-row"><span class="dag-panel-key">Confidence</span><span class="dag-panel-val" id="dp-conf">92%</span></div>
-      <div class="dag-panel-row"><span class="dag-panel-key">Indicators</span><span class="dag-panel-val" id="dp-ind">43</span></div>
+      <div class="dag-panel-row"><span class="dag-panel-key">Confidence</span><span class="dag-panel-val" id="dp-conf" style="color:var(--text-muted)">NOT EVALUATED</span></div>
+      <div class="dag-panel-row"><span class="dag-panel-key">Indicators</span><span class="dag-panel-val" id="dp-ind" style="color:var(--text-muted)">NOT EVALUATED</span></div>
       <div class="dag-panel-row"><span class="dag-panel-key">Severity</span><span class="dag-panel-val" id="dp-sev" style="color:var(--red)">CRITICAL</span></div>
-      <div class="confidence-bar"><div class="confidence-fill" id="dp-conf-bar" style="width:92%"></div></div>
+      <div class="dag-panel-row"><span class="dag-panel-key">Source</span><span class="dag-panel-val" style="color:var(--amber)">SCRIPTED DEMO</span></div>
+      <div class="confidence-bar"><div class="confidence-fill" id="dp-conf-bar" style="width:0%"></div></div>
     </div>
   </div>
   <div class="dag-reveal-log fade-in-section" id="dag-reveal-log" style="max-width:100%;transition-delay:0.2s">
@@ -2065,9 +2144,9 @@ body.strip-visible { padding-top: 86px; }
   <div class="timeline-wrap">
     <div>
       <div class="fade-in-section">
-        <div class="section-eyebrow">Mission Log</div>
+        <div class="section-eyebrow">Mission Log · Simulated</div>
         <div class="section-title" style="font-size:clamp(2rem,4vw,3.2rem)">Event Timeline</div>
-        <p class="section-desc" style="max-width:360px">OpenMCT-style chronological fault progression. Events build live as the AI investigates.</p>
+        <p class="section-desc" style="max-width:360px">Chronological fault progression for the scripted scenario. Entries are pre-written and revealed on a fixed timer — they are <strong>not</strong> derived from telemetry.</p>
       </div>
       <div style="margin-top:28px;display:flex;flex-direction:column;gap:8px">
         <div style="font-family:var(--font-mono);font-size:8px;letter-spacing:0.18em;color:var(--text-muted)">ANOMALY INTELLIGENCE</div>
@@ -2115,8 +2194,8 @@ body.strip-visible { padding-top: 86px; }
       <div class="evt-item success" data-delay="9200">
         <div class="evt-dot"></div>
         <div class="evt-time">09:12:16 UTC</div>
-        <div class="evt-label">Root cause identified — IMU-A failure (94% confidence)</div>
-        <span class="evt-badge ok">RESOLVED</span>
+        <div class="evt-label">Scripted demo trace complete — no validated diagnosis produced</div>
+        <span class="evt-badge info">DEMO END</span>
       </div>
     </div>
   </div>
@@ -2127,7 +2206,7 @@ body.strip-visible { padding-top: 86px; }
   <div class="intel-section-header fade-in-section" style="text-align:center;margin-bottom:0">
     <div class="section-eyebrow">SATMON-Style</div>
     <div class="section-title" style="font-size:clamp(2rem,4vw,3.4rem)">Anomaly Intelligence Hub</div>
-    <p class="section-desc" style="max-width:560px;margin:0 auto">Subsystem risk heatmap, health radar, and real-time anomaly confidence — all updated live during investigation.</p>
+    <p class="section-desc" style="max-width:560px;margin:0 auto">Subsystem risk heatmap and health radar for the selected scripted scenario. The bar and radar shapes are <strong>illustrative demo values</strong>; anomaly confidence and evidence counts are <strong>NOT EVALUATED</strong> because no model computes them yet.</p>
   </div>
   <div class="intel-grid">
 
@@ -2178,12 +2257,12 @@ body.strip-visible { padding-top: 86px; }
             <circle class="conf-ring-bg" cx="48" cy="48" r="40"/>
             <circle class="conf-ring-fill critical" id="conf-ring-fill" cx="48" cy="48" r="40"/>
           </svg>
-          <div class="conf-ring-num" id="conf-ring-num">0%</div>
+          <div class="conf-ring-num" id="conf-ring-num">—</div>
         </div>
         <div class="conf-meta">
           <div class="conf-row">
             <div class="conf-row-label">Confidence</div>
-            <div class="conf-row-val" id="conf-pct-val">—</div>
+            <div class="conf-row-val" id="conf-pct-val" style="color:var(--text-muted);font-size:10px">NOT EVALUATED</div>
           </div>
           <div class="conf-row">
             <div class="conf-row-label">Risk Level</div>
@@ -2195,7 +2274,7 @@ body.strip-visible { padding-top: 86px; }
           </div>
         </div>
       </div>
-      <div class="conf-evidence">Evidence: <span id="conf-evidence-count">0</span> telemetry violations · <span id="conf-rag-match">0</span> incident matches</div>
+      <div class="conf-evidence">Telemetry violations: <span id="conf-evidence-count">NOT EVALUATED</span> · Incident matches: <span id="conf-rag-match">NOT EVALUATED</span></div>
     </div>
 
   </div>
@@ -2204,9 +2283,11 @@ body.strip-visible { padding-top: 86px; }
 <!-- ═══ SECTION 6: DIGITAL TWIN ══════════════════════════════════ -->
 <section id="s-twin">
   <div class="section-header fade-in-section">
-    <div class="section-eyebrow">Satellite Digital Twin</div>
+    <!-- Phase 0: every reading in the subsystem cards below is fixed markup
+         from the scripted gyro demo. Nothing here reflects a live spacecraft. -->
+    <div class="section-eyebrow">Satellite Digital Twin · Simulated</div>
     <div class="section-title">Subsystem Health Map</div>
-    <p class="section-desc">Click any subsystem to inspect its telemetry and highlight related causal nodes in the failure graph.</p>
+    <p class="section-desc">Click any subsystem to inspect its telemetry and highlight related causal nodes in the failure graph. All values shown are <strong>simulated demo data</strong> from the scripted scenario — not measurements from a spacecraft.</p>
   </div>
   <div class="twin-layout fade-in-section" style="transition-delay:0.1s">
     <div id="sat-canvas-wrap">
@@ -2280,7 +2361,7 @@ body.strip-visible { padding-top: 86px; }
         </circle>
         <!-- Status label -->
         <rect x="215" y="315" width="170" height="22" rx="3" fill="rgba(239,68,68,0.08)" stroke="rgba(239,68,68,0.3)"/>
-        <text x="300" y="330" text-anchor="middle" font-family="JetBrains Mono" font-size="9" font-weight="700" fill="#EF4444">SAFE MODE ACTIVE</text>
+        <text x="300" y="330" text-anchor="middle" font-family="JetBrains Mono" font-size="9" font-weight="700" fill="#F59E0B">SIMULATED SAFE MODE</text>
         <!-- Coordinate axes -->
         <text x="570" y="100" font-family="JetBrains Mono" font-size="8" fill="#243448">+Z</text>
         <text x="570" y="355" font-family="JetBrains Mono" font-size="8" fill="#243448">−Z</text>
@@ -2366,9 +2447,12 @@ body.strip-visible { padding-top: 86px; }
 <section id="s-recovery">
   <div class="grid-bg"></div>
   <div class="section-header fade-in-section">
-    <div class="section-eyebrow">Recovery Sequence</div>
-    <div class="section-title">AI-Generated Recovery Plan</div>
-    <p class="section-desc">SENTINEL generates a ranked recovery procedure prioritised by success probability and mission risk.</p>
+    <!-- Phase 0: these four steps are hardcoded markup, not generated output,
+         and the "% Success" badges were fabricated. Labelled as an example and
+         the probabilities withheld. -->
+    <div class="section-eyebrow">Recovery Sequence · Scripted Example</div>
+    <div class="section-title">Example Recovery Plan</div>
+    <p class="section-desc">An illustrative recovery sequence written by hand to show the intended output shape. These steps were <strong>not</strong> generated by SENTINEL, have not passed safety validation, and carry no measured success probability.</p>
   </div>
   <div class="recovery-timeline fade-in-section" style="transition-delay:0.1s">
     <div class="recovery-step completed">
@@ -2377,8 +2461,8 @@ body.strip-visible { padding-top: 86px; }
         <div class="rs-header">
           <div class="rs-name">Switch to Backup IMU</div>
           <div class="rs-badges">
-            <span class="rs-badge success">92% Success</span>
-            <span class="rs-badge info">🟢 Low Risk</span>
+            <span class="rs-badge">Success rate: NOT EVALUATED</span>
+            <span class="rs-badge info">Risk: LOW (unvalidated)</span>
           </div>
         </div>
         <div class="rs-desc">Transition attitude control from the degraded primary IMU-A to the redundant IMU-B. This bypasses the faulty sensor without disrupting power or communications.</div>
@@ -2395,8 +2479,8 @@ body.strip-visible { padding-top: 86px; }
         <div class="rs-header">
           <div class="rs-name">Reinitialize Navigation Filter</div>
           <div class="rs-badges">
-            <span class="rs-badge success">88% Success</span>
-            <span class="rs-badge warn">🟡 Medium Risk</span>
+            <span class="rs-badge">Success rate: NOT EVALUATED</span>
+            <span class="rs-badge warn">Risk: MEDIUM (unvalidated)</span>
           </div>
         </div>
         <div class="rs-desc">Reset the extended Kalman filter with updated star tracker measurements to re-establish accurate attitude knowledge after the IMU switchover.</div>
@@ -2414,8 +2498,8 @@ body.strip-visible { padding-top: 86px; }
         <div class="rs-header">
           <div class="rs-name">Desaturate Reaction Wheels</div>
           <div class="rs-badges">
-            <span class="rs-badge success">95% Success</span>
-            <span class="rs-badge info">🟢 Low Risk</span>
+            <span class="rs-badge">Success rate: NOT EVALUATED</span>
+            <span class="rs-badge info">Risk: LOW (unvalidated)</span>
           </div>
         </div>
         <div class="rs-desc">Fire magnetorquers to offload accumulated angular momentum from saturated reaction wheels, restoring full ADCS authority.</div>
@@ -2432,8 +2516,8 @@ body.strip-visible { padding-top: 86px; }
         <div class="rs-header">
           <div class="rs-name">Validate Telemetry & Exit Safe Mode</div>
           <div class="rs-badges">
-            <span class="rs-badge success">91% Success</span>
-            <span class="rs-badge warn">🟡 Monitored</span>
+            <span class="rs-badge">Success rate: NOT EVALUATED</span>
+            <span class="rs-badge warn">Risk: MONITORED (unvalidated)</span>
           </div>
         </div>
         <div class="rs-desc">Run a 5-minute telemetry health check across all critical subsystems. If all thresholds pass, command transition back to normal mission mode.</div>
@@ -2458,7 +2542,7 @@ body.strip-visible { padding-top: 86px; }
   <div class="impact-layout fade-in-section" style="transition-delay:0.1s">
     <div class="impact-card bad">
       <div class="impact-label">Without SENTINEL</div>
-      <div class="impact-num red" id="impact-days">0</div>
+      <div class="impact-num red" id="impact-days" style="font-size:1.6rem;color:var(--text-muted)">NOT EVALUATED</div>
       <div class="impact-unit">Days Recovery</div>
       <div style="margin-top:24px;font-family:var(--font-mono);font-size:9px;color:var(--text-muted);line-height:1.8">
         Ground-controlled<br>Manual telemetry review<br>Human-only diagnosis<br>Week-long procedures
@@ -2469,7 +2553,7 @@ body.strip-visible { padding-top: 86px; }
     </div>
     <div class="impact-card good">
       <div class="impact-label">With SENTINEL</div>
-      <div class="impact-num green" id="impact-sec">0</div>
+      <div class="impact-num green" id="impact-sec" style="font-size:1.6rem;color:var(--text-muted)">NOT EVALUATED</div>
       <div class="impact-unit">Seconds to Diagnosis</div>
       <div style="margin-top:24px;font-family:var(--font-mono);font-size:9px;color:var(--text-muted);line-height:1.8">
         Autonomous AI agent<br>Real-time causal reasoning<br>ESA database matching<br>Instant recovery plan
@@ -2478,7 +2562,7 @@ body.strip-visible { padding-top: 86px; }
   </div>
   <div style="text-align:center;margin-top:48px" class="fade-in-section" style="transition-delay:0.2s">
     <div style="font-family:var(--font-mono);font-size:10px;color:var(--text-muted);letter-spacing:0.25em;text-transform:uppercase;margin-bottom:16px">Time Saved</div>
-    <div style="font-family:var(--font-head);font-size:clamp(4rem,10vw,8rem);font-weight:700;color:var(--cyan);letter-spacing:-0.02em;line-height:1" id="impact-pct">0%</div>
+    <div style="font-family:var(--font-head);font-size:1.6rem;font-weight:700;color:var(--text-muted);letter-spacing:0.02em;line-height:1" id="impact-pct">NOT EVALUATED</div>
     <div style="font-family:var(--font-mono);font-size:11px;color:var(--text-muted);letter-spacing:0.15em;margin-top:8px">Reduction in Recovery Time</div>
   </div>
 </section>
@@ -2486,15 +2570,19 @@ body.strip-visible { padding-top: 86px; }
 <!-- ═══ SECTION 9: HISTORICAL CASES ══════════════════════════════ -->
 <section id="s-history">
   <div class="section-header fade-in-section">
-    <div class="section-eyebrow">Historical Incident Matching</div>
-    <div class="section-title">Similar Mission Events</div>
-    <p class="section-desc">SENTINEL cross-references every anomaly against a curated ESA/NASA incident database. Click any card to view the full mission timeline.</p>
+    <!-- Phase 0: this was presented as live matching against "a curated
+         ESA/NASA incident database". No such database or matcher exists — the
+         four cards below are hardcoded public reference summaries, and the
+         similarity scores were fabricated. -->
+    <div class="section-eyebrow">Reference Incidents · Static Content</div>
+    <div class="section-title">Publicly Documented Mission Events</div>
+    <p class="section-desc">A fixed, hand-written reference list of publicly reported spacecraft anomalies, included for context. SENTINEL does <strong>not</strong> currently match telemetry against an incident database, and no similarity score is computed.</p>
   </div>
   <div class="history-grid fade-in-section" style="transition-delay:0.1s">
     <div class="history-card" onclick="openModal('maven')">
       <div class="hc-header">
         <div><div class="hc-mission">MAVEN</div><div class="hc-year">2022 · Mars Reconnaissance</div></div>
-        <div class="hc-match"><div class="hc-match-val">87%</div><div class="hc-match-label">Similarity</div></div>
+        <div class="hc-match"><div class="hc-match-val" style="font-size:0.7rem;color:var(--text-muted)">NOT<br>EVALUATED</div><div class="hc-match-label">Similarity</div></div>
       </div>
       <div class="hc-desc">IMU angular rate sensor failure caused attitude estimation drift, triggering autonomous safe mode entry after exceeding pointing limits.</div>
       <div class="hc-tags"><span class="hc-tag">IMU Failure</span><span class="hc-tag">ADCS</span><span class="hc-tag">Safe Mode</span><span class="hc-tag">Attitude Drift</span></div>
@@ -2502,7 +2590,7 @@ body.strip-visible { padding-top: 86px; }
     <div class="history-card" onclick="openModal('soho')">
       <div class="hc-header">
         <div><div class="hc-mission">SOHO</div><div class="hc-year">1998 · Solar Observatory</div></div>
-        <div class="hc-match"><div class="hc-match-val">74%</div><div class="hc-match-label">Similarity</div></div>
+        <div class="hc-match"><div class="hc-match-val" style="font-size:0.7rem;color:var(--text-muted)">NOT<br>EVALUATED</div><div class="hc-match-label">Similarity</div></div>
       </div>
       <div class="hc-desc">Gyroscope anomaly combined with erroneous ground command led to loss of attitude control and a 4-month recovery requiring precise solar heating manoeuvres.</div>
       <div class="hc-tags"><span class="hc-tag">Gyroscope</span><span class="hc-tag">ADCS</span><span class="hc-tag">Ground Error</span><span class="hc-tag">4 Month Recovery</span></div>
@@ -2510,7 +2598,7 @@ body.strip-visible { padding-top: 86px; }
     <div class="history-card" onclick="openModal('mars-global')">
       <div class="hc-header">
         <div><div class="hc-mission">Mars Global Surveyor</div><div class="hc-year">2006 · Mars Orbit</div></div>
-        <div class="hc-match"><div class="hc-match-val">61%</div><div class="hc-match-label">Similarity</div></div>
+        <div class="hc-match"><div class="hc-match-val" style="font-size:0.7rem;color:var(--text-muted)">NOT<br>EVALUATED</div><div class="hc-match-label">Similarity</div></div>
       </div>
       <div class="hc-desc">Software memory overwrite corrupted attitude knowledge, leading to battery failure and eventual spacecraft loss. An earlier diagnosis could have prevented total loss.</div>
       <div class="hc-tags"><span class="hc-tag">Software Fault</span><span class="hc-tag">EPS</span><span class="hc-tag">Mission Loss</span></div>
@@ -2518,7 +2606,7 @@ body.strip-visible { padding-top: 86px; }
     <div class="history-card" onclick="openModal('kepler')">
       <div class="hc-header">
         <div><div class="hc-mission">Kepler</div><div class="hc-year">2013 · Planet Hunter</div></div>
-        <div class="hc-match"><div class="hc-match-val">58%</div><div class="hc-match-label">Similarity</div></div>
+        <div class="hc-match"><div class="hc-match-val" style="font-size:0.7rem;color:var(--text-muted)">NOT<br>EVALUATED</div><div class="hc-match-label">Similarity</div></div>
       </div>
       <div class="hc-desc">Reaction wheel failure caused loss of precise pointing, triggering emergency mode. Engineers devised an innovative solar-pressure stabilisation solution.</div>
       <div class="hc-tags"><span class="hc-tag">Reaction Wheel</span><span class="hc-tag">ADCS</span><span class="hc-tag">K2 Recovery</span></div>
@@ -2539,8 +2627,14 @@ body.strip-visible { padding-top: 86px; }
 <!-- ═══ SECTION 10: EXPLAINABILITY ════════════════════════════════ -->
 <section id="s-explain">
   <div class="grid-bg"></div>
+  <!-- Phase 0: this section illustrates the intended explainability format.
+       The evidence entries and their confidence bars are hardcoded markup,
+       not model output. -->
   <div class="explain-title fade-in-section">
-    Why did SENTINEL choose<br><em>this diagnosis?</em>
+    How SENTINEL would<br><em>explain a diagnosis</em>
+  </div>
+  <div class="fade-in-section" style="text-align:center;font-family:var(--font-mono);font-size:10px;color:var(--amber);letter-spacing:0.15em;margin:-18px 0 28px">
+    SCRIPTED EXAMPLE · NOT MODEL OUTPUT
   </div>
   <div class="accordion-list">
     <div class="accordion-item open fade-in-section">
@@ -2563,9 +2657,10 @@ body.strip-visible { padding-top: 86px; }
             <div class="acc-key">Significance</div>
             <div class="acc-val">Primary trigger for attitude estimation fault. Matched identical drift signature in MAVEN 2022 ESA incident report.</div>
           </div>
+          <!-- Phase 0: bar width and label were hardcoded, from no model. -->
           <div class="acc-confidence">
-            <div class="acc-conf-bar"><div class="acc-conf-fill" style="width:94%"></div></div>
-            <div class="acc-conf-label">94%</div>
+            <div class="acc-conf-bar"><div class="acc-conf-fill" style="width:0%"></div></div>
+            <div class="acc-conf-label" style="color:var(--text-muted);font-size:9px">NOT EVALUATED</div>
           </div>
         </div>
       </div>
@@ -2591,8 +2686,8 @@ body.strip-visible { padding-top: 86px; }
             <div class="acc-val">Secondary evidence corroborating ADCS root cause. Not an independent failure — downstream consequence of IMU drift.</div>
           </div>
           <div class="acc-confidence">
-            <div class="acc-conf-bar"><div class="acc-conf-fill" style="width:88%"></div></div>
-            <div class="acc-conf-label">88%</div>
+            <div class="acc-conf-bar"><div class="acc-conf-fill" style="width:0%"></div></div>
+            <div class="acc-conf-label" style="color:var(--text-muted);font-size:9px">NOT EVALUATED</div>
           </div>
         </div>
       </div>
@@ -2618,8 +2713,8 @@ body.strip-visible { padding-top: 86px; }
             <div class="acc-val">Prior incident resolved via backup IMU switch in 43 minutes. Outcome provides strong prior for recovery plan step 1.</div>
           </div>
           <div class="acc-confidence">
-            <div class="acc-conf-bar"><div class="acc-conf-fill" style="width:87%"></div></div>
-            <div class="acc-conf-label">87%</div>
+            <div class="acc-conf-bar"><div class="acc-conf-fill" style="width:0%"></div></div>
+            <div class="acc-conf-label" style="color:var(--text-muted);font-size:9px">NOT EVALUATED</div>
           </div>
         </div>
       </div>
@@ -2645,8 +2740,8 @@ body.strip-visible { padding-top: 86px; }
             <div class="acc-val">Causal chain is complete and unambiguous. No alternative hypotheses with >20% posterior probability remain.</div>
           </div>
           <div class="acc-confidence">
-            <div class="acc-conf-bar"><div class="acc-conf-fill" style="width:97%"></div></div>
-            <div class="acc-conf-label">97%</div>
+            <div class="acc-conf-bar"><div class="acc-conf-fill" style="width:0%"></div></div>
+            <div class="acc-conf-label" style="color:var(--text-muted);font-size:9px">NOT EVALUATED</div>
           </div>
         </div>
       </div>
@@ -2663,44 +2758,49 @@ body.strip-visible { padding-top: 86px; }
     <p class="section-desc">An autonomous AI pipeline that sits between the spacecraft and mission control — diagnosing, reasoning, and planning without waiting for a ground pass.</p>
   </div>
   <div class="arch-pipeline">
+    <!-- Phase 0: these node captions described capabilities that are not
+         implemented (LSTM detection, a 847-event knowledge graph, Pearl
+         do-calculus, Monte Carlo validation, one-click uplink). Each caption
+         now states what the code actually does today. -->
     <div class="arch-node fade-in-section" style="animation-delay:0.05s">
       <div class="arch-node-title">Telemetry Ingestion</div>
-      <div class="arch-node-sub">1,472 streams · 10Hz · CCSDS / XTCE</div>
+      <div class="arch-node-sub">Crash-dump JSON intake · Pydantic validation</div>
     </div>
     <div class="arch-arrow"><div class="arch-arrow-line"></div><div class="arch-arrow-head"></div></div>
     <div class="arch-node fade-in-section" style="animation-delay:0.15s">
       <div class="arch-node-title">Anomaly Detection</div>
-      <div class="arch-node-sub">Statistical envelope · LSTM time-series · 3σ triggers</div>
+      <div class="arch-node-sub">Z-score against nominal ranges (no temporal model)</div>
     </div>
     <div class="arch-arrow"><div class="arch-arrow-line"></div><div class="arch-arrow-head"></div></div>
     <div class="arch-node fade-in-section" style="animation-delay:0.25s">
-      <div class="arch-node-title">Knowledge Graph</div>
-      <div class="arch-node-sub">ESA / NASA incident DB · Causal ontology · 847 events</div>
+      <div class="arch-node-title">Procedure Retrieval</div>
+      <div class="arch-node-sub">ChromaDB over 2 ECSS PDFs · keyword KB fallback</div>
     </div>
     <div class="arch-arrow"><div class="arch-arrow-line"></div><div class="arch-arrow-head"></div></div>
     <div class="arch-node fade-in-section" style="animation-delay:0.35s">
       <div class="arch-node-title">LLM Reasoning Agent</div>
-      <div class="arch-node-sub">Chain-of-thought · Tool use · Uncertainty quantification</div>
+      <div class="arch-node-sub">Gemini · schema-enforced JSON · one repair retry</div>
     </div>
     <div class="arch-arrow"><div class="arch-arrow-line"></div><div class="arch-arrow-head"></div></div>
     <div class="arch-node fade-in-section" style="animation-delay:0.45s">
-      <div class="arch-node-title">Causal Reasoner</div>
-      <div class="arch-node-sub">DAG inference · Pearl do-calculus · Counterfactual checks</div>
+      <div class="arch-node-title">Causal Chain</div>
+      <div class="arch-node-sub">LLM-authored chain · no causal inference engine yet</div>
     </div>
     <div class="arch-arrow"><div class="arch-arrow-line"></div><div class="arch-arrow-head"></div></div>
     <div class="arch-node fade-in-section" style="animation-delay:0.55s">
-      <div class="arch-node-title">Recovery Planner</div>
-      <div class="arch-node-sub">Risk-ranked procedure gen · Monte Carlo validation</div>
+      <div class="arch-node-title">Safety Validator</div>
+      <div class="arch-node-sub">Deterministic command whitelist + constraint checks</div>
     </div>
     <div class="arch-arrow"><div class="arch-arrow-line"></div><div class="arch-arrow-head"></div></div>
     <div class="arch-node fade-in-section" style="animation-delay:0.65s" style="border-color:rgba(0,229,255,0.4);background:rgba(0,229,255,0.05)">
       <div class="arch-node-title" style="color:var(--cyan)">Mission Operator</div>
-      <div class="arch-node-sub">Explainable AI output · One-click command uplink</div>
+      <div class="arch-node-sub">Reviews output · SENTINEL does not uplink commands</div>
     </div>
   </div>
   <div style="margin-top:64px;text-align:center;font-family:var(--font-mono);font-size:9px;color:var(--text-muted);letter-spacing:0.15em;line-height:2" class="fade-in-section">
-    <div>SENTINEL v1.0 — ESA SpaceHack 2025</div>
-    <div style="margin-top:8px;color:var(--cyan)">SPACECRAFT STATUS: SAFE MODE &nbsp;·&nbsp; AI AGENT: ONLINE &nbsp;·&nbsp; RECOVERY: IN PROGRESS</div>
+    <div>SENTINEL v1.0 — research prototype</div>
+    <!-- Phase 0: previously asserted live spacecraft/agent/recovery status. -->
+    <div style="margin-top:8px;color:var(--amber)">SIMULATION · SYNTHETIC DATA · NOT CONNECTED TO ANY SPACECRAFT</div>
   </div>
 </section>
  
@@ -2809,73 +2909,136 @@ const fadeObs = new IntersectionObserver(entries => {
 document.querySelectorAll('.fade-in-section').forEach(el => fadeObs.observe(el));
  
 // ─── PRESET SCENARIOS ────────────────────────────────────────────
+// Phase 0: `streams` was a fabricated channel count (1,472 / 983 / 741) — none
+// of these payloads contains that many channels. Set to '—' rather than a
+// made-up figure. Mission names identify the historical event the scenario is
+// *modelled on*; the telemetry itself is synthetic.
+// Phase 3: the hardcoded `json` payloads are GONE. They used a shape of their
+// own — {mission, timestamp, anomaly_type, severity, subsystem, telemetry:{}} —
+// which is not CrashDumpRequest, so the backend extracted 0 telemetry readings
+// and detection analysed 0 channels from them. The page was a third source of
+// scenario definitions alongside app/api/scenarios.py and the React dashboard.
+//
+// Payloads now come from GET /api/v1/scenarios. `faultPrefix` selects which
+// catalogue scenario a preset button maps to.
 const PRESETS = {
-  gyro: {
-    mission:'MAVEN', severity:'CRITICAL', streams:'1,472',
-    json:`{
-  "mission": "MAVEN",
-  "timestamp": "2022-09-19T09:12:04Z",
-  "anomaly_type": "IMU_DRIFT",
-  "severity": "CRITICAL",
-  "subsystem": "ADCS",
-  "telemetry": {
-    "IMU_A_ANGULAR_RATE_X": 0.92,
-    "ATTITUDE_ERROR_DEG": 4.62,
-    "RWA_SATURATION_PCT": 87,
-    "STAR_TRACKER_STATUS": "DEGRADED",
-    "OBC_SAFEMODE_TRIGGER": true
-  }
-}`
-  },
-  solar: {
-    mission:'SOHO', severity:'HIGH', streams:'983',
-    json:`{
-  "mission": "SOHO",
-  "timestamp": "1998-06-25T14:33:11Z",
-  "anomaly_type": "EPS_UNDERVOLTAGE",
-  "severity": "HIGH",
-  "subsystem": "EPS",
-  "telemetry": {
-    "SOLAR_ARRAY_CURRENT": 2.1,
-    "BUS_VOLTAGE": 21.4,
-    "BATTERY_SOC_PCT": 23.8,
-    "GYRO_STATUS": "FAULT",
-    "POWER_MODE": "EMERGENCY"
-  }
-}`
-  },
-  obc: {
-    mission:'MGS', severity:'HIGH', streams:'741',
-    json:`{
-  "mission": "MARS_GLOBAL_SURVEYOR",
-  "timestamp": "2006-11-02T17:04:52Z",
-  "anomaly_type": "OBC_MEMORY_OVERWRITE",
-  "severity": "HIGH",
-  "subsystem": "OBC",
-  "telemetry": {
-    "OBC_MEMORY_ADDR_FAULT": "0x3F2A",
-    "ATTITUDE_CTRL_STATE": "CORRUPTED",
-    "SOLAR_PANEL_ANGLE": -47.3,
-    "BATTERY_SOC_PCT": 8.2,
-    "WATCHDOG_TIMER": "EXPIRED"
-  }
-}`
-  }
+  gyro:  { severity:'CRITICAL', faultPrefix:'ADCS' },
+  solar: { severity:'HIGH',     faultPrefix:'EPS'  },
+  obc:   { severity:'HIGH',     faultPrefix:'OBC'  },
 };
+
+// ─── SCENARIO CATALOGUE — fetched, never embedded ──────────────────
+// Populated from GET /api/v1/scenarios. Empty until the fetch succeeds, and it
+// stays empty if the backend is unreachable: an unavailable catalogue is
+// reported, not substituted.
+const SCENARIO_CATALOGUE = {
+  contractVersion: null, byPreset: {}, list: [], state: 'loading', error: null,
+};
+
+function scenarioForPreset(key) {
+  return SCENARIO_CATALOGUE.byPreset[key] || null;
+}
+
+function presetPayloadText(key) {
+  const scenario = scenarioForPreset(key);
+  return scenario ? JSON.stringify(scenario, null, 2) : '';
+}
+
+async function fetchScenarioCatalogue() {
+  try {
+    const res = await fetch(BACKEND_URL + '/api/v1/scenarios');
+    if (!res.ok) throw new Error('GET /api/v1/scenarios returned ' + res.status);
+    const payload = await res.json();
+    const list = Array.isArray(payload.scenarios) ? payload.scenarios : [];
+    SCENARIO_CATALOGUE.contractVersion = payload.contract_version || null;
+    SCENARIO_CATALOGUE.list = list;
+    SCENARIO_CATALOGUE.byPreset = {};
+    Object.keys(PRESETS).forEach(function (key) {
+      const prefix = PRESETS[key].faultPrefix;
+      const match = list.find(function (s) {
+        return (s.fault_type || '').toUpperCase().indexOf(prefix) === 0;
+      });
+      if (match) SCENARIO_CATALOGUE.byPreset[key] = match;
+    });
+    // Any preset without a subsystem match takes a distinct spare scenario so
+    // the three buttons never silently show the same payload.
+    const used = {};
+    Object.keys(SCENARIO_CATALOGUE.byPreset).forEach(function (k) {
+      used[SCENARIO_CATALOGUE.byPreset[k].scenario_id] = true;
+    });
+    Object.keys(PRESETS).forEach(function (key) {
+      if (SCENARIO_CATALOGUE.byPreset[key]) return;
+      const spare = list.find(function (s) { return !used[s.scenario_id]; });
+      if (spare) { SCENARIO_CATALOGUE.byPreset[key] = spare; used[spare.scenario_id] = true; }
+    });
+    SCENARIO_CATALOGUE.state = list.length ? 'ready' : 'unavailable';
+    SCENARIO_CATALOGUE.error = list.length ? null : 'backend returned an empty catalogue';
+    refreshPresetDisplay();
+  } catch (err) {
+    console.warn('[SENTINEL] scenario catalogue unavailable:', err);
+    SCENARIO_CATALOGUE.state = 'unavailable';
+    SCENARIO_CATALOGUE.error = err.message || String(err);
+    SCENARIO_CATALOGUE.byPreset = {};
+    SCENARIO_CATALOGUE.list = [];
+    refreshPresetDisplay();
+  }
+}
+
+// Reflect the catalogue in the preset summary. The "Mission" field now shows the
+// scenario's PROVENANCE rather than a mission name: these payloads are modelled
+// on historical events, they are not that mission's telemetry, and Phase 0
+// established that the distinction has to be visible.
+function refreshPresetDisplay() {
+  const scenario = scenarioForPreset(currentPreset);
+  const missionEl = document.getElementById('sim-mission');
+  const streamsEl = document.getElementById('sim-streams');
+  const statusEl = document.getElementById('sim-status-val');
+  if (!missionEl || !streamsEl || !statusEl) return;
+
+  if (scenario) {
+    const rows = scenario.pre_fault_telemetry_window || [];
+    const channels = {};
+    rows.forEach(function (r) { if (r && r.parameter) channels[r.parameter] = true; });
+    const channelCount = Object.keys(channels).length;
+    missionEl.textContent = scenario.source_type || 'UNKNOWN PROVENANCE';
+    missionEl.style.color = scenario.provenance === 'REAL' ? 'var(--green)' : 'var(--amber)';
+    streamsEl.textContent = channelCount ? String(channelCount) : '—';
+    statusEl.textContent = (scenario.fault_type || 'UNSPECIFIED').replace(/_/g, ' ');
+    statusEl.style.color = 'var(--amber)';
+  } else {
+    missionEl.textContent = SCENARIO_CATALOGUE.state === 'loading'
+      ? 'LOADING…' : 'CATALOGUE UNAVAILABLE';
+    missionEl.style.color = 'var(--text-muted)';
+    streamsEl.textContent = '—';
+    statusEl.textContent = PRESETS[currentPreset].severity;
+    statusEl.style.color = 'var(--text-muted)';
+  }
+}
  
 let currentPreset = 'gyro';
 function selectPreset(type, el) {
   currentPreset = type;
   document.querySelectorAll('.preset-btn').forEach(b => b.classList.remove('selected'));
   el.classList.add('selected');
-  const d = PRESETS[type];
-  document.getElementById('sim-mission').textContent = d.mission;
-  document.getElementById('sim-status-val').textContent = d.severity;
-  document.getElementById('sim-streams').textContent = d.streams;
-  document.getElementById('sim-status-val').style.color = d.severity === 'CRITICAL' ? 'var(--red)' : 'var(--amber)';
+  // Phase 3: the summary is derived from the fetched scenario, so it cannot
+  // advertise a mission the payload does not contain.
+  refreshPresetDisplay();
 }
 function loadPresetJSON() {
-  document.getElementById('crash-json').value = PRESETS[currentPreset].json;
+  const text = presetPayloadText(currentPreset);
+  const el = document.getElementById('crash-json');
+  if (text) {
+    el.value = text;
+    return;
+  }
+  // No fabricated stand-in. Say what is missing and how to fix it.
+  el.value = '';
+  el.placeholder = 'Scenario catalogue unavailable — GET ' + BACKEND_URL
+    + '/api/v1/scenarios could not be read'
+    + (SCENARIO_CATALOGUE.error ? ' (' + SCENARIO_CATALOGUE.error + ')' : '')
+    + '. Scenario definitions live only in the backend. Start the backend and'
+    + ' reload, or paste your own crash dump JSON here.';
+  showConnIndicator('mock', 'Scenario catalogue unavailable — no preset payload to load', 0);
 }
 function clearJSON() {
   document.getElementById('crash-json').value = '';
@@ -2950,51 +3113,81 @@ const TELEM_DATA = {
 // The type field maps to: 🧠 THOUGHT, ⚡ ACTION, 👁 OBSERVATION, ✅ RESULT, 🚨 ALERT
 const AI_TRACES = {
   gyro: [
-    {t:700,  type:'thought', text:'Scanning 1,472 telemetry channels for anomaly signatures. Establishing baseline envelope from nominal operating parameters.'},
-    {t:1500, type:'action',  text:'query_telemetry(channels=["IMU_A_*","ATTITUDE_*","RWA_*"], window=60s, threshold=3σ)'},
-    {t:2300, type:'observe', text:'IMU_A_ANGULAR_RATE_X: deviation detected at T+47s. Rate: ±0.92°/s vs nominal ±0.15°/s. Sustained breach — not a transient spike.'},
-    {t:3100, type:'thought', text:'Angular rate divergence is sustained and growing. Star tracker shows DEGRADED status simultaneously. High probability of IMU-A primary sensor failure vs attitude disturbance.'},
-    {t:4000, type:'action',  text:'search_incident_db(query={sensor:"IMU", symptom:"angular_rate_diverge", safemode:true}, top_k=5)'},
-    {t:5000, type:'observe', text:'Match found: MAVEN 2022 (ESA-MSO-2022-047) — cosine similarity 0.87 across 14 telemetry dimensions. Secondary match: GRACE-FO 2019 — similarity 0.61.'},
-    {t:5800, type:'thought', text:'87% match to MAVEN 2022 is highly significant. That event resolved via backup IMU-B activation in 43 minutes. Causal chain is clear: IMU-A → attitude error → RWA saturation → OBC trigger → safe mode.'},
-    {t:6600, type:'action',  text:'build_causal_dag(root="IMU_A_FAILURE", nodes=["ATTITUDE_ERROR","RWA_SAT","POWER_DRAW","OBC_WATCHDOG","SAFE_MODE"])'},
-    {t:7400, type:'observe', text:'DAG constructed. 6 nodes, 6 edges. No cycles. Confidence: Root cause IMU-A failure 94%. All causal links corroborated by telemetry evidence.'},
-    {t:8200, type:'result',  text:'✅ DIAGNOSIS COMPLETE in 8.2s — Root Cause: IMU-A Primary Sensor Failure (ADCS subsystem). Recovery: Switch to IMU-B. ESA compliance: ECSS-E-ST-70-11C §6.3.2. Requires ground confirm before safe mode exit.'},
+    {t:700,  type:'thought', text:'[DEMO] Scanning the simulated telemetry window for out-of-nominal parameters.'},
+    {t:1500, type:'action',  text:'[DEMO] query_telemetry(channels=["IMU_A_*","ATTITUDE_*","RWA_*"], window=60s, threshold=3σ)'},
+    {t:2300, type:'observe', text:'[DEMO] IMU_A_ANGULAR_RATE_X out of nominal in the simulated window: ±0.92°/s vs nominal ±0.15°/s.'},
+    {t:3100, type:'thought', text:'[DEMO] Angular rate divergence is sustained and the star tracker is DEGRADED in this scenario, which is consistent with an IMU-A sensor fault.'},
+    {t:4000, type:'action',  text:'[DEMO] search_incident_db(...) — not implemented; no incident database exists in this build.'},
+    {t:5000, type:'observe', text:'[DEMO] Incident matching is not implemented. No similarity score is computed against any incident database.'},
+    {t:5800, type:'thought', text:'[DEMO] Hypothesised chain for this scripted scenario: IMU-A → attitude error → RWA saturation → OBC trigger → safe mode.'},
+    {t:6600, type:'action',  text:'[DEMO] build_causal_dag(root="IMU_A_FAILURE", nodes=["ATTITUDE_ERROR","RWA_SAT","POWER_DRAW","OBC_WATCHDOG","SAFE_MODE"])'},
+    {t:7400, type:'observe', text:'[DEMO] Chain rendered: 6 nodes, 6 edges. Node confidences are NOT EVALUATED — no model produced them.'},
+    {t:8200, type:'result',  text:'[DEMO] Scripted trace complete. This is a pre-written demonstration, NOT a diagnosis. Root cause, confidence and ECSS clause references are NOT EVALUATED. Arm the backend to obtain a real analysis.'},
   ],
   solar: [
-    {t:700,  type:'thought', text:'EPS anomaly signature detected. Bus voltage drop combined with gyro fault suggests compound failure — power and attitude systems simultaneously degraded.'},
-    {t:1400, type:'action',  text:'query_telemetry(channels=["SOLAR_ARRAY_*","BUS_*","BATTERY_*","GYRO_*"], window=30s)'},
-    {t:2200, type:'observe', text:'Solar array current dropped from 11.8A to 2.1A in 18 seconds. Bus voltage: 28.1V → 21.4V. Battery SOC: 41% → 23.8%. Gyro reporting FAULT simultaneously.'},
-    {t:3000, type:'thought', text:'The simultaneous gyro fault and power drop suggests a common cause — possibly attitude mispointing causing solar panel shadowing, OR independent gyro failure coinciding with array degradation.'},
-    {t:3900, type:'action',  text:'search_incident_db(query={symptoms:["EPS_undervoltage","gyro_fault","solar_degradation"]}, top_k=5)'},
-    {t:4800, type:'observe', text:'Match found: SOHO 1998 (ESA-SOHO-1998-06) — similarity 0.74. Common cause: gyro failure → attitude loss → solar mispointing → power cascade. Ground command error also implicated in original event.'},
-    {t:5700, type:'thought', text:'SOHO pattern matches. The gyro failure likely caused attitude drift, reducing solar panel illumination angle. Power starvation is secondary. Recovery is complex — requires solar panel reorientation before attitude control restoration.'},
-    {t:6600, type:'action',  text:'generate_recovery_plan(root="GYRO_FAILURE", constraints={battery_soc_min:15, requires_sun_pointing:true, human_review:true})'},
-    {t:7500, type:'result',  text:'⚠️ DIAGNOSIS COMPLETE in 7.5s — Root Cause: Gyroscope Failure → Solar Panel Mispointing → Power Cascade. HIGH risk recovery. Human review REQUIRED before any uplink commands per ECSS-E-ST-70-11C.'},
+    {t:700,  type:'thought', text:'[DEMO] EPS anomaly signature in the simulated window: bus voltage drop alongside a gyro fault.'},
+    {t:1400, type:'action',  text:'[DEMO] query_telemetry(channels=["SOLAR_ARRAY_*","BUS_*","BATTERY_*","GYRO_*"], window=30s)'},
+    {t:2200, type:'observe', text:'[DEMO] Simulated values: solar array current 11.8A → 2.1A; bus voltage 28.1V → 21.4V; battery SOC 41% → 23.8%; gyro FAULT.'},
+    {t:3000, type:'thought', text:'[DEMO] Two candidate explanations in this scenario: attitude mispointing shadowing the array, or an independent gyro fault coinciding with array degradation.'},
+    {t:3900, type:'action',  text:'[DEMO] search_incident_db(...) — not implemented; no incident database exists in this build.'},
+    {t:4800, type:'observe', text:'[DEMO] No incident match is computed. Any similarity figure would be fabricated.'},
+    {t:5700, type:'thought', text:'[DEMO] Under the scripted hypothesis, gyro failure drives attitude drift, reducing array illumination; power starvation would be secondary.'},
+    {t:6600, type:'action',  text:'[DEMO] generate_recovery_plan(root="GYRO_FAILURE", constraints={battery_soc_min:15, requires_sun_pointing:true, human_review:true})'},
+    {t:7500, type:'result',  text:'[DEMO] Scripted trace complete. NOT a diagnosis. No root cause has been established, no plan has passed safety validation, and confidence is NOT EVALUATED.'},
   ],
   obc: [
-    {t:700,  type:'thought', text:'OBC memory fault detected immediately after command upload. Timing is highly suspicious — likely the command upload caused the corruption rather than a spontaneous hardware failure.'},
-    {t:1400, type:'action',  text:'query_telemetry(channels=["OBC_*","MEMORY_*","ATTITUDE_CTRL_*","BATTERY_*"], window=60s)'},
-    {t:2200, type:'observe', text:'Memory write to address 0x3F2A followed immediately by ATTITUDE_CTRL_STATE=CORRUPTED. Solar panel angle drifting to -47.3°. Watchdog expired. Battery draining rapidly: 31% → 8% in 7 seconds.'},
-    {t:3000, type:'thought', text:'This is a critical pattern — MGS 2006 style memory overwrite. The solar panel is mispointing, draining battery. If battery hits 0% before recovery commands uplinked, spacecraft may be unrecoverable.'},
-    {t:3800, type:'action',  text:'URGENT: check_recovery_window(battery_soc=8.2, drain_rate=11.5_pct_per_sec, min_comms_voltage=18V)'},
-    {t:4600, type:'observe', text:'WARNING: Recovery window closing. Estimated time to communications loss: ~3 minutes at current drain rate. Standard ground-loop recovery (20min round-trip) is INSUFFICIENT.'},
-    {t:5500, type:'thought', text:'Autonomous action required. Must issue emergency sun-pointing command NOW before battery loss. This is exactly the scenario ESA ECSS standards did not account for — ground control cannot respond in time.'},
-    {t:6400, type:'action',  text:'generate_emergency_command(action="SUN_POINT_OVERRIDE", authority="AUTONOMOUS_SENTINEL", justification="battery_loss_imminent", flag_human_review=true)'},
-    {t:7300, type:'result',  text:'🚨 CRITICAL — Root Cause: OBC Memory Overwrite from CMD Upload. Battery failure imminent. Emergency sun-pointing command GENERATED. Human operator must confirm within 90 seconds. Without action: mission loss probable.'},
+    {t:700,  type:'thought', text:'[DEMO] OBC memory fault appears immediately after a command upload in this scripted scenario.'},
+    {t:1400, type:'action',  text:'[DEMO] query_telemetry(channels=["OBC_*","MEMORY_*","ATTITUDE_CTRL_*","BATTERY_*"], window=60s)'},
+    {t:2200, type:'observe', text:'[DEMO] Simulated values: memory write 0x3F2A then ATTITUDE_CTRL_STATE=CORRUPTED; panel angle -47.3°; watchdog expired; SOC 31% → 8%.'},
+    {t:3000, type:'thought', text:'[DEMO] The pattern resembles a memory-overwrite fault with a mispointing panel draining the battery.'},
+    {t:3800, type:'action',  text:'[DEMO] check_recovery_window(...) — illustrative only; SENTINEL has no recovery-window model.'},
+    {t:4600, type:'observe', text:'[DEMO] No recovery window is computed. Any time-to-loss estimate here would be fabricated.'},
+    {t:5500, type:'thought', text:'[DEMO] In a real deployment this decision belongs to the operator. SENTINEL does not act autonomously and does not uplink commands.'},
+    {t:6400, type:'action',  text:'[DEMO] Recovery steps are proposals for operator review only. No command is issued by SENTINEL.'},
+    {t:7300, type:'result',  text:'[DEMO] Scripted trace complete. NOT a diagnosis and NOT an emergency. No command was generated or authorised. Confidence is NOT EVALUATED.'},
   ]
 };
  
 // ─── INVESTIGATION LAUNCH ─────────────────────────────────────────
 let invRunning = false, invTimers = [];
 let useLiveBackend = false;
-// 🔌 INTEGRATION POINT 1 — BACKEND URL
-// Backend URL is set at deploy time via .env → scripts/generate-config.js → /config.js
-// To change: update sentinel/frontend/.env then run: npm run generate-config
-const BACKEND_URL = (typeof window !== 'undefined' && window.SENTINEL_BACKEND_URL) || 'http://localhost:8005';
+// ─── BACKEND URL — SINGLE SOURCE OF TRUTH ─────────────────────────
+// Resolution order:
+//   1. window.SENTINEL_BACKEND_URL, written by scripts/generate-config.js
+//      into /config.js from REACT_APP_BACKEND_URL in sentinel/frontend/.env
+//   2. SENTINEL_DEFAULT_BACKEND_URL below
+// The default MUST match scripts/generate-config.js, src/App.jsx and
+// .env.example. Do not introduce a different port here.
+const SENTINEL_DEFAULT_BACKEND_URL = 'http://localhost:8000';
+const BACKEND_URL = (typeof window !== 'undefined' && window.SENTINEL_BACKEND_URL)
+  || SENTINEL_DEFAULT_BACKEND_URL;
 console.log('[SENTINEL] BACKEND_URL resolved to:', BACKEND_URL,
-  '| source:', (window.SENTINEL_BACKEND_URL ? 'config.js ✅' : 'fallback hardcode ⚠️'));
+  '| source:', (typeof window !== 'undefined' && window.SENTINEL_BACKEND_URL)
+    ? 'config.js' : 'built-in default');
+
+// Phase 3: fetch the scenario catalogue as soon as the page loads. This does
+// NOT start an investigation — Phase 0 removed the auto-launch — it only fills
+// the preset payloads from the one authoritative source.
+if (typeof window !== 'undefined') {
+  window.addEventListener('load', function () { fetchScenarioCatalogue(); });
+}
  
+// Owns the ribbon "Backend" field. This is the ONLY place a connection state
+// is written, and it is only ever written from an observed fetch/SSE outcome.
+function setBackendIndicator(state) {
+  // state: 'disconnected' | 'connecting' | 'connected' | 'error'
+  const el = document.getElementById('rb-signal');
+  if (!el) return;
+  const map = {
+    disconnected: ['NOT CONNECTED', 'var(--text-muted)'],
+    connecting:   ['CONNECTING…',   'var(--amber)'],
+    connected:    ['CONNECTED',     'var(--green)'],
+    error:        ['UNREACHABLE',   '#FF6B6B'],
+  };
+  const entry = map[state] || map.disconnected;
+  el.textContent = entry[0];
+  el.style.color = entry[1];
+}
  
 function toggleBackend() {
   useLiveBackend = !useLiveBackend;
@@ -3002,19 +3195,25 @@ function toggleBackend() {
   const label = document.getElementById('be-label');
   if (useLiveBackend) {
     btn.classList.add('live');
-    label.textContent = 'Live Backend';
+    label.textContent = 'Live Backend (armed)';
+    showConnIndicator('live', 'Live backend armed — Run will call ' + BACKEND_URL, 0);
   } else {
     btn.classList.remove('live');
-    label.textContent = 'Mock Data';
+    label.textContent = 'Scripted Demo Data';
+    setBackendIndicator('disconnected');
+    showConnIndicator('mock', 'Scripted demo data — no backend call will be made', 0);
   }
 }
  
+// Phase 0: the `autohide` argument is accepted for call-site compatibility but
+// deliberately IGNORED. A provenance/connection notice must not disappear
+// while the content it describes is still on screen. Previously this hid the
+// "mock data" notice after 5s, leaving fabricated output unlabelled.
 function showConnIndicator(mode, text, autohide) {
   const el = document.getElementById('conn-indicator');
   const lbl = document.getElementById('conn-label');
   el.className = 'conn-indicator show ' + mode;
   lbl.textContent = text;
-  if (autohide) setTimeout(() => el.classList.remove('show'), autohide);
 }
  
 function launchInvestigation() {
@@ -3022,7 +3221,11 @@ function launchInvestigation() {
   invRunning = true;
   // Load JSON into textarea if empty
   if(!document.getElementById('crash-json').value.trim()) {
-    document.getElementById('crash-json').value = PRESETS[currentPreset].json;
+    // Phase 3: from the backend catalogue only. If it is unavailable the box
+    // stays empty and the scripted demo path below runs, clearly labelled
+    // SIMULATION, rather than a hand-written payload being sent as if real.
+    const payloadText = presetPayloadText(currentPreset);
+    if (payloadText) document.getElementById('crash-json').value = payloadText;
   }
   const btn = document.getElementById('sim-launch-btn');
   btn.textContent = '⏳  Analyzing...';
@@ -3064,11 +3267,13 @@ function launchInvestigation() {
   invTimers.push(setTimeout(() => animateConfidenceRing(currentPreset), 6000));
   // ── END NEW ───────────────────────────────────────────────────
 
-  // Connection indicator
+  // Connection / provenance indicator — persistent, never auto-hidden.
   if (useLiveBackend) {
-    showConnIndicator('live', 'Connecting to live backend…', 0);
+    setBackendIndicator('connecting');
+    showConnIndicator('live', 'Connecting to backend at ' + BACKEND_URL + '…', 0);
   } else {
-    showConnIndicator('mock', 'AI Simulation — Mock Telemetry Stream', 5000);
+    setBackendIndicator('disconnected');
+    showConnIndicator('mock', 'SIMULATION — scripted demo trace, no backend call', 0);
   }
  
   const telemRows = TELEM_DATA[currentPreset] || TELEM_DATA.gyro;
@@ -3077,7 +3282,8 @@ function launchInvestigation() {
   // If live backend enabled, try SSE first with fallback
   if (useLiveBackend) {
     const sseTimeout = setTimeout(() => {
-      showConnIndicator('mock', 'Backend timeout — falling back to mock data', 5000);
+      setBackendIndicator('error');
+      showConnIndicator('mock', 'SIMULATION — backend timed out, showing scripted demo trace', 0);
       runMockSimulation(telemRows, aiTrace, btn);
     }, 8000);
     try {
@@ -3085,7 +3291,8 @@ function launchInvestigation() {
       const es = new EventSource(`${BACKEND_URL}/api/analyze?preset=${currentPreset}&payload=${payload}`);
       es.onopen = () => {
         clearTimeout(sseTimeout);
-        showConnIndicator('live', 'Live Backend Connected — Real-time AI Analysis', 0);
+        setBackendIndicator('connected');
+        showConnIndicator('live', 'LIVE BACKEND — trace below is a real backend response', 0);
       };
       es.addEventListener('telemetry', e => {
         const d = JSON.parse(e.data);
@@ -3104,17 +3311,20 @@ function launchInvestigation() {
         es.close();
         clearTimeout(sseTimeout);
         finishInvestigation(btn);
-        showConnIndicator('live', 'Analysis complete — Live Backend', 5000);
+        setBackendIndicator('connected');
+        showConnIndicator('live', 'LIVE BACKEND — response complete', 0);
       });
       es.onerror = () => {
         es.close();
         clearTimeout(sseTimeout);
-        showConnIndicator('mock', 'Backend error — falling back to mock data', 5000);
+        setBackendIndicator('error');
+        showConnIndicator('mock', 'SIMULATION — backend unreachable, showing scripted demo trace', 0);
         runMockSimulation(telemRows, aiTrace, btn);
       };
     } catch(err) {
       clearTimeout(sseTimeout);
-      showConnIndicator('mock', 'Backend unreachable — running mock simulation', 5000);
+      setBackendIndicator('error');
+      showConnIndicator('mock', 'SIMULATION — backend unreachable, showing scripted demo trace', 0);
       runMockSimulation(telemRows, aiTrace, btn);
     }
     return;
@@ -3216,25 +3426,26 @@ function triggerFinancialCounter() {
     return '$'+n;
   }
   const withoutEl = document.getElementById('cost-without');
-  const savedEl = document.getElementById('cost-saved');
   const startTime = performance.now();
   const duration = 3200;
+  // Phase 0 changes here:
+  //  1. Removed `Math.random()*0.15` jitter, which injected fake ±15% noise so
+  //     the dollar figure looked like a live feed. The counter now animates
+  //     monotonically to the exact arithmetic total.
+  //  2. Stopped writing to #cost-saved. That element represents a saving that
+  //     depends on a diagnosis latency we have not measured; it stays
+  //     NOT EVALUATED.
   function animate(now) {
     const p = Math.min((now - startTime) / duration, 1);
-    // Ease-out cubic with a dramatic surge at the end
+    // Ease-out — deterministic, no randomness
     const ease = p < 0.85 ? 1 - Math.pow(1 - p/0.85, 2) : 1;
-    const current = Math.floor(ease * total * (p < 0.85 ? 0.9 + Math.random()*0.15 : 1));
+    const current = Math.floor(ease * total);
     withoutEl.textContent = fmt(Math.min(current, total));
-    savedEl.textContent = fmt(Math.min(current, total));
     if (p < 1) {
       requestAnimationFrame(animate);
     } else {
       withoutEl.textContent = fmt(total);
-      savedEl.textContent = fmt(total);
       withoutEl.classList.add('locked-red');
-      // Pulse the $0 SENTINEL side
-      const zeroNum = document.querySelector('#s-cost .cost-result-card.good .cost-result-num.green');
-      if (zeroNum) zeroNum.classList.add('sentinel-win');
     }
   }
   requestAnimationFrame(animate);
@@ -3258,11 +3469,12 @@ function finishInvestigation(btn) {
   [1,2,3,4,5,6].forEach((nodeId, i) => {
     setTimeout(() => revealDAGNode(nodeId), i * 300);
   });
-  // ── NEW: Update ribbon to nominal after analysis done
+  // ── Reset ribbon after the scripted run completes.
+  // Phase 0: does NOT claim the fault was "RESOLVED" — nothing was resolved,
+  // and the Evaluation field stays NOT EVALUATED because no reproducible
+  // backend evaluation has been run.
   setTimeout(() => {
     setRibbonStatus('nominal');
-    document.getElementById('rb-agent').textContent = '✅ RESOLVED';
-    document.getElementById('rb-agent').style.color = 'var(--green)';
   }, 2000);
 }
  
@@ -3296,7 +3508,12 @@ function runMockSimulation(telemRows, aiTrace, btn) {
   });
   invTimers.push(setTimeout(() => finishInvestigation(btn), 9500));
 }
-// Load preset JSON on load (without auto-running simulation)
+// ─── ON LOAD ──────────────────────────────────────────────────────
+// Phase 0: the scripted investigation is NEVER auto-started. Previously this
+// called launchInvestigation() 1.2s after load, so a visitor was shown a
+// fabricated diagnosis with no interaction and no disclosure.
+// The demo now runs only when the operator explicitly presses
+// "Run Scripted Demo". Do not re-add launchInvestigation() here.
 setTimeout(() => { loadPresetJSON(); }, 1200);
  
 // ─── COST CALCULATOR ─────────────────────────────────────────────
@@ -3319,13 +3536,20 @@ function updateCostCalc() {
     if(n >= 1e3) return '$' + (n/1e3).toFixed(0) + 'K';
     return '$' + n;
   }
+  // The "without SENTINEL" side is a transparent arithmetic model the operator
+  // controls: days × the day-rate they selected. That stays.
   document.getElementById('cost-without').textContent = fmt(total);
   document.getElementById('c-science').textContent = fmt(science);
   document.getElementById('c-ops').textContent = fmt(ops);
   document.getElementById('c-labor').textContent = fmt(labor);
-  document.getElementById('cost-saved').textContent = fmt(total);
-  const pct = ((days * 86400 - 8.2) / (days * 86400) * 100);
-  document.getElementById('cost-pct').textContent = pct.toFixed(3) + '%';
+  // Phase 0: the "saved" figure and the reduction percentage were derived from
+  // a hardcoded 8.2-second diagnosis time:
+  //     pct = ((days * 86400 - 8.2) / (days * 86400)) * 100
+  // which is what produced the "99.999% time saved" headline. SENTINEL has no
+  // measured diagnosis latency, so neither value can be computed. They stay
+  // NOT EVALUATED until an evaluation run provides a real latency.
+  document.getElementById('cost-saved').textContent = 'NOT EVALUATED';
+  document.getElementById('cost-pct').textContent = 'NOT EVALUATED';
 }
 updateCostCalc();
  
@@ -3354,13 +3578,16 @@ const dagData = {
     {from:5,to:6, color:{color:'rgba(239,68,68,0.8)',highlight:'#FF4444'}, arrows:'to', width:3, smooth:{type:'curvedCW',roundness:0.1}},
   ]
 };
+// Phase 0: the per-node `conf` and `ind` values here were hardcoded (94%, 43,
+// 97%, 12 …) and were not produced by any model or detector. They are now
+// NOT EVALUATED. Populate them only from a backend response.
 const dagNodeMeta = {
-  1:{title:'IMU-A Primary', conf:'94%', ind:'43', sev:'CRITICAL'},
-  2:{title:'ADCS', conf:'92%', ind:'38', sev:'CRITICAL'},
-  3:{title:'RWA Assembly', conf:'88%', ind:'31', sev:'HIGH'},
-  4:{title:'EPS Monitor', conf:'75%', ind:'18', sev:'MEDIUM'},
-  5:{title:'OBC Fault Handler', conf:'97%', ind:'12', sev:'CRITICAL'},
-  6:{title:'Safe Mode FSM', conf:'99%', ind:'7', sev:'CRITICAL'},
+  1:{title:'IMU-A Primary',     conf:'NOT EVALUATED', ind:'NOT EVALUATED', sev:'CRITICAL'},
+  2:{title:'ADCS',              conf:'NOT EVALUATED', ind:'NOT EVALUATED', sev:'CRITICAL'},
+  3:{title:'RWA Assembly',      conf:'NOT EVALUATED', ind:'NOT EVALUATED', sev:'HIGH'},
+  4:{title:'EPS Monitor',       conf:'NOT EVALUATED', ind:'NOT EVALUATED', sev:'MEDIUM'},
+  5:{title:'OBC Fault Handler', conf:'NOT EVALUATED', ind:'NOT EVALUATED', sev:'CRITICAL'},
+  6:{title:'Safe Mode FSM',     conf:'NOT EVALUATED', ind:'NOT EVALUATED', sev:'CRITICAL'},
 };
 let network;
 function initDAG() {
@@ -3386,10 +3613,13 @@ function initDAG() {
       document.getElementById('dp-conf').textContent = meta.conf;
       document.getElementById('dp-ind').textContent = meta.ind;
       document.getElementById('dp-sev').textContent = meta.sev;
-      const confVal = parseInt(meta.conf);
-      document.getElementById('dp-conf-bar').style.width = confVal + '%';
+      // Phase 0: meta.conf is now "NOT EVALUATED", so parseInt() yields NaN.
+      // Collapse the bar to 0 rather than rendering a misleading width.
+      const confVal = parseInt(meta.conf, 10);
+      const barWidth = Number.isFinite(confVal) ? confVal : 0;
+      document.getElementById('dp-conf-bar').style.width = barWidth + '%';
       panel.style.display = 'block';
-      setTimeout(() => document.getElementById('dp-conf-bar').style.width = confVal+'%', 50);
+      setTimeout(() => document.getElementById('dp-conf-bar').style.width = barWidth + '%', 50);
     } else {
       document.getElementById('dag-panel').style.display = 'none';
     }
@@ -3526,28 +3756,29 @@ function initRibbon() {
 }
 function setRibbonStatus(mode) {
   // mode: 'nominal' | 'warning' | 'safemode' | 'investigating'
+  //
+  // Phase 0: every label written here is prefixed to make clear it describes
+  // the DEMO scenario, not a spacecraft. This function must never write a
+  // link status ("CONNECTED") or a spacecraft health percentage — neither is
+  // obtainable without a backend. Backend status is owned solely by
+  // setBackendIndicator().
   const badge = document.getElementById('rb-status-badge');
   const text  = document.getElementById('rb-status-text');
-  const health = document.getElementById('rb-health');
   badge.className = 'rb-status-badge ' + mode;
   if (mode === 'safemode') {
-    text.textContent = 'SAFE MODE';
-    health.textContent = '42%'; health.style.color = '#FF6B6B';
-    document.getElementById('rb-signal').textContent = '● CONNECTED';
-    document.getElementById('rb-signal').className = 'rb-val green';
+    text.textContent = 'DEMO · SAFE MODE (SIMULATED)';
     // Show telem strip
     document.getElementById('telem-strip').classList.add('visible');
     document.body.classList.add('strip-visible');
   } else if (mode === 'warning') {
-    text.textContent = 'ANOMALY DETECTED';
+    text.textContent = 'DEMO · ANOMALY (SIMULATED)';
   } else if (mode === 'investigating') {
-    text.textContent = 'AI ANALYZING';
+    text.textContent = 'DEMO · ANALYZING';
     badge.style.borderColor = 'rgba(0,229,255,0.5)';
     badge.style.color = 'var(--cyan)';
     badge.style.background = 'rgba(0,229,255,0.08)';
   } else {
-    text.textContent = 'NOMINAL';
-    health.textContent = '98%'; health.style.color = 'var(--green)';
+    text.textContent = 'DEMO · SYNTHETIC';
   }
 }
 
@@ -3570,7 +3801,11 @@ const STRIP_PRESETS = {
 };
 let stripPhase = 0;
 function advanceTelemStrip() {
-  const preset = STRIP_PRESETS.gyro;
+  // Phase 0: this read STRIP_PRESETS.gyro unconditionally, so selecting the
+  // solar or OBC scenario still played the gyro value sequence. Only a gyro
+  // sequence is defined, so fall back explicitly and keep the two in step
+  // rather than silently showing the wrong scenario's values.
+  const preset = STRIP_PRESETS[currentPreset] || STRIP_PRESETS.gyro;
   if (stripPhase >= 5) return;
   preset.forEach(ch => {
     const el = document.getElementById(ch.id);
@@ -3582,11 +3817,10 @@ function advanceTelemStrip() {
       setTimeout(() => el.closest('.ts-chip')?.classList.remove('flash'), 800);
     }
   });
-  // Update ribbon health too
-  const healthPcts = ['98%','94%','76%','51%','42%'];
-  const healthCols = ['var(--green)','var(--green)','var(--amber)','#FF6B6B','#FF6B6B'];
-  document.getElementById('rb-health').textContent = healthPcts[stripPhase];
-  document.getElementById('rb-health').style.color = healthCols[stripPhase];
+  // Phase 0: the ribbon "Spacecraft Health" field is NOT written here.
+  // There is no health computation anywhere in the system, so the previous
+  // hardcoded 98/94/76/51/42% sequence was fabricated. The field stays
+  // "NO LINK" until a backend actually reports a health figure.
   stripPhase++;
 }
 
@@ -3607,10 +3841,15 @@ function revealTimelineEvents(timers) {
 // ═══════════════════════════════════════════════════════════════════
 // INTELLIGENCE HUB — heatmap bars + confidence ring + radar
 // ═══════════════════════════════════════════════════════════════════
+// Phase 0: `confidence`, `evidence` and `ragMatch` were fabricated (94.3%,
+// 42 violations, 3 matches …). They are removed — the confidence ring and
+// evidence counters now render NOT EVALUATED. The per-subsystem bar values are
+// retained as illustrative DEMO shape only, and the section is labelled as
+// scripted demo content.
 const INTEL_PRESETS = {
-  gyro: { adcs:96, obc:61, tcs:35, eps:22, comms:10, confidence:94.3, risk:'CRITICAL', subsystem:'ADCS', evidence:42, ragMatch:3, anomalyName:'IMU Sensor Failure' },
-  solar:{ adcs:45, obc:38, tcs:20, eps:91, comms:18, confidence:88.1, risk:'CRITICAL', subsystem:'EPS',  evidence:31, ragMatch:2, anomalyName:'Solar Array Failure' },
-  obc:  { adcs:72, obc:96, tcs:15, eps:68, comms:55, confidence:91.7, risk:'CRITICAL', subsystem:'OBC',  evidence:38, ragMatch:2, anomalyName:'Memory Overwrite Fault' },
+  gyro: { adcs:96, obc:61, tcs:35, eps:22, comms:10, risk:'CRITICAL', subsystem:'ADCS', anomalyName:'IMU Sensor Failure (demo)' },
+  solar:{ adcs:45, obc:38, tcs:20, eps:91, comms:18, risk:'CRITICAL', subsystem:'EPS',  anomalyName:'Solar Array Failure (demo)' },
+  obc:  { adcs:72, obc:96, tcs:15, eps:68, comms:55, risk:'CRITICAL', subsystem:'OBC',  anomalyName:'Memory Overwrite Fault (demo)' },
 };
 
 function animateHeatmap(preset) {
@@ -3621,6 +3860,17 @@ function animateHeatmap(preset) {
     document.getElementById('hm-tcs').style.width   = data.tcs   + '%';
     document.getElementById('hm-eps').style.width   = data.eps   + '%';
     document.getElementById('hm-comms').style.width = data.comms + '%';
+    // Phase 0: the numeric labels beside each bar were static markup and never
+    // updated, so they contradicted the bar they sat next to (e.g. EPS bar at
+    // 91% next to a label reading 22%). Keep label and bar in lockstep, and
+    // mark them as demo values.
+    const pairs = [['hm-adcs-pct', data.adcs], ['hm-obc-pct', data.obc],
+                   ['hm-tcs-pct', data.tcs],   ['hm-eps-pct', data.eps],
+                   ['hm-comms-pct', data.comms]];
+    pairs.forEach(function (p) {
+      const el = document.getElementById(p[0]);
+      if (el) el.textContent = p[1] + '%';
+    });
   }, 200);
 }
 
@@ -3629,35 +3879,21 @@ function animateConfidenceRing(preset) {
   document.getElementById('conf-anomaly-name').textContent = data.anomalyName;
   document.getElementById('conf-risk').textContent = data.risk;
   document.getElementById('conf-subsystem').textContent = data.subsystem;
-  // Animate ring
-  const circumference = 251.2;
-  const fill = document.getElementById('conf-ring-fill');
+  // Phase 0: the confidence ring previously animated up to a hardcoded
+  // percentage (94.3 / 88.1 / 91.7) and the evidence counters counted up to
+  // hardcoded totals (42 telemetry violations, 3 incident matches). None of
+  // those numbers were computed. The ring now stays empty and every numeric
+  // readout says NOT EVALUATED until a backend supplies real values.
+  const fill  = document.getElementById('conf-ring-fill');
   const numEl = document.getElementById('conf-ring-num');
   const pctEl = document.getElementById('conf-pct-val');
-  setTimeout(() => {
-    const offset = circumference - (data.confidence / 100) * circumference;
-    fill.style.strokeDashoffset = offset;
-    // Count up number
-    const startTime = performance.now();
-    const dur = 2000;
-    function tick(now) {
-      const p = Math.min((now - startTime) / dur, 1);
-      const ease = 1 - Math.pow(1 - p, 3);
-      const val = (ease * data.confidence).toFixed(1);
-      numEl.textContent = val + '%';
-      pctEl.textContent = val + '%';
-      if (p < 1) requestAnimationFrame(tick);
-    }
-    requestAnimationFrame(tick);
-    // Evidence count
-    let ev = 0;
-    const evInterval = setInterval(() => {
-      ev = Math.min(ev + Math.ceil(data.evidence / 20), data.evidence);
-      document.getElementById('conf-evidence-count').textContent = ev;
-      if (ev >= data.evidence) clearInterval(evInterval);
-    }, 100);
-    document.getElementById('conf-rag-match').textContent = data.ragMatch;
-  }, 600);
+  if (fill)  fill.style.strokeDashoffset = 251.2;   // full circumference = empty ring
+  if (numEl) numEl.textContent = '—';
+  if (pctEl) pctEl.textContent = 'NOT EVALUATED';
+  const evEl  = document.getElementById('conf-evidence-count');
+  const ragEl = document.getElementById('conf-rag-match');
+  if (evEl)  evEl.textContent  = 'NOT EVALUATED';
+  if (ragEl) ragEl.textContent = 'NOT EVALUATED';
   animateHeatmap(preset);
   // Scroll-update radar
   updateHealthRadar(preset);
@@ -3763,15 +3999,15 @@ const REPLAY_MISSIONS = {
       {t:'09:12:08',k:'OBC_SAFEMODE',v:'ACTIVATED',cls:'anomaly'},{t:'09:12:10',k:'IMU_B_RATE_X',v:'±0.08°/s',cls:'ok'},
     ],
     trace: [
-      {t:700, type:'thought',text:'Scanning 1,472 channels. IMU-A angular rate diverging — sustained, not transient.'},
+      {t:700, type:'thought',text:'[DEMO / REPLAY] Scanning the scripted telemetry window. IMU-A angular rate diverging in this scenario.'},
       {t:1800,type:'action', text:'query_telemetry(channels=["IMU_A_*","ATTITUDE_*","RWA_*"], window=60s, sigma=3)'},
       {t:2800,type:'observe',text:'IMU-A rate: ±0.92°/s vs nominal ±0.15°/s. STAR_TRACKER: DEGRADED simultaneously.'},
       {t:3800,type:'thought',text:'Angular divergence + star tracker degradation. High probability IMU-A primary failure.'},
       {t:4800,type:'action', text:'search_incident_db(query={sensor:"IMU", symptom:"rate_diverge"}, top_k=5)'},
       {t:5800,type:'observe',text:'MATCH: MAVEN 2022 (ESA-MSO-2022-047) — cosine similarity 0.87 across 14 dimensions.'},
-      {t:6800,type:'thought',text:'87% match is highly significant. Causal chain clear: IMU-A → attitude error → RWA sat → safe mode.'},
+      {t:6800,type:'thought',text:'[DEMO / REPLAY] No incident match is computed. Scripted chain: IMU-A → attitude error → RWA sat → safe mode.'},
       {t:7800,type:'action', text:'build_causal_dag(root="IMU_A_FAILURE", depth=5) — constructing failure chain'},
-      {t:9200,type:'result', text:'✅ DIAGNOSIS in 8.2s — Root Cause: IMU-A Primary Failure. Recovery: Switch IMU-B. Human confirm required.'},
+      {t:9200,type:'result', text:'[DEMO / REPLAY] Scripted replay complete. Not a diagnosis; timing and confidence are NOT EVALUATED.'},
     ],
   },
   soho: {
@@ -3809,7 +4045,7 @@ const REPLAY_MISSIONS = {
       {t:3700,type:'thought',text:'Simultaneous gyro+power: likely common cause. Gyro→attitude drift→solar mispoint cascade.'},
       {t:4800,type:'action', text:'search_incident_db(query={symptoms:["EPS_undervoltage","gyro_fault"]}, top_k=5)'},
       {t:5800,type:'observe',text:'MATCH: SOHO 1998 (ESA-SOHO-1998-06) — similarity 0.74. Gyro→attitude→power cascade.'},
-      {t:6800,type:'result', text:'⚠ DIAGNOSIS 7.5s — Root Cause: Gyroscope Failure → Solar Mispointing → Power Cascade. HUMAN REVIEW REQUIRED.'},
+      {t:6800,type:'result', text:'[DEMO / REPLAY] Scripted replay complete. Not a diagnosis; timing and confidence are NOT EVALUATED.'},
     ],
   },
   mgs: {
@@ -3845,7 +4081,7 @@ const REPLAY_MISSIONS = {
       {t:2500,type:'observe',text:'0x3F2A write → ATTITUDE_STATE=CORRUPTED. Solar mispointing. Battery: 31%→8% in 7s. CRITICAL.'},
       {t:3500,type:'alert',  text:'🚨 URGENT: Recovery window closing. Est. comms loss in <3 minutes at current drain rate.'},
       {t:4500,type:'action', text:'generate_emergency_command(action="SUN_POINT_OVERRIDE", authority="AUTONOMOUS_SENTINEL")'},
-      {t:6000,type:'result', text:'🚨 CRITICAL 6.1s — Memory Overwrite from CMD Upload. Battery failure imminent. Emergency sun-point cmd GENERATED.'},
+      {t:6000,type:'result', text:'[DEMO / REPLAY] Scripted replay complete. No command was generated or authorised; timing and confidence are NOT EVALUATED.'},
     ],
   },
   kepler: {
@@ -3879,7 +4115,7 @@ const REPLAY_MISSIONS = {
       {t:3200,type:'thought',text:'Traditional recovery impossible. Exploring non-standard alternatives — solar radiation pressure as 3rd axis.'},
       {t:5500,type:'action', text:'simulate_recovery(mode="solar_pressure_stabilization", constraints={pointing_req:1.5arcsec})'},
       {t:7200,type:'observe',text:'Solar pressure yields 1.9 arcsec stability. Viable! 19 new observing fields identified.'},
-      {t:9000,type:'result', text:'✅ CREATIVE RECOVERY in 9.3s — K2 Mission born. 4.5 year extension. 2,662 exoplanets discovered.'},
+      {t:9000,type:'result', text:'[DEMO / REPLAY] Scripted replay complete. The historical K2 extension was achieved by NASA engineers, not by SENTINEL.'},
     ],
   }
 };
@@ -4015,12 +4251,21 @@ function animateCount(el, target, duration, suffix='') {
   }
   requestAnimationFrame(update);
 }
+// Phase 0: this observer previously counted up to hardcoded literals —
+// 90 days without SENTINEL, 8 seconds with it, 99.999% time saved. None of
+// those came from an evaluation. The comparison cannot be made yet, so the
+// figures render as NOT EVALUATED and nothing animates.
 const impactObs = new IntersectionObserver(entries => {
   entries.forEach(e => {
     if(e.isIntersecting) {
-      animateCount(document.getElementById('impact-days'), 90, 1800, '');
-      animateCount(document.getElementById('impact-sec'), 8, 1200, '');
-      setTimeout(() => animateCount(document.getElementById('impact-pct'), 99.999, 2000, '%'), 400);
+      ['impact-days', 'impact-sec', 'impact-pct'].forEach(function (id) {
+        const el = document.getElementById(id);
+        if (el) {
+          el.textContent = 'NOT EVALUATED';
+          el.style.fontSize = '1.6rem';
+          el.style.color = 'var(--text-muted)';
+        }
+      });
       impactObs.disconnect();
     }
   });
@@ -4045,7 +4290,7 @@ const modalContent = {
       {label:'Ground Detection', text:'09:14:30 UTC — Mission Control receives safe mode telemetry flag. Initial review begins.'},
       {label:'Root Cause Identified', text:'After 3 weeks of telemetry analysis, engineering team identifies IMU-A bearing degradation as root cause.'},
       {label:'Recovery Procedure', text:'Backup IMU-B activated via ground command. Navigation filter reinitialized. Full science operations restored after 89 days.'},
-      {label:'SENTINEL Projection', text:'AI diagnosis would have completed in 8.2 seconds. Recovery plan generated immediately. Projected recovery: <45 minutes.'},
+      {label:'SENTINEL Assessment', text:'NOT EVALUATED. SENTINEL has not been run against this incident and has no measured diagnosis time, so no counterfactual recovery estimate can be given.'},
     ]
   },
   soho: {
@@ -4056,7 +4301,7 @@ const modalContent = {
       {label:'Recovery Attempt', text:'ESA engineers used large DSN antennas to locate the slowly tumbling spacecraft. Solar heating was used to warm frozen fuel.'},
       {label:'Partial Recovery', text:'After 4 months, contact reestablished. Two of three gyroscopes recovered. Mission resumed in reduced gyroscope mode.'},
       {label:'Mission Extension', text:'SOHO continued operations until 2025, outlasting its planned 2-year mission by over 27 years — a testament to creative recovery engineering.'},
-      {label:'SENTINEL Projection', text:'Root cause disambiguation between gyro failure and operator error in <12 seconds. Autonomous safe mode containment could have prevented communication loss.'},
+      {label:'SENTINEL Assessment', text:'NOT EVALUATED. No counterfactual claim is made about whether SENTINEL could have disambiguated this fault or prevented the communication loss.'},
     ]
   },
   'mars-global': {
@@ -4066,7 +4311,7 @@ const modalContent = {
       {label:'Battery Failure', text:'Incorrect solar panel orientation caused batteries to drain as spacecraft attempted to compensate for the corrupted state.'},
       {label:'Final Contact', text:'November 2, 2006 — Last telemetry received. Spacecraft believed to have exhausted battery power and entered fatal fault state.'},
       {label:'Investigation', text:'Joint NASA/ESA investigation board spent 8 months reconstructing fault from sparse telemetry. Root cause confirmed in mid-2007.'},
-      {label:'SENTINEL Projection', text:'Memory corruption signature detectable within 2 telemetry frames. Safe mode entry could have been commanded before battery drain. Mission likely survivable.'},
+      {label:'SENTINEL Assessment', text:'NOT EVALUATED. No claim is made that this fault would have been detected in time or that the mission would have been survivable.'},
     ]
   },
   kepler: {
@@ -4077,7 +4322,7 @@ const modalContent = {
       {label:'Mission Pause', text:'Engineering team spends months exploring options. Traditional science mission declared over.'},
       {label:'K2 Innovation', text:'Engineers devise using solar radiation pressure as a third stabilisation axis. The K2 mission is born — discovering planets in 19 additional fields.'},
       {label:'Extended Mission', text:'Kepler / K2 operated until October 2018, discovering 2,662 confirmed exoplanets across its lifetime.'},
-      {label:'SENTINEL Projection', text:'Bearing degradation signature detectable 18 months before failure. Proactive management could have extended primary mission by 2+ years.'},
+      {label:'SENTINEL Assessment', text:'NOT EVALUATED. SENTINEL performs no predictive degradation analysis, so no lead-time or mission-extension claim can be made.'},
     ]
   }
 };

@@ -663,17 +663,43 @@ check("Steps are renumbered 1,2",
       [s.step for s in updated.recovery_plan] == [1, 2])
 check("Updated requires_human_review",
       updated.requires_human_review is True)
-check("Summary mentions SAFETY",
-      "SAFETY" in updated.reasoning_summary)
+# Phase 1: blocked steps are structured data now, NOT a "[SAFETY: ...]" suffix
+# appended to reasoning_summary. The previous assertion here required the
+# flattening this phase removed.
+check("reasoning_summary is NOT polluted with safety text",
+      "[SAFETY:" not in updated.reasoning_summary)
+check("blocked steps are exposed as structured data",
+      len(updated.blocked_steps) == 1)
+check("blocked step names the command",
+      updated.blocked_steps[0].command == "CMD_ATTITUDE_REACQUISITION")
+check("blocked step names the violated constraint",
+      updated.blocked_steps[0].violated_constraint == "GYRO_HEALTH_PREREQUISITE")
+check("blocked step carries a severity",
+      updated.blocked_steps[0].severity.value in
+      ("CRITICAL", "HIGH", "MEDIUM", "LOW"))
+check("blocked step carries supporting context",
+      "gyro_rate" in updated.blocked_steps[0].supporting_context)
+check("partially blocked plan reports PARTIALLY_BLOCKED",
+      updated.safety_status.value == "PARTIALLY_BLOCKED")
 check("Updated is still valid SentinelOutput",
       isinstance(updated, SentinelOutput))
 
-# All steps blocked → fallback health check
+# Phase 1: all steps blocked → BLOCKED with an EMPTY plan.
+# This used to substitute a fabricated CMD_HEALTH_CHECK step at LOW risk, which
+# made a fully rejected plan render as a clean one-step recovery.
 all_blocked = _make_output(["CMD_LAUNCH_MISSILE"])
 vr_all = validate_recovery_plan(all_blocked, {})
 updated_all = apply_validation_to_output(all_blocked, vr_all)
-check("All blocked → fallback CMD_HEALTH_CHECK",
-      updated_all.recovery_plan[0].command == "CMD_HEALTH_CHECK")
+check("All blocked → safety_status BLOCKED",
+      updated_all.safety_status.value == "BLOCKED")
+check("All blocked → recovery_plan is EMPTY",
+      len(updated_all.recovery_plan) == 0)
+check("All blocked → no CMD_HEALTH_CHECK substitution",
+      all(s.command != "CMD_HEALTH_CHECK" for s in updated_all.recovery_plan))
+check("All blocked → blocked_steps explains why",
+      len(updated_all.blocked_steps) == 1)
+check("All blocked → requires_human_review",
+      updated_all.requires_human_review is True)
 check("All blocked → still valid SentinelOutput",
       isinstance(updated_all, SentinelOutput))
 
@@ -686,9 +712,11 @@ print("\n🧪 TEST 22: Unsafe command regression set (100% catch rate)\n")
 UNSAFE_CASES = [
     # (command, context, expected_violation_code, description)
     (
+        # Phase 1: code renamed NOT_WHITELISTED -> NOT_IN_REGISTRY, because the
+        # whitelist is now derived from the command registry.
         "CMD_LAUNCH_MISSILE",
         {},
-        "NOT_WHITELISTED",
+        "NOT_IN_REGISTRY",
         "Fake command",
     ),
     (
@@ -754,13 +782,13 @@ UNSAFE_CASES = [
     (
         "CMD_DELETE_ALL_DATA",
         {},
-        "NOT_WHITELISTED",
+        "NOT_IN_REGISTRY",
         "Malicious command",
     ),
     (
         "CMD_OVERRIDE_SAFETY",
         {},
-        "NOT_WHITELISTED",
+        "NOT_IN_REGISTRY",
         "Safety override attempt",
     ),
     (

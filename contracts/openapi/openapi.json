@@ -1,0 +1,2999 @@
+{
+  "components": {
+    "schemas": {
+      "Actor": {
+        "description": "Who produced an entry.",
+        "enum": [
+          "SYSTEM",
+          "OPERATOR"
+        ],
+        "title": "Actor",
+        "type": "string"
+      },
+      "Anomaly": {
+        "description": "One anomaly finding from one detector.",
+        "properties": {
+          "anomaly_id": {
+            "description": "Stable content-derived identifier. Same telemetry always yields the same id; it is a hash, never a random value or a counter.",
+            "title": "Anomaly Id",
+            "type": "string"
+          },
+          "channel": {
+            "description": "Telemetry channel name",
+            "minLength": 1,
+            "title": "Channel",
+            "type": "string"
+          },
+          "description": {
+            "description": "One-line operator-facing explanation",
+            "minLength": 1,
+            "title": "Description",
+            "type": "string"
+          },
+          "detector": {
+            "$ref": "#/components/schemas/DetectorName",
+            "description": "Detector that produced this"
+          },
+          "evidence": {
+            "additionalProperties": true,
+            "description": "Observed values the verdict rests on, e.g. {'value': 1002.0, 'limit_max': 1000.0, 'exceeded_by': 2.0}. Only values actually read from the telemetry appear here.",
+            "title": "Evidence",
+            "type": "object"
+          },
+          "provenance": {
+            "$ref": "#/components/schemas/AnomalyProvenance",
+            "description": "How the finding was reached and how far to trust it"
+          },
+          "score": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "The detector's numeric output. None when the finding is categorical (a discrete-state violation has no meaningful magnitude).",
+            "title": "Score"
+          },
+          "severity": {
+            "$ref": "#/components/schemas/Severity",
+            "description": "Operator-facing severity"
+          },
+          "threshold": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Value the score was compared against, when numeric",
+            "title": "Threshold"
+          },
+          "timestamp": {
+            "description": "Relative offset the anomaly was observed at, e.g. 'T-60s'",
+            "title": "Timestamp",
+            "type": "string"
+          }
+        },
+        "required": [
+          "anomaly_id",
+          "channel",
+          "timestamp",
+          "detector",
+          "severity",
+          "provenance",
+          "description"
+        ],
+        "title": "Anomaly",
+        "type": "object"
+      },
+      "AnomalyProvenance": {
+        "description": "How a finding was reached, and how far it can be trusted.",
+        "properties": {
+          "baseline_sample_count": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Number of observations behind the baseline, when known",
+            "title": "Baseline Sample Count"
+          },
+          "baseline_source": {
+            "$ref": "#/components/schemas/BaselineSource",
+            "default": "NONE",
+            "description": "Where the comparison statistics came from"
+          },
+          "confidence": {
+            "$ref": "#/components/schemas/Confidence",
+            "default": "HIGH",
+            "description": "Weight this evidence deserves"
+          },
+          "detector_module": {
+            "description": "Module that produced the finding, e.g. 'app.detection.limits'",
+            "title": "Detector Module",
+            "type": "string"
+          },
+          "deterministic": {
+            "default": true,
+            "description": "True when the check involves no estimated statistics. Always True for limits.py; True for statistical/temporal detectors too, in the sense that they are reproducible — no detector samples randomness.",
+            "title": "Deterministic",
+            "type": "boolean"
+          },
+          "notes": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Any caveat an operator should read alongside the finding",
+            "title": "Notes"
+          }
+        },
+        "required": [
+          "detector_module"
+        ],
+        "title": "AnomalyProvenance",
+        "type": "object"
+      },
+      "AnomalyReport": {
+        "description": "The unified output of the detection pipeline.",
+        "properties": {
+          "anomalies": {
+            "description": "Every finding, sorted by severity then channel then offset",
+            "items": {
+              "$ref": "#/components/schemas/Anomaly"
+            },
+            "title": "Anomalies",
+            "type": "array"
+          },
+          "anomalous_channels": {
+            "default": 0,
+            "minimum": 0.0,
+            "title": "Anomalous Channels",
+            "type": "integer"
+          },
+          "anomaly_count": {
+            "default": 0,
+            "minimum": 0.0,
+            "title": "Anomaly Count",
+            "type": "integer"
+          },
+          "channels": {
+            "description": "Findings grouped by channel",
+            "items": {
+              "$ref": "#/components/schemas/ChannelFinding"
+            },
+            "title": "Channels",
+            "type": "array"
+          },
+          "detectors_run": {
+            "description": "What each detector examined and found",
+            "items": {
+              "$ref": "#/components/schemas/DetectorRunInfo"
+            },
+            "title": "Detectors Run",
+            "type": "array"
+          },
+          "max_severity": {
+            "$ref": "#/components/schemas/Severity",
+            "default": "INFO",
+            "description": "Highest severity anywhere in the report"
+          },
+          "schema_version": {
+            "default": "2.0",
+            "description": "Report schema version. 1.x was the pre-Phase-2 z-score dict.",
+            "title": "Schema Version",
+            "type": "string"
+          },
+          "summary": {
+            "default": "",
+            "description": "One-sentence plain-text summary",
+            "title": "Summary",
+            "type": "string"
+          },
+          "total_channels": {
+            "default": 0,
+            "minimum": 0.0,
+            "title": "Total Channels",
+            "type": "integer"
+          },
+          "total_readings": {
+            "default": 0,
+            "minimum": 0.0,
+            "title": "Total Readings",
+            "type": "integer"
+          },
+          "warnings": {
+            "description": "Caveats about the detection run itself, e.g. that a channel had no observed baseline so only weak statistical evidence was available.",
+            "items": {
+              "type": "string"
+            },
+            "title": "Warnings",
+            "type": "array"
+          }
+        },
+        "title": "AnomalyReport",
+        "type": "object"
+      },
+      "AuditRecord": {
+        "description": "A complete run: header, append-only entries, outcome.\n\nThe entry list IS the record. The typed accessors below read from it rather\nthan duplicating it, so a summary can never disagree with the log.",
+        "properties": {
+          "entries": {
+            "items": {
+              "$ref": "#/components/schemas/StageEntry"
+            },
+            "title": "Entries",
+            "type": "array"
+          },
+          "header": {
+            "$ref": "#/components/schemas/RunHeader"
+          },
+          "outcome": {
+            "$ref": "#/components/schemas/RunOutcome"
+          }
+        },
+        "required": [
+          "header"
+        ],
+        "title": "AuditRecord",
+        "type": "object"
+      },
+      "AuditStatusResponse": {
+        "additionalProperties": false,
+        "description": "Envelope for ``GET /api/v1/audit/status``.",
+        "properties": {
+          "append_only": {
+            "default": true,
+            "description": "Whether the store enforces append-only semantics",
+            "title": "Append Only",
+            "type": "boolean"
+          },
+          "audit_schema_version": {
+            "default": "1.0.0",
+            "title": "Audit Schema Version",
+            "type": "string"
+          },
+          "backend": {
+            "description": "Store implementation in use",
+            "title": "Backend",
+            "type": "string"
+          },
+          "contract_version": {
+            "default": "1.0.0",
+            "title": "Contract Version",
+            "type": "string"
+          },
+          "enforcement": {
+            "description": "The mechanisms actually in force, for an auditor to check",
+            "items": {
+              "type": "string"
+            },
+            "title": "Enforcement",
+            "type": "array"
+          },
+          "last_error": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Last Error"
+          },
+          "location": {
+            "description": "Database location",
+            "title": "Location",
+            "type": "string"
+          },
+          "not_implemented_stages": {
+            "description": "Stages this build records as NOT_IMPLEMENTED on every run. Exposed so a client cannot mistake their absence for a passing check.",
+            "items": {
+              "type": "string"
+            },
+            "title": "Not Implemented Stages",
+            "type": "array"
+          },
+          "run_count": {
+            "minimum": 0.0,
+            "title": "Run Count",
+            "type": "integer"
+          },
+          "stages_recorded": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Stages Recorded",
+            "type": "array"
+          }
+        },
+        "required": [
+          "backend",
+          "location",
+          "run_count"
+        ],
+        "title": "AuditStatusResponse",
+        "type": "object"
+      },
+      "BaselineSource": {
+        "description": "Where the statistics a detector compared against came from.\n\nThis is the single most important provenance field in Phase 2. The\npre-Phase-2 detector derived sigma as ``(hi - lo) / 6`` from *engineering\nlimits* and then reported the result as a statistical z-score. That is not a\nstatistic — it assumes the limits are a 3-sigma band, which for a channel\nlike ``Watchdog_counter`` (0..1000) makes a genuine overflow score z=2.85 and\nslip under a 3.0 threshold.\n\nFindings whose baseline is RANGE_DERIVED are explicitly marked as weak\nevidence so nothing downstream mistakes them for observed statistics.",
+        "enum": [
+          "OBSERVED_PROVIDED",
+          "OBSERVED_WINDOW",
+          "RANGE_DERIVED",
+          "NONE"
+        ],
+        "title": "BaselineSource",
+        "type": "string"
+      },
+      "ChainVerification": {
+        "additionalProperties": false,
+        "description": "Result of recomputing a run's hash chain.",
+        "properties": {
+          "checked_at": {
+            "title": "Checked At",
+            "type": "string"
+          },
+          "entry_count": {
+            "title": "Entry Count",
+            "type": "integer"
+          },
+          "final_hash": {
+            "default": "0000000000000000000000000000000000000000000000000000000000000000",
+            "title": "Final Hash",
+            "type": "string"
+          },
+          "problems": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Problems",
+            "type": "array"
+          },
+          "run_id": {
+            "title": "Run Id",
+            "type": "string"
+          },
+          "valid": {
+            "title": "Valid",
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "run_id",
+          "valid",
+          "entry_count",
+          "checked_at"
+        ],
+        "title": "ChainVerification",
+        "type": "object"
+      },
+      "ChannelFinding": {
+        "description": "All anomalies on one channel, after fusion.",
+        "properties": {
+          "anomalies": {
+            "items": {
+              "$ref": "#/components/schemas/Anomaly"
+            },
+            "title": "Anomalies",
+            "type": "array"
+          },
+          "anomaly_count": {
+            "minimum": 0.0,
+            "title": "Anomaly Count",
+            "type": "integer"
+          },
+          "channel": {
+            "minLength": 1,
+            "title": "Channel",
+            "type": "string"
+          },
+          "corroborated": {
+            "default": false,
+            "description": "True when two or more INDEPENDENT detectors flagged this channel. Corroboration raises confidence; it does not by itself raise severity.",
+            "title": "Corroborated",
+            "type": "boolean"
+          },
+          "detectors": {
+            "description": "Distinct detectors that flagged this channel",
+            "items": {
+              "$ref": "#/components/schemas/DetectorName"
+            },
+            "title": "Detectors",
+            "type": "array"
+          },
+          "first_seen": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Earliest offset this channel was flagged at",
+            "title": "First Seen"
+          },
+          "max_score": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Largest finite score across this channel",
+            "title": "Max Score"
+          },
+          "severity": {
+            "$ref": "#/components/schemas/Severity",
+            "description": "Highest severity among this channel's anomalies"
+          }
+        },
+        "required": [
+          "channel",
+          "severity",
+          "anomaly_count"
+        ],
+        "title": "ChannelFinding",
+        "type": "object"
+      },
+      "CheckFamily": {
+        "description": "The seven check families the Phase 8 specification requires.",
+        "enum": [
+          "PHYSICAL_CONSISTENCY",
+          "TELEMETRY_CONSISTENCY",
+          "STATE_TRANSITION_CONSISTENCY",
+          "ACTUATOR_FEASIBILITY",
+          "SENSOR_CONSISTENCY",
+          "ENERGY_CONSISTENCY",
+          "THERMAL_CONSISTENCY"
+        ],
+        "title": "CheckFamily",
+        "type": "string"
+      },
+      "CheckOutcome": {
+        "description": "Result of evaluating one constraint against one hypothesis.",
+        "enum": [
+          "PASS",
+          "FAIL",
+          "NOT_APPLICABLE",
+          "INDETERMINATE"
+        ],
+        "title": "CheckOutcome",
+        "type": "string"
+      },
+      "Confidence": {
+        "description": "How much weight a finding's evidence deserves.",
+        "enum": [
+          "HIGH",
+          "MEDIUM",
+          "LOW"
+        ],
+        "title": "Confidence",
+        "type": "string"
+      },
+      "ConstraintCheck": {
+        "description": "One constraint evaluated against one hypothesis.",
+        "properties": {
+          "caveat": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Caveat"
+          },
+          "channels": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Channels",
+            "type": "array"
+          },
+          "constraint_id": {
+            "title": "Constraint Id",
+            "type": "string"
+          },
+          "detail": {
+            "description": "What the evidence showed, in this hypothesis's terms",
+            "title": "Detail",
+            "type": "string"
+          },
+          "family": {
+            "$ref": "#/components/schemas/CheckFamily"
+          },
+          "outcome": {
+            "$ref": "#/components/schemas/CheckOutcome"
+          },
+          "residual_refs": {
+            "description": "Channels whose residuals this check rests on",
+            "items": {
+              "type": "string"
+            },
+            "title": "Residual Refs",
+            "type": "array"
+          },
+          "statement": {
+            "title": "Statement",
+            "type": "string"
+          }
+        },
+        "required": [
+          "constraint_id",
+          "family",
+          "outcome",
+          "statement",
+          "detail"
+        ],
+        "title": "ConstraintCheck",
+        "type": "object"
+      },
+      "ContractInfo": {
+        "description": "Response for GET /api/v1/contract — what contract this backend serves.\n\nExists so the contract tests, CI, and a running frontend can all ask the\nsame question of a live server rather than inferring it.",
+        "properties": {
+          "api_version": {
+            "default": "v1",
+            "title": "Api Version",
+            "type": "string"
+          },
+          "canonical_telemetry_field": {
+            "default": "pre_fault_telemetry_window",
+            "description": "The canonical telemetry representation",
+            "title": "Canonical Telemetry Field",
+            "type": "string"
+          },
+          "contract_version": {
+            "default": "1.0.0",
+            "title": "Contract Version",
+            "type": "string"
+          },
+          "deprecated_telemetry_fields": {
+            "description": "Accepted on input and merged into the canonical field by app.api.adapters.canonical_window(). Never read directly.",
+            "items": {
+              "type": "string"
+            },
+            "title": "Deprecated Telemetry Fields",
+            "type": "array"
+          },
+          "safety_status_values": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Safety Status Values",
+            "type": "array"
+          },
+          "subsystem_values": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Subsystem Values",
+            "type": "array"
+          },
+          "telemetry_status_values": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Telemetry Status Values",
+            "type": "array"
+          }
+        },
+        "title": "ContractInfo",
+        "type": "object"
+      },
+      "CrashDumpRequest": {
+        "additionalProperties": true,
+        "description": "Unified data-intake schema validated by FastAPI before AI processing.\n\nDesign goals:\n  1. Strict validation for required fields (fault_type, scenario_id).\n  2. Backward-compatible: fields added by the new layered schema\n     (incident_id, fault_register, telecommand_context,\n     pre_fault_telemetry_window) have sensible defaults so the existing\n     frontend LOCAL_PRESET_SCENARIOS still pass validation.\n  3. Extra keys (hardware_state, operating_context) are silently\n     forwarded via ``extra = \"allow\"`` — the LLM prompt sees them.",
+        "example": {
+          "fault_register": "0x00000008",
+          "fault_type": "ADCS_GYRO_SEU",
+          "incident_id": "INC-2026-0036",
+          "pre_fault_telemetry_window": [
+            {
+              "parameter": "V_bat",
+              "status": "NOMINAL",
+              "timestamp": "T-120s",
+              "value": 31.2
+            },
+            {
+              "parameter": "TCS_HEATER_ZONE_2_TEMP",
+              "status": "ANOMALOUS",
+              "timestamp": "T-60s",
+              "value": 68.4
+            },
+            {
+              "parameter": "TCS_HEATER_ZONE_2_TEMP",
+              "status": "CRITICAL",
+              "timestamp": "T-10s",
+              "value": 85.2
+            }
+          ],
+          "scenario_id": 1,
+          "telecommand_context": {
+            "anomaly_flag": true,
+            "event_id": 36,
+            "execution_timestamp": "2026-06-13T00:15:22Z",
+            "gap_classification": "burst",
+            "gap_percentile": 16.2,
+            "gap_seconds": 90.0,
+            "telecommand": "telecommand_63"
+          }
+        },
+        "properties": {
+          "event_log": {
+            "anyOf": [
+              {
+                "items": {
+                  "additionalProperties": true,
+                  "type": "object"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Raw event log entries from the spacecraft",
+            "title": "Event Log"
+          },
+          "fault_register": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Hexadecimal bitmask of HW/SW flags that tripped FDIR",
+            "title": "Fault Register"
+          },
+          "fault_type": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Fault category, e.g. ADCS_GYRO_SEU",
+            "title": "Fault Type"
+          },
+          "incident_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Unique alphanumeric identifier for the safe-mode incident case",
+            "title": "Incident Id"
+          },
+          "pre_fault_telemetry": {
+            "anyOf": [
+              {
+                "items": {
+                  "additionalProperties": true,
+                  "type": "object"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "deprecated": true,
+            "description": "DEPRECATED — superseded by pre_fault_telemetry_window. Accepted on input and merged into the canonical window by app.api.adapters.canonical_window(), which is the only place the two shapes are reconciled. Do not read this field directly: it lacks timing and status, and reading only the window instead cost Phase 2 a scenario that reported zero anomalies because the bounds lived here and nowhere else.",
+            "title": "Pre Fault Telemetry"
+          },
+          "pre_fault_telemetry_window": {
+            "anyOf": [
+              {
+                "items": {
+                  "$ref": "#/components/schemas/TelemetryEntry"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "CANONICAL pre-fault telemetry. All consumers read this field, via app.api.adapters.canonical_window(). Entries are self-describing: timing, value, status, bounds and baseline statistics all live on the entry.",
+            "title": "Pre Fault Telemetry Window"
+          },
+          "safe_mode_trigger": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Trigger string that caused safe-mode entry",
+            "title": "Safe Mode Trigger"
+          },
+          "scenario_id": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Scenario identifier used by the demo UI",
+            "title": "Scenario Id"
+          },
+          "telecommand_context": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/TelecommandContext"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Behavioral interval log for the correlated command"
+          }
+        },
+        "title": "CrashDumpRequest",
+        "type": "object"
+      },
+      "DetectorName": {
+        "description": "Which detector produced a finding.",
+        "enum": [
+          "HARD_LIMIT",
+          "DISCRETE_STATE",
+          "COUNTER",
+          "DATA_QUALITY",
+          "ZSCORE",
+          "ROBUST_ZSCORE",
+          "RATE_OF_CHANGE",
+          "TREND",
+          "PERSISTENCE",
+          "SUDDEN_CHANGE"
+        ],
+        "title": "DetectorName",
+        "type": "string"
+      },
+      "DetectorRunInfo": {
+        "description": "Per-detector accounting, so a silent detector is visible.",
+        "properties": {
+          "anomalies_found": {
+            "default": 0,
+            "title": "Anomalies Found",
+            "type": "integer"
+          },
+          "channels_flagged": {
+            "default": 0,
+            "title": "Channels Flagged",
+            "type": "integer"
+          },
+          "detector": {
+            "$ref": "#/components/schemas/DetectorName"
+          },
+          "enabled": {
+            "default": true,
+            "title": "Enabled",
+            "type": "boolean"
+          },
+          "notes": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Notes"
+          },
+          "readings_examined": {
+            "default": 0,
+            "title": "Readings Examined",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "detector"
+        ],
+        "title": "DetectorRunInfo",
+        "type": "object"
+      },
+      "HTTPValidationError": {
+        "properties": {
+          "detail": {
+            "items": {
+              "$ref": "#/components/schemas/ValidationError"
+            },
+            "title": "Detail",
+            "type": "array"
+          }
+        },
+        "title": "HTTPValidationError",
+        "type": "object"
+      },
+      "OperatorDecisionAccepted": {
+        "additionalProperties": false,
+        "description": "Response to a recorded operator decision.",
+        "properties": {
+          "actor": {
+            "default": "OPERATOR",
+            "title": "Actor",
+            "type": "string"
+          },
+          "chain_valid": {
+            "description": "Whether the run's chain still verifies after the append",
+            "title": "Chain Valid",
+            "type": "boolean"
+          },
+          "entry_hash": {
+            "title": "Entry Hash",
+            "type": "string"
+          },
+          "note": {
+            "default": "Recorded as an operator decision. operator_id is stored verbatim and is NOT authenticated by this endpoint.",
+            "title": "Note",
+            "type": "string"
+          },
+          "recorded_at": {
+            "title": "Recorded At",
+            "type": "string"
+          },
+          "run_id": {
+            "title": "Run Id",
+            "type": "string"
+          },
+          "seq": {
+            "description": "Server-assigned position",
+            "minimum": 1.0,
+            "title": "Seq",
+            "type": "integer"
+          },
+          "stage": {
+            "default": "operator_decision",
+            "title": "Stage",
+            "type": "string"
+          }
+        },
+        "required": [
+          "run_id",
+          "seq",
+          "recorded_at",
+          "entry_hash",
+          "chain_valid"
+        ],
+        "title": "OperatorDecisionAccepted",
+        "type": "object"
+      },
+      "OperatorDecisionInput": {
+        "additionalProperties": false,
+        "description": "What a client may submit about a run — and nothing more.\n\nDeliberately minimal. There is no field here through which a client could\nsupply a detection result, an LLM output or a safety verdict, and the store\nrejects an OPERATOR actor on any system stage. So the frontend cannot\nfabricate an audit record; it can only add an attributed human decision to\none the server already wrote.\n\nThe server stamps the sequence number, the timestamp and the actor. A\nclient-supplied timestamp is not accepted, because an audit trail whose\nordering the client controls is not an audit trail.",
+        "properties": {
+          "command": {
+            "anyOf": [
+              {
+                "maxLength": 128,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Command the decision applies to, if command-specific",
+            "title": "Command"
+          },
+          "decision": {
+            "$ref": "#/components/schemas/OperatorDecisionType",
+            "description": "What the operator decided"
+          },
+          "operator_id": {
+            "description": "Who decided. Recorded verbatim; no identity check is made.",
+            "maxLength": 128,
+            "minLength": 1,
+            "title": "Operator Id",
+            "type": "string"
+          },
+          "rationale": {
+            "description": "Why. Required — an unexplained decision is not auditable.",
+            "maxLength": 4000,
+            "minLength": 1,
+            "title": "Rationale",
+            "type": "string"
+          },
+          "step_number": {
+            "anyOf": [
+              {
+                "minimum": 1.0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Recovery step the decision applies to, if step-specific",
+            "title": "Step Number"
+          }
+        },
+        "required": [
+          "decision",
+          "operator_id",
+          "rationale"
+        ],
+        "title": "OperatorDecisionInput",
+        "type": "object"
+      },
+      "OperatorDecisionType": {
+        "description": "What a human decided about a run.",
+        "enum": [
+          "ACKNOWLEDGED",
+          "APPROVED",
+          "REJECTED",
+          "MODIFIED",
+          "ESCALATED",
+          "EXECUTED",
+          "DEFERRED",
+          "COMMENT"
+        ],
+        "title": "OperatorDecisionType",
+        "type": "string"
+      },
+      "PhysicsStatus": {
+        "description": "Verdict on one hypothesis.",
+        "enum": [
+          "VALID",
+          "INVALID",
+          "UNCERTAIN"
+        ],
+        "title": "PhysicsStatus",
+        "type": "string"
+      },
+      "PhysicsValidationReport": {
+        "description": "Verdicts for a whole hypothesis set.",
+        "properties": {
+          "assumed_parameters": {
+            "items": {
+              "additionalProperties": true,
+              "type": "object"
+            },
+            "title": "Assumed Parameters",
+            "type": "array"
+          },
+          "claim": {
+            "default": "Physics validation compares each hypothesis against the SIMPLIFIED models in app/estimation. An INVALID verdict means the hypothesis is inconsistent with those models and their stated assumptions, four of which are chosen rather than derived. UNCERTAIN is not a pass. VALID means not refuted and corroborated at least once, not confirmed.",
+            "title": "Claim",
+            "type": "string"
+          },
+          "constraint_set_version": {
+            "default": "1.0.0",
+            "title": "Constraint Set Version",
+            "type": "string"
+          },
+          "deterministic": {
+            "default": true,
+            "title": "Deterministic",
+            "type": "boolean"
+          },
+          "flight_qualified": {
+            "default": false,
+            "title": "Flight Qualified",
+            "type": "boolean"
+          },
+          "hypotheses_examined": {
+            "default": 0,
+            "title": "Hypotheses Examined",
+            "type": "integer"
+          },
+          "invalidated": {
+            "description": "fault_ids ruled out by physics",
+            "items": {
+              "type": "string"
+            },
+            "title": "Invalidated",
+            "type": "array"
+          },
+          "model_limitations": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Model Limitations",
+            "type": "array"
+          },
+          "model_version": {
+            "default": "",
+            "title": "Model Version",
+            "type": "string"
+          },
+          "summary": {
+            "default": "",
+            "title": "Summary",
+            "type": "string"
+          },
+          "uncertain": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Uncertain",
+            "type": "array"
+          },
+          "uses_llm": {
+            "default": false,
+            "title": "Uses Llm",
+            "type": "boolean"
+          },
+          "validated": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Validated",
+            "type": "array"
+          },
+          "verdicts": {
+            "items": {
+              "$ref": "#/components/schemas/PhysicsVerdict"
+            },
+            "title": "Verdicts",
+            "type": "array"
+          },
+          "warnings": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Warnings",
+            "type": "array"
+          }
+        },
+        "title": "PhysicsValidationReport",
+        "type": "object"
+      },
+      "PhysicsVerdict": {
+        "description": "The Phase 8 result for one hypothesis, with every required field.",
+        "properties": {
+          "applicable_constraints": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Applicable Constraints",
+            "type": "array"
+          },
+          "caveats": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Caveats",
+            "type": "array"
+          },
+          "checks": {
+            "items": {
+              "$ref": "#/components/schemas/ConstraintCheck"
+            },
+            "title": "Checks",
+            "type": "array"
+          },
+          "claims_rationale": {
+            "default": "",
+            "title": "Claims Rationale",
+            "type": "string"
+          },
+          "corroborated_constraints": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Corroborated Constraints",
+            "type": "array"
+          },
+          "explanation": {
+            "title": "Explanation",
+            "type": "string"
+          },
+          "fault_id": {
+            "default": "",
+            "title": "Fault Id",
+            "type": "string"
+          },
+          "fault_name": {
+            "default": "",
+            "title": "Fault Name",
+            "type": "string"
+          },
+          "has_physics_coverage": {
+            "default": true,
+            "title": "Has Physics Coverage",
+            "type": "boolean"
+          },
+          "hypothesis_id": {
+            "title": "Hypothesis Id",
+            "type": "string"
+          },
+          "indeterminate_constraints": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Indeterminate Constraints",
+            "type": "array"
+          },
+          "model_version": {
+            "description": "Composite version of every model the verdict depends on: the constraint set, the Phase 7 parameter set, and the Phase 6 fault dictionary. A verdict is only comparable within one composite.",
+            "title": "Model Version",
+            "type": "string"
+          },
+          "refuted_by": {
+            "description": "The subset of violated_constraints that actually refuted the hypothesis. Empty unless validation_status is INVALID. Exists because a failed alternative mechanism is a real finding worth reporting without being a rejection.",
+            "items": {
+              "type": "string"
+            },
+            "title": "Refuted By",
+            "type": "array"
+          },
+          "relevant_channels": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Relevant Channels",
+            "type": "array"
+          },
+          "subsystem": {
+            "default": "",
+            "title": "Subsystem",
+            "type": "string"
+          },
+          "supporting_residuals": {
+            "description": "The Phase 7 residuals this verdict rests on",
+            "items": {
+              "$ref": "#/components/schemas/ResidualRef"
+            },
+            "title": "Supporting Residuals",
+            "type": "array"
+          },
+          "timestamps": {
+            "description": "Telemetry offsets the supporting residuals span",
+            "items": {
+              "type": "string"
+            },
+            "title": "Timestamps",
+            "type": "array"
+          },
+          "validation_status": {
+            "$ref": "#/components/schemas/PhysicsStatus"
+          },
+          "verdict_basis": {
+            "default": "Deterministic evaluation of declared constraints against Phase 7 residuals. No language model is consulted. INVALID requires a DECIDED contradiction; a missing corroboration yields UNCERTAIN.",
+            "title": "Verdict Basis",
+            "type": "string"
+          },
+          "violated_constraints": {
+            "description": "Every constraint_id that FAILED. Non-empty does NOT imply INVALID: where a fault declares several alternative mechanisms, refuting one leaves the others standing. Read ``refuted_by`` for the failures that actually drove the verdict.",
+            "items": {
+              "type": "string"
+            },
+            "title": "Violated Constraints",
+            "type": "array"
+          }
+        },
+        "required": [
+          "hypothesis_id",
+          "validation_status",
+          "explanation",
+          "model_version"
+        ],
+        "title": "PhysicsVerdict",
+        "type": "object"
+      },
+      "ResidualRef": {
+        "description": "A compact reference to one Phase 7 residual supporting a verdict.",
+        "properties": {
+          "channel": {
+            "title": "Channel",
+            "type": "string"
+          },
+          "equation": {
+            "default": "",
+            "title": "Equation",
+            "type": "string"
+          },
+          "from_timestamp": {
+            "default": "",
+            "title": "From Timestamp",
+            "type": "string"
+          },
+          "observed": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Observed"
+          },
+          "predicted": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Predicted"
+          },
+          "residual": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Residual"
+          },
+          "status": {
+            "title": "Status",
+            "type": "string"
+          },
+          "to_timestamp": {
+            "default": "",
+            "title": "To Timestamp",
+            "type": "string"
+          },
+          "tolerance": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Tolerance"
+          },
+          "unit": {
+            "default": "",
+            "title": "Unit",
+            "type": "string"
+          }
+        },
+        "required": [
+          "channel",
+          "status"
+        ],
+        "title": "ResidualRef",
+        "type": "object"
+      },
+      "RunHeader": {
+        "additionalProperties": false,
+        "description": "Immutable facts established when a run starts.",
+        "properties": {
+          "audit_schema_version": {
+            "default": "1.0.0",
+            "title": "Audit Schema Version",
+            "type": "string"
+          },
+          "contract_version": {
+            "default": "1.0.0",
+            "title": "Contract Version",
+            "type": "string"
+          },
+          "fault_type": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Fault Type"
+          },
+          "incident_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Incident Id"
+          },
+          "input_sha256": {
+            "default": "",
+            "description": "SHA-256 of the canonical input crash dump, for dedup and proof",
+            "title": "Input Sha256",
+            "type": "string"
+          },
+          "origin": {
+            "default": "unknown",
+            "description": "How the run was requested, e.g. 'POST /api/v1/analyze'. Recorded so a run triggered by a test or a script is distinguishable from one an operator started.",
+            "title": "Origin",
+            "type": "string"
+          },
+          "provenance": {
+            "default": "UNKNOWN",
+            "description": "REAL | SYNTHETIC | SYNTHETIC_FROM_REAL_METADATA | DEMO | UNKNOWN. Normalized on construction: an unrecognised value becomes UNKNOWN, never REAL.",
+            "title": "Provenance",
+            "type": "string"
+          },
+          "run_id": {
+            "minLength": 8,
+            "title": "Run Id",
+            "type": "string"
+          },
+          "scenario_id": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Catalogue scenario id, when the input was one",
+            "title": "Scenario Id"
+          },
+          "source_note": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Source Note"
+          },
+          "source_type": {
+            "default": "",
+            "description": "Display label DERIVED from provenance, never authored",
+            "title": "Source Type",
+            "type": "string"
+          },
+          "started_at": {
+            "description": "ISO-8601 UTC",
+            "title": "Started At",
+            "type": "string"
+          }
+        },
+        "required": [
+          "run_id",
+          "started_at"
+        ],
+        "title": "RunHeader",
+        "type": "object"
+      },
+      "RunListResponse": {
+        "additionalProperties": false,
+        "description": "Envelope for ``GET /api/v1/runs``.",
+        "properties": {
+          "audit_schema_version": {
+            "default": "1.0.0",
+            "title": "Audit Schema Version",
+            "type": "string"
+          },
+          "contract_version": {
+            "default": "1.0.0",
+            "title": "Contract Version",
+            "type": "string"
+          },
+          "count": {
+            "description": "Runs in this page",
+            "minimum": 0.0,
+            "title": "Count",
+            "type": "integer"
+          },
+          "limit": {
+            "minimum": 1.0,
+            "title": "Limit",
+            "type": "integer"
+          },
+          "offset": {
+            "minimum": 0.0,
+            "title": "Offset",
+            "type": "integer"
+          },
+          "runs": {
+            "items": {
+              "$ref": "#/components/schemas/RunSummary"
+            },
+            "title": "Runs",
+            "type": "array"
+          },
+          "total": {
+            "description": "Runs held by the store in total",
+            "minimum": 0.0,
+            "title": "Total",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "total",
+          "count",
+          "limit",
+          "offset"
+        ],
+        "title": "RunListResponse",
+        "type": "object"
+      },
+      "RunOutcome": {
+        "additionalProperties": false,
+        "description": "Terminal facts, written once when a run finishes.",
+        "properties": {
+          "entry_count": {
+            "default": 0,
+            "minimum": 0.0,
+            "title": "Entry Count",
+            "type": "integer"
+          },
+          "error": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Error"
+          },
+          "final_hash": {
+            "default": "0000000000000000000000000000000000000000000000000000000000000000",
+            "description": "entry_hash of the last entry — the run's tamper seal",
+            "title": "Final Hash",
+            "type": "string"
+          },
+          "finished_at": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Finished At"
+          },
+          "status": {
+            "$ref": "#/components/schemas/RunStatus",
+            "default": "IN_PROGRESS"
+          },
+          "total_duration_ms": {
+            "anyOf": [
+              {
+                "minimum": 0.0,
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Total Duration Ms"
+          }
+        },
+        "title": "RunOutcome",
+        "type": "object"
+      },
+      "RunStatus": {
+        "description": "Terminal state of a run.",
+        "enum": [
+          "IN_PROGRESS",
+          "COMPLETED",
+          "FAILED",
+          "ABANDONED"
+        ],
+        "title": "RunStatus",
+        "type": "string"
+      },
+      "RunSummary": {
+        "additionalProperties": false,
+        "description": "Listing row. Enough to choose a run without loading its payloads.",
+        "properties": {
+          "entry_count": {
+            "default": 0,
+            "title": "Entry Count",
+            "type": "integer"
+          },
+          "fault_type": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Fault Type"
+          },
+          "finished_at": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Finished At"
+          },
+          "operator_decision_count": {
+            "default": 0,
+            "title": "Operator Decision Count",
+            "type": "integer"
+          },
+          "origin": {
+            "default": "unknown",
+            "title": "Origin",
+            "type": "string"
+          },
+          "provenance": {
+            "title": "Provenance",
+            "type": "string"
+          },
+          "run_id": {
+            "title": "Run Id",
+            "type": "string"
+          },
+          "scenario_id": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Scenario Id"
+          },
+          "source_type": {
+            "default": "",
+            "title": "Source Type",
+            "type": "string"
+          },
+          "started_at": {
+            "title": "Started At",
+            "type": "string"
+          },
+          "status": {
+            "$ref": "#/components/schemas/RunStatus"
+          },
+          "total_duration_ms": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Total Duration Ms"
+          }
+        },
+        "required": [
+          "run_id",
+          "started_at",
+          "status",
+          "provenance"
+        ],
+        "title": "RunSummary",
+        "type": "object"
+      },
+      "Scenario": {
+        "additionalProperties": true,
+        "description": "A catalogue scenario: a crash dump plus its provenance declaration.\n\nPhase 3. ``GET /scenarios`` previously returned an unmodelled ``list[dict]``,\nso nothing checked that what the API served matched what the frontend\nexpected — and the frontend kept its own 188-line copy of the same\nscenarios, which is precisely how two \"sources of truth\" appear.\n\n``provenance`` and ``source_type`` are required here on purpose. A scenario\nthe operator cannot attribute has no place in the catalogue, and\n``app.api.provenance.describe()`` guarantees both fields on every scenario\n``get_all_scenarios()`` returns — resolving anything unrecognised to UNKNOWN\nrather than to REAL.",
+        "example": {
+          "fault_register": "0x00000008",
+          "fault_type": "ADCS_GYRO_SEU",
+          "incident_id": "INC-2026-0036",
+          "pre_fault_telemetry_window": [
+            {
+              "parameter": "V_bat",
+              "status": "NOMINAL",
+              "timestamp": "T-120s",
+              "value": 31.2
+            },
+            {
+              "parameter": "TCS_HEATER_ZONE_2_TEMP",
+              "status": "ANOMALOUS",
+              "timestamp": "T-60s",
+              "value": 68.4
+            },
+            {
+              "parameter": "TCS_HEATER_ZONE_2_TEMP",
+              "status": "CRITICAL",
+              "timestamp": "T-10s",
+              "value": 85.2
+            }
+          ],
+          "scenario_id": 1,
+          "telecommand_context": {
+            "anomaly_flag": true,
+            "event_id": 36,
+            "execution_timestamp": "2026-06-13T00:15:22Z",
+            "gap_classification": "burst",
+            "gap_percentile": 16.2,
+            "gap_seconds": 90.0,
+            "telecommand": "telecommand_63"
+          }
+        },
+        "properties": {
+          "event_log": {
+            "anyOf": [
+              {
+                "items": {
+                  "additionalProperties": true,
+                  "type": "object"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Raw event log entries from the spacecraft",
+            "title": "Event Log"
+          },
+          "fault_register": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Hexadecimal bitmask of HW/SW flags that tripped FDIR",
+            "title": "Fault Register"
+          },
+          "fault_type": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Fault category, e.g. ADCS_GYRO_SEU",
+            "title": "Fault Type"
+          },
+          "incident_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Unique alphanumeric identifier for the safe-mode incident case",
+            "title": "Incident Id"
+          },
+          "pre_fault_telemetry": {
+            "anyOf": [
+              {
+                "items": {
+                  "additionalProperties": true,
+                  "type": "object"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "deprecated": true,
+            "description": "DEPRECATED — superseded by pre_fault_telemetry_window. Accepted on input and merged into the canonical window by app.api.adapters.canonical_window(), which is the only place the two shapes are reconciled. Do not read this field directly: it lacks timing and status, and reading only the window instead cost Phase 2 a scenario that reported zero anomalies because the bounds lived here and nowhere else.",
+            "title": "Pre Fault Telemetry"
+          },
+          "pre_fault_telemetry_window": {
+            "anyOf": [
+              {
+                "items": {
+                  "$ref": "#/components/schemas/TelemetryEntry"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "CANONICAL pre-fault telemetry. All consumers read this field, via app.api.adapters.canonical_window(). Entries are self-describing: timing, value, status, bounds and baseline statistics all live on the entry.",
+            "title": "Pre Fault Telemetry Window"
+          },
+          "provenance": {
+            "description": "Machine-readable provenance code: REAL | SYNTHETIC | SYNTHETIC_FROM_REAL_METADATA | UNKNOWN. See app/api/provenance.py. Only REAL means the numeric telemetry itself came from a mission dataset.",
+            "title": "Provenance",
+            "type": "string"
+          },
+          "safe_mode_trigger": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Trigger string that caused safe-mode entry",
+            "title": "Safe Mode Trigger"
+          },
+          "scenario_id": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Scenario identifier used by the demo UI",
+            "title": "Scenario Id"
+          },
+          "source_note": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "One-sentence provenance disclaimer shown to the operator",
+            "title": "Source Note"
+          },
+          "source_type": {
+            "description": "Human-readable provenance label, DERIVED from `provenance` so the two cannot drift. Never author this field by hand.",
+            "title": "Source Type",
+            "type": "string"
+          },
+          "telecommand_context": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/TelecommandContext"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Behavioral interval log for the correlated command"
+          }
+        },
+        "required": [
+          "provenance",
+          "source_type"
+        ],
+        "title": "Scenario",
+        "type": "object"
+      },
+      "ScenarioListResponse": {
+        "description": "Envelope for the scenario catalogue.\n\nCarries the contract version alongside the data so a client can detect that\nit is talking to a backend it was not generated against, instead of failing\non a missing field somewhere deep in a render.",
+        "properties": {
+          "api_version": {
+            "default": "v1",
+            "description": "API version serving this payload",
+            "title": "Api Version",
+            "type": "string"
+          },
+          "contract_version": {
+            "default": "1.0.0",
+            "description": "Version of the data contract this payload conforms to",
+            "title": "Contract Version",
+            "type": "string"
+          },
+          "count": {
+            "description": "Number of scenarios returned",
+            "minimum": 0.0,
+            "title": "Count",
+            "type": "integer"
+          },
+          "scenarios": {
+            "description": "The complete scenario catalogue. This is the ONLY source of scenario definitions; clients must not embed their own copies.",
+            "items": {
+              "$ref": "#/components/schemas/Scenario"
+            },
+            "title": "Scenarios",
+            "type": "array"
+          }
+        },
+        "required": [
+          "count",
+          "scenarios"
+        ],
+        "title": "ScenarioListResponse",
+        "type": "object"
+      },
+      "Severity": {
+        "description": "Operator-facing severity of a single anomaly.",
+        "enum": [
+          "CRITICAL",
+          "HIGH",
+          "MEDIUM",
+          "LOW",
+          "INFO"
+        ],
+        "title": "Severity",
+        "type": "string"
+      },
+      "Stage": {
+        "description": "The pipeline stages an audit record can carry.\n\nOrdered as the architecture runs them: telemetry → detection → state\nestimation → hypotheses → physics/safety validation → recommendation. The\nLLM sits between evidence gathering and validation, and is recorded as one\nstage among several rather than as the pipeline.",
+        "enum": [
+          "input",
+          "detection",
+          "state_estimation",
+          "rag",
+          "llm",
+          "hypotheses",
+          "physics_validation",
+          "safety_validation",
+          "diagnosis",
+          "operator_decision"
+        ],
+        "title": "Stage",
+        "type": "string"
+      },
+      "StageEntry": {
+        "additionalProperties": false,
+        "description": "One append-only entry in a run's log.\n\nFrozen. The store has no update path and the database aborts UPDATE, so an\nentry is immutable at three levels: the object, the API, and the schema.",
+        "properties": {
+          "actor": {
+            "$ref": "#/components/schemas/Actor",
+            "default": "SYSTEM",
+            "description": "SYSTEM for pipeline output, OPERATOR for a human decision"
+          },
+          "duration_ms": {
+            "anyOf": [
+              {
+                "minimum": 0.0,
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Measured wall-clock duration of the stage. None when the stage did not execute, so a NOT_IMPLEMENTED stage cannot report a runtime.",
+            "title": "Duration Ms"
+          },
+          "entry_hash": {
+            "description": "This entry's chain hash",
+            "title": "Entry Hash",
+            "type": "string"
+          },
+          "payload": {
+            "additionalProperties": true,
+            "description": "Stage detail, already redacted",
+            "title": "Payload",
+            "type": "object"
+          },
+          "payload_sha256": {
+            "description": "SHA-256 of the canonical payload",
+            "title": "Payload Sha256",
+            "type": "string"
+          },
+          "prev_hash": {
+            "description": "entry_hash of the previous entry",
+            "title": "Prev Hash",
+            "type": "string"
+          },
+          "recorded_at": {
+            "description": "ISO-8601 UTC instant the entry was written",
+            "title": "Recorded At",
+            "type": "string"
+          },
+          "seq": {
+            "description": "1-indexed position within the run",
+            "minimum": 1.0,
+            "title": "Seq",
+            "type": "integer"
+          },
+          "stage": {
+            "$ref": "#/components/schemas/Stage"
+          },
+          "status": {
+            "$ref": "#/components/schemas/StageStatus"
+          },
+          "summary": {
+            "description": "One line an operator can read without opening the payload",
+            "minLength": 1,
+            "title": "Summary",
+            "type": "string"
+          }
+        },
+        "required": [
+          "seq",
+          "stage",
+          "status",
+          "recorded_at",
+          "summary",
+          "payload_sha256",
+          "prev_hash",
+          "entry_hash"
+        ],
+        "title": "StageEntry",
+        "type": "object"
+      },
+      "StageStatus": {
+        "description": "Outcome of a stage. The distinctions here are the point of the enum.",
+        "enum": [
+          "OK",
+          "DEGRADED",
+          "FAILED",
+          "SKIPPED",
+          "NOT_RUN",
+          "NOT_IMPLEMENTED"
+        ],
+        "title": "StageStatus",
+        "type": "string"
+      },
+      "TelecommandContext": {
+        "description": "Behavioral layer: telecommand interval analysis.\n\nCaptures the execution timing pattern of the command correlated with the\nsafe-mode entry event.\n\nPhase 3 made ``gap_seconds`` and ``gap_percentile`` optional. They were\nrequired, but presets 4, 5 and 6 ship them as null (the interval statistics\nwere not computed for those payloads), so ``CrashDumpRequest.model_validate``\nrejected three of the ten scenarios the API serves. A missing statistic is\nrepresented as absent rather than as a fabricated number.",
+        "properties": {
+          "anomaly_flag": {
+            "description": "True if the interval crosses baseline bounds",
+            "title": "Anomaly Flag",
+            "type": "boolean"
+          },
+          "event_id": {
+            "description": "Unique sequence identifier for the telecommand execution log",
+            "title": "Event Id",
+            "type": "integer"
+          },
+          "execution_timestamp": {
+            "description": "ISO 8601 timestamp of command execution",
+            "format": "date-time",
+            "title": "Execution Timestamp",
+            "type": "string"
+          },
+          "gap_classification": {
+            "description": "Statistical interval classification (burst, nominal, stale)",
+            "title": "Gap Classification",
+            "type": "string"
+          },
+          "gap_percentile": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Historical percentile rating of this execution delta. None when not computed.",
+            "title": "Gap Percentile"
+          },
+          "gap_seconds": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Delta-T in seconds since the previous execution of this command. None when the interval statistics were not computed.",
+            "title": "Gap Seconds"
+          },
+          "telecommand": {
+            "description": "System command identifier (e.g. telecommand_63)",
+            "title": "Telecommand",
+            "type": "string"
+          }
+        },
+        "required": [
+          "event_id",
+          "telecommand",
+          "execution_timestamp",
+          "gap_classification",
+          "anomaly_flag"
+        ],
+        "title": "TelecommandContext",
+        "type": "object"
+      },
+      "TelemetryEntry": {
+        "description": "CANONICAL telemetry reading — one channel at one time step.\n\nPhase 3 made this the single representation of a telemetry sample. It is\ndeliberately SELF-DESCRIBING: everything a detector or a safety check needs\nis on the entry, so no consumer has to reach for a parallel legacy array.\n\nBefore Phase 3 the bounds lived only on the legacy ``pre_fault_telemetry``\ndicts while status and timing lived only on the window entries, which is why\nPhase 2 found a scenario reporting zero anomalies when read from the window\nalone. ``app/api/adapters.py`` merges both into this shape.",
+        "properties": {
+          "anomalous": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Source-supplied anomaly flag, when the source provides one. SENTINEL's own verdict lives in the AnomalyReport, not here.",
+            "title": "Anomalous"
+          },
+          "baseline_mean": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Observed baseline mean, when the source measured one",
+            "title": "Baseline Mean"
+          },
+          "baseline_std": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Observed baseline standard deviation, when measured",
+            "title": "Baseline Std"
+          },
+          "nominal_max": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Upper bound of the nominal range",
+            "title": "Nominal Max"
+          },
+          "nominal_min": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Lower bound of the nominal range",
+            "title": "Nominal Min"
+          },
+          "parameter": {
+            "description": "Telemetry channel designation, e.g. V_bat, channel_41",
+            "title": "Parameter",
+            "type": "string"
+          },
+          "relative_time_s": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Parsed offset in seconds; negative is before the event",
+            "title": "Relative Time S"
+          },
+          "status": {
+            "$ref": "#/components/schemas/TelemetryStatus",
+            "default": "UNKNOWN",
+            "description": "Per-reading status. Defaults to UNKNOWN, never to NOMINAL."
+          },
+          "timestamp": {
+            "description": "Relative timeline marker, e.g. 'T-60s'",
+            "title": "Timestamp",
+            "type": "string"
+          },
+          "unit": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Unit of measure",
+            "title": "Unit"
+          },
+          "value": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Numeric reading. None when unusable — see value_text.",
+            "title": "Value"
+          },
+          "value_text": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "The raw reading when it is not a usable number, e.g. 'NaN' or 'DEGRADED'. Preserved so a NaN stays distinguishable from a missing sample; the old schema coerced both to None.",
+            "title": "Value Text"
+          }
+        },
+        "required": [
+          "timestamp",
+          "parameter"
+        ],
+        "title": "TelemetryEntry",
+        "type": "object"
+      },
+      "TelemetryStatus": {
+        "description": "Per-reading status label.\n\nPhase 3 widened this from a bare ``str`` validated against three values to a\nclosed enum covering the labels the repository actually uses. The old\nthree-value check rejected real data: presets 5 and 6 use WARNING, and the\nESA-ADB dumps use NOMINAL_CONTEXT and LABELLED_ANOMALY, so\n``CrashDumpRequest.model_validate`` failed on scenarios 4, 5 and 6.\n\n``normalize()`` accepts the aliases found in the existing data so no stored\npayload has to be rewritten.",
+        "enum": [
+          "NOMINAL",
+          "WARNING",
+          "ANOMALOUS",
+          "CRITICAL",
+          "NOMINAL_CONTEXT",
+          "LABELLED_ANOMALY",
+          "UNKNOWN"
+        ],
+        "title": "TelemetryStatus",
+        "type": "string"
+      },
+      "ValidationError": {
+        "properties": {
+          "ctx": {
+            "title": "Context",
+            "type": "object"
+          },
+          "input": {
+            "title": "Input"
+          },
+          "loc": {
+            "items": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "integer"
+                }
+              ]
+            },
+            "title": "Location",
+            "type": "array"
+          },
+          "msg": {
+            "title": "Message",
+            "type": "string"
+          },
+          "type": {
+            "title": "Error Type",
+            "type": "string"
+          }
+        },
+        "required": [
+          "loc",
+          "msg",
+          "type"
+        ],
+        "title": "ValidationError",
+        "type": "object"
+      }
+    }
+  },
+  "info": {
+    "description": "SENTINEL — Autonomous Spacecraft FDIR Agent. Streams LLM reasoning trace and structured diagnostic output via SSE.",
+    "title": "Sentinel Backend",
+    "version": "1.0.0"
+  },
+  "openapi": "3.1.0",
+  "paths": {
+    "/analyze": {
+      "post": {
+        "description": "Analyze a crash dump and stream the full reasoning trace via SSE.\n\nThe response is a text/event-stream where each event is a JSON-encoded\nSSEEvent object.  Event types:\n  - STATUS     : pipeline stage updates\n  - THOUGHT    : agent reasoning steps\n  - ACTION     : tool/subsystem invocations\n  - OBSERVATION: tool results / telemetry returns\n  - RESULT     : final SentinelOutput JSON string\n  - ERROR      : any exception during streaming",
+        "operationId": "analyze_endpoint_analyze_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CrashDumpRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Analyze Endpoint"
+      }
+    },
+    "/api/analyze": {
+      "get": {
+        "description": "EventSource endpoint for index.html client.\n\nDecodes payload, runs the same streaming analysis, and yields events in the format\nexpected by index.html (events: telemetry, trace, done).",
+        "operationId": "analyze_get_endpoint_api_analyze_get",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "preset",
+            "required": false,
+            "schema": {
+              "title": "Preset",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "payload",
+            "required": false,
+            "schema": {
+              "title": "Payload",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Analyze Get Endpoint"
+      },
+      "post": {
+        "description": "Analyze a crash dump and stream the full reasoning trace via SSE.\n\nThe response is a text/event-stream where each event is a JSON-encoded\nSSEEvent object.  Event types:\n  - STATUS     : pipeline stage updates\n  - THOUGHT    : agent reasoning steps\n  - ACTION     : tool/subsystem invocations\n  - OBSERVATION: tool results / telemetry returns\n  - RESULT     : final SentinelOutput JSON string\n  - ERROR      : any exception during streaming",
+        "operationId": "analyze_endpoint_api_analyze_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CrashDumpRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Analyze Endpoint"
+      }
+    },
+    "/api/detect": {
+      "post": {
+        "description": "Run the deterministic detection pipeline and return an AnomalyReport.\n\nDeliberately synchronous and LLM-free: detection is pure computation, so this\nendpoint needs no API key, makes no network call, and returns in milliseconds.\nIt exists so the frontend can display real detector output instead of\nrecomputing an approximation client-side.\n\nThe pipeline is:\n    hard limits -> discrete states -> statistical -> temporal -> fusion\n\nEvery anomaly carries its detector, score, threshold, severity, evidence and\nprovenance — including which baseline source the statistics came from, so a\nfinding resting on engineering limits rather than observed data is\nidentifiable as weak evidence.",
+        "operationId": "detect_endpoint_api_detect_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CrashDumpRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AnomalyReport"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Detect Endpoint"
+      }
+    },
+    "/api/detect/channels": {
+      "get": {
+        "description": "Return the channel dictionary the detectors are driven by.\n\nLets a client see which channels have declared limits, which are discrete\nstates or counters, and which are excluded from statistical detection\nbecause a Gaussian test on them is meaningless.",
+        "operationId": "detect_channels_endpoint_api_detect_channels_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": "Detect Channels Endpoint"
+      }
+    },
+    "/api/health": {
+      "get": {
+        "description": "Liveness probe — returns 200 OK when server is up.",
+        "operationId": "health_check_api_health_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": "Health Check"
+      }
+    },
+    "/api/scenarios": {
+      "get": {
+        "description": "Return the pre-defined crash dump scenarios.\n\nUNVERSIONED / LEGACY shape: a bare JSON array, exactly as before Phase 3, so\nany existing client keeps working. New clients should use\n``GET /api/v1/scenarios``, which is validated against\n``ScenarioListResponse`` and returns canonical telemetry.",
+        "operationId": "get_scenarios_api_scenarios_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": "Get Scenarios"
+      }
+    },
+    "/api/v1/analyze": {
+      "post": {
+        "description": "Analyze a crash dump, streaming the trace and recording an audit run.\n\nPhase 4. This is the audited entry point. It differs from the unversioned\n``POST /analyze`` in one way: every invocation opens an audit run and\npersists it, so the investigation is reproducible afterwards through\n``GET /api/v1/runs/{run_id}``.\n\nThe run id is published twice, because the two consumers need it at\ndifferent moments:\n\n  * response header ``X-Sentinel-Run-Id`` — available before the body starts\n    streaming, so a client can record it even if the stream then fails\n  * an SSE ``status`` event early in the stream, for a browser client that\n    cannot read headers from an EventSource\n\nThe record is persisted in a ``finally`` block, so a run is stored even when\nthe stream raises or the client disconnects mid-analysis. A disconnect is\nrecorded as ABANDONED rather than COMPLETED — an interrupted investigation\nthat looked finished would be worse than no record.\n\nNOTE ON ACCESS CONTROL: this endpoint is unauthenticated, like the rest of\nthis API. Anyone who can reach the port can start a run and read any stored\nrecord. Audit records contain telemetry, model output and operator names, so\nan authentication layer is required before this is exposed beyond localhost.",
+        "operationId": "analyze_endpoint_v1_api_v1_analyze_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CrashDumpRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Analyze Endpoint V1"
+      }
+    },
+    "/api/v1/audit/status": {
+      "get": {
+        "description": "Describe the audit store and the guarantees actually in force.\n\n``not_implemented_stages`` is served explicitly so a client cannot read the\nabsence of a stage as a check that passed. It is now EMPTY: Phase 7 added\nstate estimation and Phase 8 added physics validation, so every stage in the\nenum records a real result.\n\nAn empty list is not a claim that every check succeeds. A stage can still be\nrecorded DEGRADED (it ran and could decide nothing) or FAILED, and a physics\nverdict can be UNCERTAIN. What the empty list means is narrower and worth\nstating: no stage is missing from this build. Whether a given run reached a\nconclusion is a per-run question, answered by that run's coverage map.",
+        "operationId": "audit_status_api_v1_audit_status_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AuditStatusResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": "Audit Status"
+      }
+    },
+    "/api/v1/channels": {
+      "get": {
+        "description": "The authoritative spacecraft channel dictionary.\n\nPhase 5. Serves every field for every channel from\n``app/ingest/channel_dict.py``, so a client never has to retype a unit, a\nsubsystem or a limit. Before Phase 5 the same 21 channels were defined three\ntimes in the backend alone, and 17 of the 21 disagreed.\n\nDistinct from ``GET /api/v1/detect/channels``, which is the narrower\ndetection-facing projection: which test applies to each channel and why.\n\n``validation`` is included in the response on purpose. Five channels have a\nnominal operating band that falls outside their own hard limits, inherited\nfrom the tables this dictionary replaced, and a client reading limits from\nhere is entitled to know that rather than having to consult a document.",
+        "operationId": "channel_dictionary_endpoint_api_v1_channels_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": "Channel Dictionary Endpoint"
+      }
+    },
+    "/api/v1/channels/{channel_id}": {
+      "get": {
+        "description": "Resolve one channel by id or alias.\n\nAn unrecognised channel returns 200 with ``subsystem`` and ``provenance`` set\nto ``UNKNOWN`` and ``is_known`` false, rather than a 404. The distinction\nmatters: a caller looking up a channel from a live payload needs to be told\n\"this exists but is unattributed\" — which is the honest answer for an\nanonymized ESA-ADB channel — not that its request was malformed. No subsystem\nis ever inferred from the name.",
+        "operationId": "channel_lookup_endpoint_api_v1_channels__channel_id__get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "channel_id",
+            "required": true,
+            "schema": {
+              "title": "Channel Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Channel Lookup Endpoint"
+      }
+    },
+    "/api/v1/contract": {
+      "get": {
+        "description": "Describe the data contract this backend serves.\n\nLets a client — or CI — verify it is talking to a backend matching the\ncontract it was generated against, rather than discovering a mismatch as a\nmissing field mid-render.",
+        "operationId": "contract_info_api_v1_contract_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ContractInfo"
+                }
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": "Contract Info"
+      }
+    },
+    "/api/v1/detect": {
+      "post": {
+        "description": "Versioned alias of POST /detect.",
+        "operationId": "detect_endpoint_v1_api_v1_detect_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CrashDumpRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AnomalyReport"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Detect Endpoint V1"
+      }
+    },
+    "/api/v1/detect/channels": {
+      "get": {
+        "description": "Versioned alias of GET /detect/channels — the DETECTION view.",
+        "operationId": "detect_channels_endpoint_v1_api_v1_detect_channels_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": "Detect Channels Endpoint V1"
+      }
+    },
+    "/api/v1/health": {
+      "get": {
+        "description": "Liveness probe, versioned.",
+        "operationId": "health_check_v1_api_v1_health_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": "Health Check V1"
+      }
+    },
+    "/api/v1/physics": {
+      "post": {
+        "description": "Validate fault hypotheses against the simplified spacecraft state model.\n\nPhase 8. Runs the whole deterministic chain for one dump and returns a\nverdict per candidate hypothesis:\n\n    detection -> hypotheses -> state estimate -> residuals -> VALID /\n    INVALID / UNCERTAIN\n\nNo language model is consulted at any step, and there is no request field\nthrough which one could influence a verdict.\n\nRead the three statuses precisely, because they are not a spectrum:\n\n  INVALID    a declared constraint is violated by DECIDED residual evidence.\n             Grounds to downgrade or reject the hypothesis.\n  VALID      nothing violated and at least one constraint corroborated. NOT\n             \"confirmed\" — the corroborating models carry four assumed\n             parameters.\n  UNCERTAIN  nothing decided either way. The ordinary outcome on sparse\n             telemetry, and explicitly NOT a pass.\n\n``assumed_parameters`` and ``model_limitations`` are in every response on\npurpose: a verdict shows consistency with those assumptions rather than with\nthe spacecraft, and a client reading a verdict is entitled to see them\nwithout consulting a document.",
+        "operationId": "physics_validation_endpoint_api_v1_physics_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CrashDumpRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PhysicsValidationReport"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Physics Validation Endpoint"
+      }
+    },
+    "/api/v1/physics/constraints": {
+      "get": {
+        "description": "The declared physical constraints and what each fault claims.\n\nPhase 8. Serves the constraint catalogue, its refutation rules, and the\nper-fault claims table, so a client can see WHY a verdict came out as it did\nrather than being handed a status.\n\n``faults_without_coverage`` is included deliberately. Four faults have no\nphysics checks at all — OBC, COMMS, the control-command anomaly and the\ncascade — and their UNCERTAIN verdicts reflect the models' reach rather than\nthe evidence. A client that could not distinguish those from undecided\nevidence would misreport them.",
+        "operationId": "physics_constraints_endpoint_api_v1_physics_constraints_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": "Physics Constraints Endpoint"
+      }
+    },
+    "/api/v1/runs": {
+      "get": {
+        "description": "List audit runs, newest first.\n\n``provenance`` filters on the recorded code, so an auditor can separate real\ninvestigations from SYNTHETIC and DEMO runs without reading each record.",
+        "operationId": "list_runs_api_v1_runs_get",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "limit",
+            "required": false,
+            "schema": {
+              "default": 50,
+              "title": "Limit",
+              "type": "integer"
+            }
+          },
+          {
+            "in": "query",
+            "name": "offset",
+            "required": false,
+            "schema": {
+              "default": 0,
+              "title": "Offset",
+              "type": "integer"
+            }
+          },
+          {
+            "in": "query",
+            "name": "scenario_id",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "integer"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Scenario Id"
+            }
+          },
+          {
+            "in": "query",
+            "name": "provenance",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Provenance"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RunListResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "List Runs"
+      }
+    },
+    "/api/v1/runs/{run_id}": {
+      "get": {
+        "description": "Return one complete audit record.\n\nThe full entry list is returned, not a summary: the entries ARE the record,\nand a caller re-verifying the hash chain needs every one of them.",
+        "operationId": "get_run_api_v1_runs__run_id__get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "run_id",
+            "required": true,
+            "schema": {
+              "title": "Run Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AuditRecord"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Get Run"
+      }
+    },
+    "/api/v1/runs/{run_id}/decisions": {
+      "post": {
+        "description": "Append an operator decision to an existing run.\n\nThe ONLY client-writable path into the audit trail, and deliberately narrow.\nA client supplies the decision, who made it, why, and optionally which step\nor command it concerns. The server assigns the sequence number, the\ntimestamp, the actor (always OPERATOR) and the stage (always\nOPERATOR_DECISION), and the store refuses an OPERATOR actor on any system\nstage. So a client can add an attributed human decision to a run; it cannot\nmanufacture a detection result, an LLM output or a safety verdict.\n\n``OperatorDecisionInput`` forbids extra fields, so an attempt to smuggle\nadditional keys is a 422 rather than silently ignored data.\n\nNOTE ON IDENTITY: ``operator_id`` is recorded verbatim and is NOT\nauthenticated. This endpoint establishes WHAT was decided and WHEN, not WHO\nby any verifiable means. Attribution needs an authentication layer that does\nnot exist yet, and the response says so.",
+        "operationId": "record_operator_decision_api_v1_runs__run_id__decisions_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "run_id",
+            "required": true,
+            "schema": {
+              "title": "Run Id",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/OperatorDecisionInput"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/OperatorDecisionAccepted"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Record Operator Decision"
+      }
+    },
+    "/api/v1/runs/{run_id}/verify": {
+      "get": {
+        "description": "Recompute a run's hash chain from what is on disk.\n\nReads the stored rows rather than a cached object, so it detects tampering\nperformed outside the application — a doctored backup, or a direct write that\nsomehow bypassed the triggers.",
+        "operationId": "verify_run_api_v1_runs__run_id__verify_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "run_id",
+            "required": true,
+            "schema": {
+              "title": "Run Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ChainVerification"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Verify Run"
+      }
+    },
+    "/api/v1/scenarios": {
+      "get": {
+        "description": "Return the scenario catalogue — THE single source of scenario definitions.\n\nDifferences from the legacy route:\n\n  * validated against ``ScenarioListResponse``, so a scenario missing its\n    provenance declaration fails here rather than rendering unattributed in\n    the operator's browser\n  * ``pre_fault_telemetry_window`` is fully populated through\n    ``with_canonical_window()``, so the client gets timing, status, bounds\n    and units on every reading and never has to merge two shapes itself\n  * carries ``contract_version``\n\nThe deprecated ``pre_fault_telemetry`` array is still present in each\nscenario for backward compatibility, but it is no longer the field a client\nneeds to read.",
+        "operationId": "get_scenarios_v1_api_v1_scenarios_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ScenarioListResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": "Get Scenarios V1"
+      }
+    },
+    "/detect": {
+      "post": {
+        "description": "Run the deterministic detection pipeline and return an AnomalyReport.\n\nDeliberately synchronous and LLM-free: detection is pure computation, so this\nendpoint needs no API key, makes no network call, and returns in milliseconds.\nIt exists so the frontend can display real detector output instead of\nrecomputing an approximation client-side.\n\nThe pipeline is:\n    hard limits -> discrete states -> statistical -> temporal -> fusion\n\nEvery anomaly carries its detector, score, threshold, severity, evidence and\nprovenance — including which baseline source the statistics came from, so a\nfinding resting on engineering limits rather than observed data is\nidentifiable as weak evidence.",
+        "operationId": "detect_endpoint_detect_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CrashDumpRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AnomalyReport"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Detect Endpoint"
+      }
+    },
+    "/detect/channels": {
+      "get": {
+        "description": "Return the channel dictionary the detectors are driven by.\n\nLets a client see which channels have declared limits, which are discrete\nstates or counters, and which are excluded from statistical detection\nbecause a Gaussian test on them is meaningless.",
+        "operationId": "detect_channels_endpoint_detect_channels_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": "Detect Channels Endpoint"
+      }
+    },
+    "/health": {
+      "get": {
+        "description": "Liveness probe — returns 200 OK when server is up.",
+        "operationId": "health_check_health_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": "Health Check"
+      }
+    },
+    "/scenarios": {
+      "get": {
+        "description": "Return the pre-defined crash dump scenarios.\n\nUNVERSIONED / LEGACY shape: a bare JSON array, exactly as before Phase 3, so\nany existing client keeps working. New clients should use\n``GET /api/v1/scenarios``, which is validated against\n``ScenarioListResponse`` and returns canonical telemetry.",
+        "operationId": "get_scenarios_scenarios_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": "Get Scenarios"
+      }
+    }
+  }
+}

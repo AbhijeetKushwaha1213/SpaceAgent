@@ -1,0 +1,62 @@
+{
+  "$defs": {
+    "RiskLevel": {
+      "description": "Risk classification for individual recovery steps.",
+      "enum": [
+        "LOW",
+        "MEDIUM",
+        "HIGH",
+        "BLOCKED"
+      ],
+      "title": "RiskLevel",
+      "type": "string"
+    }
+  },
+  "description": "A single step in the recovery command sequence.\n\nEach step maps to a spacecraft command, its rationale, timing,\nverification criteria, and risk level.  The safety validator\nmay override the risk to BLOCKED.",
+  "properties": {
+    "command": {
+      "description": "Spacecraft command name, e.g. CMD_GYRO_A_DRIVER_RESET",
+      "minLength": 3,
+      "title": "Command",
+      "type": "string"
+    },
+    "rationale": {
+      "description": "Why this command is issued at this point in the sequence",
+      "minLength": 5,
+      "title": "Rationale",
+      "type": "string"
+    },
+    "risk": {
+      "$ref": "#/definitions/RiskLevel",
+      "description": "Risk level of this step (LOW / MEDIUM / HIGH / BLOCKED)"
+    },
+    "step": {
+      "description": "1-indexed step number",
+      "minimum": 1,
+      "title": "Step",
+      "type": "integer"
+    },
+    "verify": {
+      "description": "Condition to check after wait, e.g. 'GYRO_A_RATE returns valid'",
+      "minLength": 3,
+      "title": "Verify",
+      "type": "string"
+    },
+    "wait_seconds": {
+      "description": "Seconds to wait after issuing command before verifying",
+      "minimum": 0,
+      "title": "Wait Seconds",
+      "type": "integer"
+    }
+  },
+  "required": [
+    "step",
+    "command",
+    "rationale",
+    "wait_seconds",
+    "verify",
+    "risk"
+  ],
+  "title": "RecoveryStep",
+  "type": "object"
+}

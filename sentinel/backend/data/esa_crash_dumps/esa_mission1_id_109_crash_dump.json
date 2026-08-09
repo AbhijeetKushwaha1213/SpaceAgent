@@ -2321,6 +2321,9 @@
     "scenario_id": 109,
     "timestamp": "2006-09-25T19:55:49.062Z",
     "fault_type": "ESA_ADB_ANOMALY",
+    "provenance": "REAL",
+    "source_type": "REAL ESA TELEMETRY",
+    "source_note": "Numeric telemetry read directly from the ESA Anomaly Detection Benchmark (ESA-Mission1, id_109) channel archives. Channel names are anonymized; no root-cause label or recovery command is available.",
     "fault_register": "ESA_LABEL:id_109;CLASS:class_3;SUBCLASS:subclass_2",
     "pre_fault_telemetry": [
       {

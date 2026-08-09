@@ -7,7 +7,8 @@ Tests:
   2. Backend /api/analyze accepts the ESA crash dump
   3. Mocked LLM response validates as SentinelOutput
   4. Test does NOT claim root-cause accuracy on ESA data
-  5. ESA scenario appears in /api/scenarios with source_type='Real ESA Telemetry'
+  5. ESA scenarios appear in /api/scenarios with correct provenance labels
+     (REAL only for id_109; SYNTHETIC_FROM_REAL_METADATA for the rest)
   6. Early warning fires on ESA telemetry (anonymized channels → UNKNOWN)
   7. Early warning fires on synthetic telemetry (known parameters → fault type)
 
@@ -34,6 +35,7 @@ from app.api.models import (
     SSEEventType,
 )
 from app.analytics.early_warning import scan_telemetry, EarlyWarningAlert
+from app.api.provenance import Provenance, display_label
 
 
 # ---------------------------------------------------------------------------
@@ -206,22 +208,54 @@ def test_4_esa_result_validates_as_sentinel_output():
 
 
 def test_5_esa_scenario_in_api():
-    """GET /api/scenarios includes an ESA scenario with source_type='Real ESA Telemetry'."""
+    """GET /api/scenarios exposes ESA payloads with correct provenance.
+
+    Updated in Phase 0. This test previously required a scenario whose
+    ``source_type`` was the literal string 'Real ESA Telemetry'. That label was
+    being applied to payloads whose numeric telemetry had been synthesized from
+    real ESA-ADB metadata, so the assertion was locking in the mislabel.
+
+    The contract is now:
+      * REAL is reserved for id_109, whose values were read from the ESA-ADB
+        channel archives.
+      * Metadata-derived payloads report SYNTHETIC_FROM_REAL_METADATA.
+    """
     client = TestClient(app)
     resp = client.get("/api/scenarios")
     assert resp.status_code == 200
     scenarios = resp.json()
 
-    esa_scenarios = [s for s in scenarios if s.get("source_type") == "Real ESA Telemetry"]
+    esa_scenarios = [s for s in scenarios if s.get("fault_type") == "ESA_ADB_ANOMALY"]
     assert len(esa_scenarios) >= 1, (
-        f"No ESA scenarios found. source_types: {[s.get('source_type') for s in scenarios]}"
+        f"No ESA scenarios found. fault_types: {[s.get('fault_type') for s in scenarios]}"
     )
 
-    esa = esa_scenarios[0]
-    assert esa.get("fault_type") == "ESA_ADB_ANOMALY"
-    assert "source_note" in esa
-    # Source note must contain honest disclaimer
-    assert "anonymized" in esa["source_note"].lower() or "root-cause" in esa["source_note"].lower()
+    # Every ESA payload must declare a recognised provenance code.
+    for esa in esa_scenarios:
+        assert esa.get("provenance") in {
+            Provenance.REAL.value,
+            Provenance.SYNTHETIC_FROM_REAL_METADATA.value,
+        }, f"unexpected provenance {esa.get('provenance')!r}"
+        assert esa.get("source_type") == display_label(esa["provenance"])
+        assert "source_note" in esa
+        # Source note must contain an honest disclaimer.
+        note = esa["source_note"].lower()
+        assert "anonymized" in note or "root-cause" in note
+
+    # Exactly one payload may claim REAL numeric telemetry: ESA-ADB id_109.
+    real = [s for s in esa_scenarios if s["provenance"] == Provenance.REAL.value]
+    assert len(real) == 1, f"expected exactly 1 REAL ESA payload, got {len(real)}"
+    assert "id_109" in json.dumps(real[0])
+
+    # Metadata-derived payloads must state that their values are synthesized.
+    derived = [
+        s for s in esa_scenarios
+        if s["provenance"] == Provenance.SYNTHETIC_FROM_REAL_METADATA.value
+    ]
+    for s in derived:
+        assert "SYNTHESIZED" in s["source_note"], (
+            "metadata-derived payloads must disclose that values are generated"
+        )
 
 
 def test_6_test_does_not_claim_root_cause_accuracy():

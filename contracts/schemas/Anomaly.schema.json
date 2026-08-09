@@ -1,0 +1,191 @@
+{
+  "$defs": {
+    "AnomalyProvenance": {
+      "description": "How a finding was reached, and how far it can be trusted.",
+      "properties": {
+        "baseline_sample_count": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Number of observations behind the baseline, when known",
+          "title": "Baseline Sample Count"
+        },
+        "baseline_source": {
+          "$ref": "#/definitions/BaselineSource",
+          "default": "NONE",
+          "description": "Where the comparison statistics came from"
+        },
+        "confidence": {
+          "$ref": "#/definitions/Confidence",
+          "default": "HIGH",
+          "description": "Weight this evidence deserves"
+        },
+        "detector_module": {
+          "description": "Module that produced the finding, e.g. 'app.detection.limits'",
+          "title": "Detector Module",
+          "type": "string"
+        },
+        "deterministic": {
+          "default": true,
+          "description": "True when the check involves no estimated statistics. Always True for limits.py; True for statistical/temporal detectors too, in the sense that they are reproducible — no detector samples randomness.",
+          "title": "Deterministic",
+          "type": "boolean"
+        },
+        "notes": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Any caveat an operator should read alongside the finding",
+          "title": "Notes"
+        }
+      },
+      "required": [
+        "detector_module"
+      ],
+      "title": "AnomalyProvenance",
+      "type": "object"
+    },
+    "BaselineSource": {
+      "description": "Where the statistics a detector compared against came from.\n\nThis is the single most important provenance field in Phase 2. The\npre-Phase-2 detector derived sigma as ``(hi - lo) / 6`` from *engineering\nlimits* and then reported the result as a statistical z-score. That is not a\nstatistic — it assumes the limits are a 3-sigma band, which for a channel\nlike ``Watchdog_counter`` (0..1000) makes a genuine overflow score z=2.85 and\nslip under a 3.0 threshold.\n\nFindings whose baseline is RANGE_DERIVED are explicitly marked as weak\nevidence so nothing downstream mistakes them for observed statistics.",
+      "enum": [
+        "OBSERVED_PROVIDED",
+        "OBSERVED_WINDOW",
+        "RANGE_DERIVED",
+        "NONE"
+      ],
+      "title": "BaselineSource",
+      "type": "string"
+    },
+    "Confidence": {
+      "description": "How much weight a finding's evidence deserves.",
+      "enum": [
+        "HIGH",
+        "MEDIUM",
+        "LOW"
+      ],
+      "title": "Confidence",
+      "type": "string"
+    },
+    "DetectorName": {
+      "description": "Which detector produced a finding.",
+      "enum": [
+        "HARD_LIMIT",
+        "DISCRETE_STATE",
+        "COUNTER",
+        "DATA_QUALITY",
+        "ZSCORE",
+        "ROBUST_ZSCORE",
+        "RATE_OF_CHANGE",
+        "TREND",
+        "PERSISTENCE",
+        "SUDDEN_CHANGE"
+      ],
+      "title": "DetectorName",
+      "type": "string"
+    },
+    "Severity": {
+      "description": "Operator-facing severity of a single anomaly.",
+      "enum": [
+        "CRITICAL",
+        "HIGH",
+        "MEDIUM",
+        "LOW",
+        "INFO"
+      ],
+      "title": "Severity",
+      "type": "string"
+    }
+  },
+  "description": "One anomaly finding from one detector.",
+  "properties": {
+    "anomaly_id": {
+      "description": "Stable content-derived identifier. Same telemetry always yields the same id; it is a hash, never a random value or a counter.",
+      "title": "Anomaly Id",
+      "type": "string"
+    },
+    "channel": {
+      "description": "Telemetry channel name",
+      "minLength": 1,
+      "title": "Channel",
+      "type": "string"
+    },
+    "description": {
+      "description": "One-line operator-facing explanation",
+      "minLength": 1,
+      "title": "Description",
+      "type": "string"
+    },
+    "detector": {
+      "$ref": "#/definitions/DetectorName",
+      "description": "Detector that produced this"
+    },
+    "evidence": {
+      "additionalProperties": true,
+      "description": "Observed values the verdict rests on, e.g. {'value': 1002.0, 'limit_max': 1000.0, 'exceeded_by': 2.0}. Only values actually read from the telemetry appear here.",
+      "title": "Evidence",
+      "type": "object"
+    },
+    "provenance": {
+      "$ref": "#/definitions/AnomalyProvenance",
+      "description": "How the finding was reached and how far to trust it"
+    },
+    "score": {
+      "anyOf": [
+        {
+          "type": "number"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "description": "The detector's numeric output. None when the finding is categorical (a discrete-state violation has no meaningful magnitude).",
+      "title": "Score"
+    },
+    "severity": {
+      "$ref": "#/definitions/Severity",
+      "description": "Operator-facing severity"
+    },
+    "threshold": {
+      "anyOf": [
+        {
+          "type": "number"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "description": "Value the score was compared against, when numeric",
+      "title": "Threshold"
+    },
+    "timestamp": {
+      "description": "Relative offset the anomaly was observed at, e.g. 'T-60s'",
+      "title": "Timestamp",
+      "type": "string"
+    }
+  },
+  "required": [
+    "anomaly_id",
+    "channel",
+    "timestamp",
+    "detector",
+    "severity",
+    "provenance",
+    "description"
+  ],
+  "title": "Anomaly",
+  "type": "object"
+}

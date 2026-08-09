@@ -34,6 +34,42 @@ import json
 from typing import Any, Dict, List, Optional, Tuple
 
 
+# ---------------------------------------------------------------------------
+# Phase 5 — channel metadata comes from the authoritative dictionary
+# ---------------------------------------------------------------------------
+
+def _dictionary_ranges() -> Dict[str, Dict[str, Any]]:
+    """Return ``{channel_id: {"nominal_min", "nominal_max", "unit"}}``.
+
+    Read from ``app.ingest.channel_dict``, the single authority. The simulator
+    samples from ``nominal_range``, which is the band a healthy spacecraft sits
+    in — not ``hard_limits``, which is where a violation begins. Sampling from
+    hard limits would generate "nominal" data at the edge of a violation.
+
+    Channels whose nominal band is unspecified are skipped rather than given a
+    made-up range, so the simulator can only generate channels the dictionary
+    actually characterises.
+    """
+    from app.ingest.channel_dict import CHANNELS
+
+    ranges: Dict[str, Dict[str, Any]] = {}
+    for channel_id, definition in CHANNELS.items():
+        lo, hi = definition.nominal_range
+        if lo is None or hi is None:
+            continue
+        ranges[channel_id] = {
+            "nominal_min": float(lo),
+            "nominal_max": float(hi),
+            "unit": definition.unit,
+        }
+    return ranges
+
+
+#: Canonical parameter names the simulator generates, in dictionary order.
+#: Previously a hand-maintained list repeated in ``_param_ranges``.
+SIMULATED_CHANNELS: Tuple[str, ...] = tuple(sorted(_dictionary_ranges()))
+
+
 class SatelliteFaultSimulator:
     """Generates synthetic satellite crash dumps for machine-learning training.
 
@@ -89,130 +125,25 @@ class SatelliteFaultSimulator:
 
         # ------------------------------------------------------------------
         # Nominal operating ranges for all 21 canonical telemetry parameters.
-        # Each entry is {"nominal_min": float, "nominal_max": float, "unit": str}.
-        # Values are representative of a small LEO spacecraft in nominal ops.
+        #
+        # Phase 5: these are now READ FROM app/ingest/channel_dict.py rather than
+        # declared here. This block used to hold 21 hand-written range dicts, and
+        # app/analytics/anomaly_detector.py held a second table for the same 21
+        # channels — 17 of which disagreed. Neither file referenced the other, so
+        # the simulator generated data judged healthy by its own numbers and
+        # anomalous by the detector's.
+        #
+        # The dictionary distinguishes the two quantities the tables were
+        # conflating: nominal_range (where a healthy spacecraft sits, used here)
+        # and hard_limits (where a violation begins, used by the detector). The
+        # values are carried over unchanged, so generated datasets are unaffected.
+        #
+        # The attributes are still set individually, and still writable, because
+        # the fault generators mutate them to stage a fault and tests read them
+        # directly. Behaviour is identical; only the source of the numbers moved.
         # ------------------------------------------------------------------
-
-        # EPS — Electrical Power Subsystem
-        self.V_bat = {
-            "nominal_min": 28.0,
-            "nominal_max": 33.0,
-            "unit": "V",
-        }
-        self.SoC_pct = {
-            "nominal_min": 60.0,
-            "nominal_max": 95.0,
-            "unit": "%",
-        }
-        self.I_sa = {
-            "nominal_min": 3.5,
-            "nominal_max": 6.5,
-            "unit": "A",
-        }
-        self.V_bus = {
-            "nominal_min": 27.5,
-            "nominal_max": 32.5,
-            "unit": "V",
-        }
-
-        # TCS — Thermal Control System
-        self.Heater_power_W = {
-            "nominal_min": 0.0,
-            "nominal_max": 10.0,
-            "unit": "W",
-        }
-
-        # ADCS — Attitude Determination and Control System
-        self.RW_speed_rpm = {
-            "nominal_min": -5000.0,
-            "nominal_max": 5000.0,
-            "unit": "rpm",
-        }
-        self.Gyro_rate_degs = {
-            "nominal_min": -0.5,
-            "nominal_max": 0.5,
-            "unit": "deg/s",
-        }
-        self.Star_tracker_status = {
-            "nominal_min": 0.0,
-            "nominal_max": 0.0,
-            "unit": "flag",
-        }
-        self.Sun_sensor_angle_deg = {
-            "nominal_min": 0.0,
-            "nominal_max": 90.0,
-            "unit": "deg",
-        }
-        self.Attitude_error_deg = {
-            "nominal_min": 0.0,
-            "nominal_max": 1.0,
-            "unit": "deg",
-        }
-
-        # OBC — On-Board Computer
-        self.OBC_temp_C = {
-            "nominal_min": 10.0,
-            "nominal_max": 50.0,
-            "unit": "°C",
-        }
-        self.CPU_load_pct = {
-            "nominal_min": 10.0,
-            "nominal_max": 70.0,
-            "unit": "%",
-        }
-        self.Memory_usage_MB = {
-            "nominal_min": 50.0,
-            "nominal_max": 200.0,
-            "unit": "MB",
-        }
-        self.Watchdog_counter = {
-            "nominal_min": 0.0,
-            "nominal_max": 200.0,
-            "unit": "count",
-        }
-        self.SEU_counter = {
-            "nominal_min": 0.0,
-            "nominal_max": 5.0,
-            "unit": "count",
-        }
-
-        # Fault management
-        self.Fault_register = {
-            "nominal_min": 0.0,
-            "nominal_max": 0.0,
-            "unit": "bitmask",
-        }
-        self.Safe_mode_entry_count = {
-            "nominal_min": 0.0,
-            "nominal_max": 3.0,
-            "unit": "count",
-        }
-
-        # COMMS — Communications subsystem
-        self.Transponder_lock = {
-            "nominal_min": 1.0,
-            "nominal_max": 1.0,
-            "unit": "flag",
-        }
-        self.SNR_dB = {
-            "nominal_min": 10.0,
-            "nominal_max": 25.0,
-            "unit": "dB",
-        }
-
-        # Thermal (component-level)
-        self.Component_temp_C = {
-            "nominal_min": -10.0,
-            "nominal_max": 70.0,
-            "unit": "°C",
-        }
-
-        # Heater control flag
-        self.Heater_enable_flag = {
-            "nominal_min": 0.0,
-            "nominal_max": 0.0,
-            "unit": "flag",
-        }
+        for _channel_id, _definition in _dictionary_ranges().items():
+            setattr(self, _channel_id, dict(_definition))
 
 
     # ------------------------------------------------------------------
@@ -221,29 +152,18 @@ class SatelliteFaultSimulator:
     # ------------------------------------------------------------------
     @property
     def _param_ranges(self) -> Dict[str, Dict[str, Any]]:
-        """Return a mapping of canonical parameter name → nominal-range dict."""
+        """Return a mapping of canonical parameter name → nominal-range dict.
+
+        Phase 5: the channel list comes from ``SIMULATED_CHANNELS``, derived from
+        the dictionary, instead of being a hand-maintained literal that had to be
+        kept in step with the 21 attributes above. Values are still read off the
+        instance attributes, so a fault generator that mutates one to stage a
+        fault still works exactly as before.
+        """
         return {
-            "V_bat": self.V_bat,
-            "SoC_pct": self.SoC_pct,
-            "I_sa": self.I_sa,
-            "V_bus": self.V_bus,
-            "Heater_power_W": self.Heater_power_W,
-            "RW_speed_rpm": self.RW_speed_rpm,
-            "Gyro_rate_degs": self.Gyro_rate_degs,
-            "Star_tracker_status": self.Star_tracker_status,
-            "Sun_sensor_angle_deg": self.Sun_sensor_angle_deg,
-            "Attitude_error_deg": self.Attitude_error_deg,
-            "OBC_temp_C": self.OBC_temp_C,
-            "CPU_load_pct": self.CPU_load_pct,
-            "Memory_usage_MB": self.Memory_usage_MB,
-            "Watchdog_counter": self.Watchdog_counter,
-            "SEU_counter": self.SEU_counter,
-            "Fault_register": self.Fault_register,
-            "Safe_mode_entry_count": self.Safe_mode_entry_count,
-            "Transponder_lock": self.Transponder_lock,
-            "SNR_dB": self.SNR_dB,
-            "Component_temp_C": self.Component_temp_C,
-            "Heater_enable_flag": self.Heater_enable_flag,
+            channel_id: getattr(self, channel_id)
+            for channel_id in SIMULATED_CHANNELS
+            if hasattr(self, channel_id)
         }
 
     # ------------------------------------------------------------------

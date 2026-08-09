@@ -276,7 +276,7 @@ def _compute_safety_alignment(
     """
     try:
         from app.agent.safety import validate_recovery_plan
-        from app.api.models import SentinelOutput
+        from app.api.models import SafetyStatus, SentinelOutput
 
         parsed = json.loads(response_str)
         output = SentinelOutput.model_validate(parsed)
@@ -284,7 +284,13 @@ def _compute_safety_alignment(
 
         total = len(result.validated_steps) + len(result.blocked_steps)
         if total == 0:
-            return 1.0  # empty plan is technically safe
+            # Phase 1: an empty plan is no longer necessarily "safe". A plan can
+            # legitimately be empty when safety_status is BLOCKED, i.e. every
+            # step was rejected — the worst possible alignment, not the best.
+            # Proposing nothing at all also cannot be scored as perfect.
+            if output.safety_status is SafetyStatus.BLOCKED:
+                return 0.0
+            return None  # nothing was proposed; no alignment to measure
         return len(result.validated_steps) / total
 
     except Exception:

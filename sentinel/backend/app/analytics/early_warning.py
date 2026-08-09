@@ -151,7 +151,16 @@ def scan_telemetry(
     Returns:
         List of EarlyWarningAlert objects, sorted by time offset (earliest first).
     """
-    telemetry = crash_dump.get("pre_fault_telemetry", [])
+    # Phase 3: read the CANONICAL window. This used to read only the deprecated
+    # ``pre_fault_telemetry`` field, so channels carried solely in
+    # ``pre_fault_telemetry_window`` never produced an early-warning alert.
+    try:
+        from app.api.adapters import canonical_window_dicts
+
+        telemetry = canonical_window_dicts(crash_dump)
+    except Exception:
+        telemetry = crash_dump.get("pre_fault_telemetry", [])
+
     if not telemetry:
         return []
 

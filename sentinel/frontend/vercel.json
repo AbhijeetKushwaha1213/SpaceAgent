@@ -10,6 +10,8 @@
     { "src": "/dashboard", "dest": "/dashboard/index.html" },
     { "src": "/dashboard/", "dest": "/dashboard/index.html" },
     { "src": "/dashboard/(.*)", "dest": "/dashboard/index.html" },
+    { "src": "/public/landing.html", "dest": "/public/landing.html" },
+    { "src": "/landing.html", "dest": "/public/landing.html" },
     { "src": "/(.*)", "dest": "/index.html" }
   ],
   "headers": [

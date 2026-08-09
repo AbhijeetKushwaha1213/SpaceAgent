@@ -1,0 +1,281 @@
+{
+  "$defs": {
+    "AnalysisStatus": {
+      "description": "Overall status of the agent's analysis run.",
+      "enum": [
+        "complete",
+        "partial",
+        "timeout",
+        "error"
+      ],
+      "title": "AnalysisStatus",
+      "type": "string"
+    },
+    "BlockSeverity": {
+      "description": "How consequential executing a blocked command anyway would be.",
+      "enum": [
+        "CRITICAL",
+        "HIGH",
+        "MEDIUM",
+        "LOW"
+      ],
+      "title": "BlockSeverity",
+      "type": "string"
+    },
+    "BlockedCommand": {
+      "description": "A recovery action the safety validator refused, as structured data.\n\nAdded in Phase 1. Previously this information was flattened into a\n``[SAFETY: ...]`` string appended to ``reasoning_summary``, which meant the\nthing an operator most needs to see — what the AI proposed and why it was\nrefused — was the thing the API threw away.\n\nThis is deliberately a separate model from ``safety.BlockedStep``:\nBlockedStep is the validator's internal record and embeds the whole\nRecoveryStep; this is the stable API surface.",
+      "properties": {
+        "command": {
+          "description": "The command that was refused, exactly as proposed",
+          "minLength": 1,
+          "title": "Command",
+          "type": "string"
+        },
+        "reason": {
+          "description": "Operator-facing explanation of why it was refused",
+          "minLength": 5,
+          "title": "Reason",
+          "type": "string"
+        },
+        "severity": {
+          "$ref": "#/definitions/BlockSeverity",
+          "description": "Consequence of executing this command anyway"
+        },
+        "step": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Position this command held in the model's original plan",
+          "title": "Step"
+        },
+        "subsystem": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Subsystem the command or constraint belongs to",
+          "title": "Subsystem"
+        },
+        "supporting_context": {
+          "additionalProperties": true,
+          "description": "Observed values the decision was based on, e.g. {'battery_soc_pct': 12.0, 'floor_pct': 15.0}. Only values actually read from the crash dump appear here.",
+          "title": "Supporting Context",
+          "type": "object"
+        },
+        "violated_constraint": {
+          "description": "Machine-readable constraint code, e.g. NOT_IN_REGISTRY, BATTERY_FLOOR, COMMS_LOCK_REBOOT, THERMAL_SURVIVAL",
+          "minLength": 1,
+          "title": "Violated Constraint",
+          "type": "string"
+        }
+      },
+      "required": [
+        "command",
+        "reason",
+        "violated_constraint",
+        "severity"
+      ],
+      "title": "BlockedCommand",
+      "type": "object"
+    },
+    "Hypothesis": {
+      "description": "A single ranked diagnosis hypothesis.\n\nThe agent MUST always produce exactly 3 hypotheses.\nEven for obvious faults: H1 (high confidence), H2 and H3 (low).\nThis enables multi-hypothesis reasoning and graceful degradation\nwhen the top hypothesis is wrong.",
+      "properties": {
+        "affected_component": {
+          "description": "Affected component, e.g. SOLAR_ARRAY_A, GYRO_A",
+          "minLength": 2,
+          "title": "Affected Component",
+          "type": "string"
+        },
+        "causal_chain": {
+          "description": "Ordered list of events from trigger to safe mode, e.g. ['I_sa drops to 0A', 'V_bat falls to 24V', 'EPS fault flag set']",
+          "items": {
+            "type": "string"
+          },
+          "minItems": 2,
+          "title": "Causal Chain",
+          "type": "array"
+        },
+        "confidence": {
+          "description": "Confidence in this hypothesis (0.0–1.0)",
+          "maximum": 1.0,
+          "minimum": 0.0,
+          "title": "Confidence",
+          "type": "number"
+        },
+        "rank": {
+          "description": "Rank 1 = most likely",
+          "maximum": 3,
+          "minimum": 1,
+          "title": "Rank",
+          "type": "integer"
+        },
+        "root_cause": {
+          "description": "Fault class, e.g. ADCS_GYRO_SEU, EPS_SOLAR_UNDERVOLT",
+          "minLength": 3,
+          "title": "Root Cause",
+          "type": "string"
+        }
+      },
+      "required": [
+        "rank",
+        "root_cause",
+        "affected_component",
+        "confidence",
+        "causal_chain"
+      ],
+      "title": "Hypothesis",
+      "type": "object"
+    },
+    "RecoveryStep": {
+      "description": "A single step in the recovery command sequence.\n\nEach step maps to a spacecraft command, its rationale, timing,\nverification criteria, and risk level.  The safety validator\nmay override the risk to BLOCKED.",
+      "properties": {
+        "command": {
+          "description": "Spacecraft command name, e.g. CMD_GYRO_A_DRIVER_RESET",
+          "minLength": 3,
+          "title": "Command",
+          "type": "string"
+        },
+        "rationale": {
+          "description": "Why this command is issued at this point in the sequence",
+          "minLength": 5,
+          "title": "Rationale",
+          "type": "string"
+        },
+        "risk": {
+          "$ref": "#/definitions/RiskLevel",
+          "description": "Risk level of this step (LOW / MEDIUM / HIGH / BLOCKED)"
+        },
+        "step": {
+          "description": "1-indexed step number",
+          "minimum": 1,
+          "title": "Step",
+          "type": "integer"
+        },
+        "verify": {
+          "description": "Condition to check after wait, e.g. 'GYRO_A_RATE returns valid'",
+          "minLength": 3,
+          "title": "Verify",
+          "type": "string"
+        },
+        "wait_seconds": {
+          "description": "Seconds to wait after issuing command before verifying",
+          "minimum": 0,
+          "title": "Wait Seconds",
+          "type": "integer"
+        }
+      },
+      "required": [
+        "step",
+        "command",
+        "rationale",
+        "wait_seconds",
+        "verify",
+        "risk"
+      ],
+      "title": "RecoveryStep",
+      "type": "object"
+    },
+    "RiskLevel": {
+      "description": "Risk classification for individual recovery steps.",
+      "enum": [
+        "LOW",
+        "MEDIUM",
+        "HIGH",
+        "BLOCKED"
+      ],
+      "title": "RiskLevel",
+      "type": "string"
+    },
+    "SafetyStatus": {
+      "description": "Outcome of deterministic safety validation on the recovery plan.\n\nAdded in Phase 1. Before this existed, the pipeline emitted the literal\nstring \"Analysis complete. Safety validation passed.\" unconditionally,\nregardless of how many commands had been blocked — so a fully rejected plan\nwas indistinguishable from a clean one.\n\nPrecedence when several could apply (most severe wins):\n    BLOCKED > PARTIALLY_BLOCKED > REQUIRES_HUMAN_REVIEW > VALIDATED\n\n``requires_human_review`` remains a separate boolean on SentinelOutput, so\ncollapsing to a single status never loses the review flag.",
+      "enum": [
+        "NOT_VALIDATED",
+        "VALIDATED",
+        "PARTIALLY_BLOCKED",
+        "BLOCKED",
+        "REQUIRES_HUMAN_REVIEW"
+      ],
+      "title": "SafetyStatus",
+      "type": "string"
+    }
+  },
+  "description": "Top-level structured output from the SENTINEL agent.\n\nThis is the exact JSON shape that:\n  - The LLM must return (via system prompt enforcement + retry)\n  - The FastAPI endpoint serializes\n  - The React frontend destructures\n  - The evaluator compares to ground truth\n\nContract invariants:\n  1. Exactly 3 hypotheses, ranked 1-2-3\n  2. Hypothesis confidences are descending (rank 1 ≥ rank 2 ≥ rank 3)\n  3. requires_human_review is True when overall confidence < 0.70\n     OR any recovery step has risk HIGH or BLOCKED\n  4. recovery_plan steps are numbered sequentially from 1\n  5. Overall confidence matches hypothesis rank-1 confidence\n  6. recovery_plan may be empty ONLY when safety_status is BLOCKED,\n     and a BLOCKED plan must carry at least one blocked_steps entry",
+  "properties": {
+    "blocked_steps": {
+      "description": "Recovery actions the safety validator refused, as structured data. Never flattened into reasoning_summary.",
+      "items": {
+        "$ref": "#/definitions/BlockedCommand"
+      },
+      "title": "Blocked Steps",
+      "type": "array"
+    },
+    "confidence": {
+      "description": "Overall confidence (should equal top-hypothesis confidence)",
+      "maximum": 1.0,
+      "minimum": 0.0,
+      "title": "Confidence",
+      "type": "number"
+    },
+    "hypotheses": {
+      "description": "Exactly 3 ranked diagnostic hypotheses",
+      "items": {
+        "$ref": "#/definitions/Hypothesis"
+      },
+      "maxItems": 3,
+      "minItems": 3,
+      "title": "Hypotheses",
+      "type": "array"
+    },
+    "reasoning_summary": {
+      "description": "2–4 sentence summary of the diagnostic reasoning chain",
+      "minLength": 10,
+      "title": "Reasoning Summary",
+      "type": "string"
+    },
+    "recovery_plan": {
+      "description": "Ordered recovery command sequence for the top hypothesis. MAY be empty only when safety_status is BLOCKED — see invariant 6. Phase 1 relaxed this from min_length=1: previously an all-blocked plan had to be padded with a fabricated CMD_HEALTH_CHECK step, which made total rejection look like a clean one-step recovery.",
+      "items": {
+        "$ref": "#/definitions/RecoveryStep"
+      },
+      "minItems": 0,
+      "title": "Recovery Plan",
+      "type": "array"
+    },
+    "requires_human_review": {
+      "description": "True when confidence < 0.70 or any step is HIGH/BLOCKED risk",
+      "title": "Requires Human Review",
+      "type": "boolean"
+    },
+    "safety_status": {
+      "$ref": "#/definitions/SafetyStatus",
+      "default": "NOT_VALIDATED",
+      "description": "Outcome of deterministic safety validation. Defaults to NOT_VALIDATED so a raw, unvalidated LLM output can never claim to have passed safety checks."
+    },
+    "status": {
+      "$ref": "#/definitions/AnalysisStatus",
+      "default": "complete",
+      "description": "Analysis completion status"
+    }
+  },
+  "required": [
+    "hypotheses",
+    "recovery_plan",
+    "confidence",
+    "requires_human_review",
+    "reasoning_summary"
+  ],
+  "title": "SentinelOutput",
+  "type": "object"
+}

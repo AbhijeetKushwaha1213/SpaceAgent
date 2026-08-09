@@ -1,0 +1,56 @@
+{
+  "$defs": {
+    "PhysicsStatus": {
+      "description": "Verdict on one hypothesis.",
+      "enum": [
+        "VALID",
+        "INVALID",
+        "UNCERTAIN"
+      ],
+      "title": "PhysicsStatus",
+      "type": "string"
+    }
+  },
+  "description": "Record of a language model asserting a physics verdict of its own.",
+  "properties": {
+    "deterministic_status": {
+      "$ref": "#/definitions/PhysicsStatus"
+    },
+    "disagreement": {
+      "default": false,
+      "title": "Disagreement",
+      "type": "boolean"
+    },
+    "fault_id": {
+      "default": "",
+      "title": "Fault Id",
+      "type": "string"
+    },
+    "hypothesis_id": {
+      "title": "Hypothesis Id",
+      "type": "string"
+    },
+    "llm_claimed_status": {
+      "title": "Llm Claimed Status",
+      "type": "string"
+    },
+    "note": {
+      "default": "",
+      "title": "Note",
+      "type": "string"
+    },
+    "overridden": {
+      "default": false,
+      "description": "Always False. Present so the audit record answers the question explicitly rather than by omission.",
+      "title": "Overridden",
+      "type": "boolean"
+    }
+  },
+  "required": [
+    "hypothesis_id",
+    "llm_claimed_status",
+    "deterministic_status"
+  ],
+  "title": "LLMOverrideAttempt",
+  "type": "object"
+}

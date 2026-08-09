@@ -1,0 +1,460 @@
+{
+  "$defs": {
+    "Scenario": {
+      "additionalProperties": true,
+      "description": "A catalogue scenario: a crash dump plus its provenance declaration.\n\nPhase 3. ``GET /scenarios`` previously returned an unmodelled ``list[dict]``,\nso nothing checked that what the API served matched what the frontend\nexpected — and the frontend kept its own 188-line copy of the same\nscenarios, which is precisely how two \"sources of truth\" appear.\n\n``provenance`` and ``source_type`` are required here on purpose. A scenario\nthe operator cannot attribute has no place in the catalogue, and\n``app.api.provenance.describe()`` guarantees both fields on every scenario\n``get_all_scenarios()`` returns — resolving anything unrecognised to UNKNOWN\nrather than to REAL.",
+      "example": {
+        "fault_register": "0x00000008",
+        "fault_type": "ADCS_GYRO_SEU",
+        "incident_id": "INC-2026-0036",
+        "pre_fault_telemetry_window": [
+          {
+            "parameter": "V_bat",
+            "status": "NOMINAL",
+            "timestamp": "T-120s",
+            "value": 31.2
+          },
+          {
+            "parameter": "TCS_HEATER_ZONE_2_TEMP",
+            "status": "ANOMALOUS",
+            "timestamp": "T-60s",
+            "value": 68.4
+          },
+          {
+            "parameter": "TCS_HEATER_ZONE_2_TEMP",
+            "status": "CRITICAL",
+            "timestamp": "T-10s",
+            "value": 85.2
+          }
+        ],
+        "scenario_id": 1,
+        "telecommand_context": {
+          "anomaly_flag": true,
+          "event_id": 36,
+          "execution_timestamp": "2026-06-13T00:15:22Z",
+          "gap_classification": "burst",
+          "gap_percentile": 16.2,
+          "gap_seconds": 90.0,
+          "telecommand": "telecommand_63"
+        }
+      },
+      "properties": {
+        "event_log": {
+          "anyOf": [
+            {
+              "items": {
+                "additionalProperties": true,
+                "type": "object"
+              },
+              "type": "array"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Raw event log entries from the spacecraft",
+          "title": "Event Log"
+        },
+        "fault_register": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Hexadecimal bitmask of HW/SW flags that tripped FDIR",
+          "title": "Fault Register"
+        },
+        "fault_type": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Fault category, e.g. ADCS_GYRO_SEU",
+          "title": "Fault Type"
+        },
+        "incident_id": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Unique alphanumeric identifier for the safe-mode incident case",
+          "title": "Incident Id"
+        },
+        "pre_fault_telemetry": {
+          "anyOf": [
+            {
+              "items": {
+                "additionalProperties": true,
+                "type": "object"
+              },
+              "type": "array"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "deprecated": true,
+          "description": "DEPRECATED — superseded by pre_fault_telemetry_window. Accepted on input and merged into the canonical window by app.api.adapters.canonical_window(), which is the only place the two shapes are reconciled. Do not read this field directly: it lacks timing and status, and reading only the window instead cost Phase 2 a scenario that reported zero anomalies because the bounds lived here and nowhere else.",
+          "title": "Pre Fault Telemetry"
+        },
+        "pre_fault_telemetry_window": {
+          "anyOf": [
+            {
+              "items": {
+                "$ref": "#/definitions/TelemetryEntry"
+              },
+              "type": "array"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "CANONICAL pre-fault telemetry. All consumers read this field, via app.api.adapters.canonical_window(). Entries are self-describing: timing, value, status, bounds and baseline statistics all live on the entry.",
+          "title": "Pre Fault Telemetry Window"
+        },
+        "provenance": {
+          "description": "Machine-readable provenance code: REAL | SYNTHETIC | SYNTHETIC_FROM_REAL_METADATA | UNKNOWN. See app/api/provenance.py. Only REAL means the numeric telemetry itself came from a mission dataset.",
+          "title": "Provenance",
+          "type": "string"
+        },
+        "safe_mode_trigger": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Trigger string that caused safe-mode entry",
+          "title": "Safe Mode Trigger"
+        },
+        "scenario_id": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Scenario identifier used by the demo UI",
+          "title": "Scenario Id"
+        },
+        "source_note": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "One-sentence provenance disclaimer shown to the operator",
+          "title": "Source Note"
+        },
+        "source_type": {
+          "description": "Human-readable provenance label, DERIVED from `provenance` so the two cannot drift. Never author this field by hand.",
+          "title": "Source Type",
+          "type": "string"
+        },
+        "telecommand_context": {
+          "anyOf": [
+            {
+              "$ref": "#/definitions/TelecommandContext"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Behavioral interval log for the correlated command"
+        }
+      },
+      "required": [
+        "provenance",
+        "source_type"
+      ],
+      "title": "Scenario",
+      "type": "object"
+    },
+    "TelecommandContext": {
+      "description": "Behavioral layer: telecommand interval analysis.\n\nCaptures the execution timing pattern of the command correlated with the\nsafe-mode entry event.\n\nPhase 3 made ``gap_seconds`` and ``gap_percentile`` optional. They were\nrequired, but presets 4, 5 and 6 ship them as null (the interval statistics\nwere not computed for those payloads), so ``CrashDumpRequest.model_validate``\nrejected three of the ten scenarios the API serves. A missing statistic is\nrepresented as absent rather than as a fabricated number.",
+      "properties": {
+        "anomaly_flag": {
+          "description": "True if the interval crosses baseline bounds",
+          "title": "Anomaly Flag",
+          "type": "boolean"
+        },
+        "event_id": {
+          "description": "Unique sequence identifier for the telecommand execution log",
+          "title": "Event Id",
+          "type": "integer"
+        },
+        "execution_timestamp": {
+          "description": "ISO 8601 timestamp of command execution",
+          "format": "date-time",
+          "title": "Execution Timestamp",
+          "type": "string"
+        },
+        "gap_classification": {
+          "description": "Statistical interval classification (burst, nominal, stale)",
+          "title": "Gap Classification",
+          "type": "string"
+        },
+        "gap_percentile": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Historical percentile rating of this execution delta. None when not computed.",
+          "title": "Gap Percentile"
+        },
+        "gap_seconds": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Delta-T in seconds since the previous execution of this command. None when the interval statistics were not computed.",
+          "title": "Gap Seconds"
+        },
+        "telecommand": {
+          "description": "System command identifier (e.g. telecommand_63)",
+          "title": "Telecommand",
+          "type": "string"
+        }
+      },
+      "required": [
+        "event_id",
+        "telecommand",
+        "execution_timestamp",
+        "gap_classification",
+        "anomaly_flag"
+      ],
+      "title": "TelecommandContext",
+      "type": "object"
+    },
+    "TelemetryEntry": {
+      "description": "CANONICAL telemetry reading — one channel at one time step.\n\nPhase 3 made this the single representation of a telemetry sample. It is\ndeliberately SELF-DESCRIBING: everything a detector or a safety check needs\nis on the entry, so no consumer has to reach for a parallel legacy array.\n\nBefore Phase 3 the bounds lived only on the legacy ``pre_fault_telemetry``\ndicts while status and timing lived only on the window entries, which is why\nPhase 2 found a scenario reporting zero anomalies when read from the window\nalone. ``app/api/adapters.py`` merges both into this shape.",
+      "properties": {
+        "anomalous": {
+          "anyOf": [
+            {
+              "type": "boolean"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Source-supplied anomaly flag, when the source provides one. SENTINEL's own verdict lives in the AnomalyReport, not here.",
+          "title": "Anomalous"
+        },
+        "baseline_mean": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Observed baseline mean, when the source measured one",
+          "title": "Baseline Mean"
+        },
+        "baseline_std": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Observed baseline standard deviation, when measured",
+          "title": "Baseline Std"
+        },
+        "nominal_max": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Upper bound of the nominal range",
+          "title": "Nominal Max"
+        },
+        "nominal_min": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Lower bound of the nominal range",
+          "title": "Nominal Min"
+        },
+        "parameter": {
+          "description": "Telemetry channel designation, e.g. V_bat, channel_41",
+          "title": "Parameter",
+          "type": "string"
+        },
+        "relative_time_s": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Parsed offset in seconds; negative is before the event",
+          "title": "Relative Time S"
+        },
+        "status": {
+          "$ref": "#/definitions/TelemetryStatus",
+          "default": "UNKNOWN",
+          "description": "Per-reading status. Defaults to UNKNOWN, never to NOMINAL."
+        },
+        "timestamp": {
+          "description": "Relative timeline marker, e.g. 'T-60s'",
+          "title": "Timestamp",
+          "type": "string"
+        },
+        "unit": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Unit of measure",
+          "title": "Unit"
+        },
+        "value": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Numeric reading. None when unusable — see value_text.",
+          "title": "Value"
+        },
+        "value_text": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "The raw reading when it is not a usable number, e.g. 'NaN' or 'DEGRADED'. Preserved so a NaN stays distinguishable from a missing sample; the old schema coerced both to None.",
+          "title": "Value Text"
+        }
+      },
+      "required": [
+        "timestamp",
+        "parameter"
+      ],
+      "title": "TelemetryEntry",
+      "type": "object"
+    },
+    "TelemetryStatus": {
+      "description": "Per-reading status label.\n\nPhase 3 widened this from a bare ``str`` validated against three values to a\nclosed enum covering the labels the repository actually uses. The old\nthree-value check rejected real data: presets 5 and 6 use WARNING, and the\nESA-ADB dumps use NOMINAL_CONTEXT and LABELLED_ANOMALY, so\n``CrashDumpRequest.model_validate`` failed on scenarios 4, 5 and 6.\n\n``normalize()`` accepts the aliases found in the existing data so no stored\npayload has to be rewritten.",
+      "enum": [
+        "NOMINAL",
+        "WARNING",
+        "ANOMALOUS",
+        "CRITICAL",
+        "NOMINAL_CONTEXT",
+        "LABELLED_ANOMALY",
+        "UNKNOWN"
+      ],
+      "title": "TelemetryStatus",
+      "type": "string"
+    }
+  },
+  "description": "Envelope for the scenario catalogue.\n\nCarries the contract version alongside the data so a client can detect that\nit is talking to a backend it was not generated against, instead of failing\non a missing field somewhere deep in a render.",
+  "properties": {
+    "api_version": {
+      "default": "v1",
+      "description": "API version serving this payload",
+      "title": "Api Version",
+      "type": "string"
+    },
+    "contract_version": {
+      "default": "1.0.0",
+      "description": "Version of the data contract this payload conforms to",
+      "title": "Contract Version",
+      "type": "string"
+    },
+    "count": {
+      "description": "Number of scenarios returned",
+      "minimum": 0,
+      "title": "Count",
+      "type": "integer"
+    },
+    "scenarios": {
+      "description": "The complete scenario catalogue. This is the ONLY source of scenario definitions; clients must not embed their own copies.",
+      "items": {
+        "$ref": "#/definitions/Scenario"
+      },
+      "title": "Scenarios",
+      "type": "array"
+    }
+  },
+  "required": [
+    "count",
+    "scenarios"
+  ],
+  "title": "ScenarioListResponse",
+  "type": "object"
+}

@@ -1,201 +1,164 @@
 import React, { useState, useEffect, useRef } from "react";
 import "./App.css";
+// ─── GENERATED DATA CONTRACT ──────────────────────────────────────
+// Phase 3. Versioned API paths and every closed vocabulary come from
+// src/generated/contract.js, which is generated from the backend Pydantic
+// models by sentinel/backend/scripts/export_contracts.py. Do not retype these
+// literals here: hand-typed copies are what let the frontend and backend drift.
+import {
+  API,
+  CANONICAL_TELEMETRY_FIELD,
+  CONTRACT_VERSION,
+  PROVENANCE,
+  PROVENANCE_LABELS,
+  isRealProvenance,
+  normalizeProvenance,
+} from "./generated/contract";
 
-// Backend URL: reads from .env (REACT_APP_BACKEND_URL) at build time,
-// falls back to window.SENTINEL_BACKEND_URL set by public/config.js at runtime,
-// and finally to localhost for local development.
+export { PROVENANCE, CONTRACT_VERSION };
+
+// ─── BACKEND URL — SINGLE SOURCE OF TRUTH ─────────────────────────
+// Resolution order:
+//   1. window.SENTINEL_BACKEND_URL, written by scripts/generate-config.js into
+//      config.js from REACT_APP_BACKEND_URL in sentinel/frontend/.env
+//   2. process.env.REACT_APP_BACKEND_URL, inlined at build time by CRA
+//   3. DEFAULT_BACKEND_URL below
+// DEFAULT_BACKEND_URL must match scripts/generate-config.js, index.html,
+// public/landing.html and .env.example. Do not introduce a different port.
+export const DEFAULT_BACKEND_URL = "http://localhost:8000";
+
 const BACKEND_URL =
   (typeof window !== "undefined" && window.SENTINEL_BACKEND_URL) ||
   process.env.REACT_APP_BACKEND_URL ||
-  "http://localhost:8000";
+  DEFAULT_BACKEND_URL;
 
-// Robust local preset scenarios to fall back on if backend is starting up or unreachable
-const LOCAL_PRESET_SCENARIOS = [
-  {
-    "scenario_id": 1,
-    "fault_type": "ADCS_GYRO_SEU",
-    "source_type": "Synthetic Safe Mode",
-    "fault_register": "0x00000080",
-    "pre_fault_telemetry": [
-      {"parameter": "Gyro_rate_degs", "value": "NaN", "nominal_min": 0.0, "nominal_max": 7.0},
-      {"parameter": "Attitude_error_deg", "value": 7.3, "nominal_min": 0.0, "nominal_max": 0.01},
-      {"parameter": "SEU_counter", "value": 3.0, "nominal_min": 0.0, "nominal_max": 0.0},
-      {"parameter": "RW_speed_rpm", "value": 4500.0, "nominal_min": -6000.0, "nominal_max": 6000.0},
-      {"parameter": "V_bat", "value": 30.2, "nominal_min": 28.0, "nominal_max": 33.6},
-      {"parameter": "SoC_pct", "value": 85.0, "nominal_min": 20.0, "nominal_max": 100.0},
-      {"parameter": "I_sa", "value": 8.4, "nominal_min": 0.0, "nominal_max": 12.0},
-      {"parameter": "OBC_temp_C", "value": 24.5, "nominal_min": -10.0, "nominal_max": 60.0}
-    ],
-    "event_log": [
-      {"timestamp": "T-62s", "source": "OBC_KERNEL", "message": "SEU counter incremented: 3"},
-      {"timestamp": "T-60s", "source": "ADCS_MANAGER", "message": "GYRO_A health status: NaN"},
-      {"timestamp": "T-30s", "source": "ADCS_ATTITUDE", "message": "Attitude error exceeded threshold (7.3 deg)"},
-      {"timestamp": "T-0s", "source": "FDIR_CORE", "message": "Safe Mode entry triggered by ADCS_ERROR"}
-    ],
-    "hardware_state": {
-      "active_gyro": "A",
-      "seu_flags": "0x03",
-      "watchdog_status": "nominal"
-    },
-    "operating_context": {
-      "eclipse_fraction": 0.0,
-      "sun_sensor_angle_deg": 12.5,
-      "time_since_contact_s": 1200
-    }
+// ─── PROVENANCE PRESENTATION ──────────────────────────────────────
+// The vocabulary and the operator-facing labels are generated from
+// backend/app/api/provenance.py. Only the COLOURS are a frontend concern, so
+// only the colours are defined here. A scenario is shown as REAL solely when
+// its numeric telemetry came from the source dataset — real identifiers or real
+// anomaly-class metadata are not sufficient.
+const PROVENANCE_COLOURS = {
+  [PROVENANCE.REAL]: {
+    color: "rgba(16, 185, 129, 0.95)",
+    border: "rgba(16, 185, 129, 0.35)",
+    background: "rgba(16, 185, 129, 0.08)",
   },
-  {
-    "scenario_id": 2,
-    "fault_type": "EPS_SOLAR_UNDERVOLT",
-    "source_type": "Synthetic Safe Mode",
-    "fault_register": "0x00000002",
-    "pre_fault_telemetry": [
-      {"parameter": "I_sa", "value": 0.0, "nominal_min": 0.0, "nominal_max": 12.0},
-      {"parameter": "V_bat", "value": 21.8, "nominal_min": 28.0, "nominal_max": 33.6},
-      {"parameter": "SoC_pct", "value": 14.2, "nominal_min": 20.0, "nominal_max": 100.0},
-      {"parameter": "V_bus", "value": 24.1, "nominal_min": 26.6, "nominal_max": 29.4},
-      {"parameter": "Heater_power_W", "value": 15.0, "nominal_min": 0.0, "nominal_max": 50.0},
-      {"parameter": "Attitude_error_deg", "value": 0.004, "nominal_min": 0.0, "nominal_max": 0.01},
-      {"parameter": "OBC_temp_C", "value": 18.2, "nominal_min": -10.0, "nominal_max": 60.0}
-    ],
-    "event_log": [
-      {"timestamp": "T-300s", "source": "EPS_SENSORS", "message": "Solar Array A Current dropped to 0A (expected: 8.5A)"},
-      {"timestamp": "T-180s", "source": "EPS_MANAGER", "message": "State of Charge low (14.2%). Starting load shedding."},
-      {"timestamp": "T-120s", "source": "OBC_CORE", "message": "Command issued: Power off PYLD subsystem"},
-      {"timestamp": "T-0s", "source": "FDIR_CORE", "message": "Safe Mode entry triggered by EPS_UNDER_VOLT"}
-    ],
-    "hardware_state": {
-      "solar_relay": "open",
-      "battery_relays": "closed",
-      "shed_status": "active"
-    },
-    "operating_context": {
-      "eclipse_fraction": 0.0,
-      "sun_sensor_angle_deg": 42.0,
-      "time_since_contact_s": 2400
-    }
+  [PROVENANCE.SYNTHETIC]: {
+    color: "rgba(245, 183, 77, 0.95)",
+    border: "rgba(245, 183, 77, 0.35)",
+    background: "rgba(245, 183, 77, 0.10)",
   },
-  {
-    "scenario_id": 3,
-    "fault_type": "OBC_WATCHDOG_OVERFLOW",
-    "source_type": "Synthetic Safe Mode",
-    "fault_register": "0x00000040",
-    "pre_fault_telemetry": [
-      {"parameter": "CPU_load_pct", "value": 100.0, "nominal_min": 0.0, "nominal_max": 70.0},
-      {"parameter": "Memory_usage_MB", "value": 495.0, "nominal_min": 0.0, "nominal_max": 500.0},
-      {"parameter": "Watchdog_counter", "value": 1002.0, "nominal_min": 0.0, "nominal_max": 1000.0},
-      {"parameter": "V_bat", "value": 31.1, "nominal_min": 28.0, "nominal_max": 33.6},
-      {"parameter": "SoC_pct", "value": 90.0, "nominal_min": 20.0, "nominal_max": 100.0},
-      {"parameter": "Attitude_error_deg", "value": 0.003, "nominal_min": 0.0, "nominal_max": 0.01}
-    ],
-    "event_log": [
-      {"timestamp": "T-180s", "source": "OBC_MONITOR", "message": "CPU load exceeded 95%"},
-      {"timestamp": "T-120s", "source": "OBC_MONITOR", "message": "Memory leak signature detected in thread 'attitude_control'"},
-      {"timestamp": "T-10s", "source": "WATCHDOG_TIMER", "message": "Watchdog counter exceeded limit (value=1002)"},
-      {"timestamp": "T-0s", "source": "OBC_BOOT", "message": "Watchdog reset triggered. Booting in Safe Mode."}
-    ],
-    "hardware_state": {
-      "watchdog_state": "expired",
-      "active_bank": "EEPROM_B",
-      "last_reboot_cause": "WATCHDOG_RESET"
-    },
-    "operating_context": {
-      "eclipse_fraction": 0.2,
-      "sun_sensor_angle_deg": 15.0,
-      "time_since_contact_s": 50
-    }
+  [PROVENANCE.SYNTHETIC_FROM_REAL_METADATA]: {
+    color: "rgba(245, 183, 77, 0.95)",
+    border: "rgba(245, 183, 77, 0.35)",
+    background: "rgba(245, 183, 77, 0.10)",
   },
-  {
-    "scenario_id": 5,
-    "fault_type": "TCS_THERMAL_RUNAWAY",
-    "source_type": "Synthetic Safe Mode",
-    "fault_register": "0x00000100",
-    "pre_fault_telemetry": [
-      {"parameter": "OBC_temp_C", "value": 62.5, "nominal_min": -10.0, "nominal_max": 60.0},
-      {"parameter": "Panel_temp_C", "value": 78.0, "nominal_min": -40.0, "nominal_max": 70.0},
-      {"parameter": "Battery_temp_C", "value": 48.2, "nominal_min": 0.0, "nominal_max": 45.0},
-      {"parameter": "Heater_power_W", "value": 0.0, "nominal_min": 0.0, "nominal_max": 50.0},
-      {"parameter": "Radiator_eff_pct", "value": 12.0, "nominal_min": 60.0, "nominal_max": 100.0},
-      {"parameter": "V_bat", "value": 29.5, "nominal_min": 28.0, "nominal_max": 33.6},
-      {"parameter": "SoC_pct", "value": 72.0, "nominal_min": 20.0, "nominal_max": 100.0}
-    ],
-    "event_log": [
-      {"timestamp": "T-600s", "source": "TCS_MONITOR", "message": "Radiator efficiency dropped below 20% (12.0%)"},
-      {"timestamp": "T-300s", "source": "TCS_MANAGER", "message": "Panel temperature rising: 78.0°C (limit: 70°C)"},
-      {"timestamp": "T-60s", "source": "TCS_MANAGER", "message": "OBC temperature critical: 62.5°C (limit: 60°C). Heaters disabled."},
-      {"timestamp": "T-0s", "source": "FDIR_CORE", "message": "Safe Mode entry triggered by TCS_OVERTEMP"}
-    ],
-    "hardware_state": {
-      "heater_zones_active": 0,
-      "radiator_state": "degraded",
-      "louver_position": "fully_open"
-    },
-    "operating_context": {
-      "eclipse_fraction": 0.0,
-      "sun_sensor_angle_deg": 5.0,
-      "time_since_contact_s": 800
-    }
+  [PROVENANCE.UNKNOWN]: {
+    color: "rgba(148, 163, 184, 0.95)",
+    border: "rgba(148, 163, 184, 0.35)",
+    background: "rgba(148, 163, 184, 0.08)",
   },
-  {
-    "scenario_id": 6,
-    "fault_type": "COMMS_TRANSPONDER_LOSS",
-    "source_type": "Synthetic Safe Mode",
-    "fault_register": "0x00000200",
-    "pre_fault_telemetry": [
-      {"parameter": "RF_power_dBm", "value": -102.0, "nominal_min": -95.0, "nominal_max": -70.0},
-      {"parameter": "Bit_error_rate", "value": 0.08, "nominal_min": 0.0, "nominal_max": 0.001},
-      {"parameter": "Transponder_temp_C", "value": 55.0, "nominal_min": -10.0, "nominal_max": 50.0},
-      {"parameter": "Link_margin_dB", "value": -3.5, "nominal_min": 3.0, "nominal_max": 20.0},
-      {"parameter": "Antenna_pointing_error_deg", "value": 4.2, "nominal_min": 0.0, "nominal_max": 1.0},
-      {"parameter": "V_bat", "value": 30.8, "nominal_min": 28.0, "nominal_max": 33.6},
-      {"parameter": "SoC_pct", "value": 88.0, "nominal_min": 20.0, "nominal_max": 100.0}
-    ],
-    "event_log": [
-      {"timestamp": "T-900s", "source": "COMMS_MONITOR", "message": "RF signal strength degrading: -92 dBm (threshold: -95 dBm)"},
-      {"timestamp": "T-600s", "source": "COMMS_MANAGER", "message": "Bit error rate elevated: 0.08 (nominal: <0.001)"},
-      {"timestamp": "T-120s", "source": "COMMS_TRANSPONDER", "message": "Transponder lock lost. Switching to backup receiver."},
-      {"timestamp": "T-0s", "source": "FDIR_CORE", "message": "Safe Mode entry triggered by COMMS_LOSS. Autonomous beacon mode activated."}
-    ],
-    "hardware_state": {
-      "transponder_state": "no_lock",
-      "antenna_mode": "omni_fallback",
-      "backup_receiver": "active"
-    },
-    "operating_context": {
-      "eclipse_fraction": 0.35,
-      "sun_sensor_angle_deg": 28.0,
-      "time_since_contact_s": 7200
+};
+
+// Resolve a scenario's provenance. Anything unrecognised — including a missing
+// field — resolves to UNKNOWN so a typo can never render as REAL.
+export function resolveProvenance(scenario) {
+  return normalizeProvenance(scenario && scenario.provenance);
+}
+
+export function provenanceDisplay(scenario) {
+  const code = resolveProvenance(scenario);
+  return { label: PROVENANCE_LABELS[code], ...PROVENANCE_COLOURS[code] };
+}
+
+// True only when the numeric telemetry itself is real.
+export function isRealTelemetry(scenario) {
+  return isRealProvenance(scenario && scenario.provenance);
+}
+
+// ─── CANONICAL TELEMETRY ACCESS ───────────────────────────────────
+// Phase 3. Read the canonical window and nothing else. The frontend used to
+// render `pre_fault_telemetry`, the deprecated shape, which carries bounds but
+// no timing and no status — so the panel could not show WHEN a channel went bad
+// and had to be merged mentally with what the detector reported separately.
+// GET /api/v1/scenarios serves the canonical field fully populated.
+export function canonicalWindow(scenario) {
+  if (!scenario) return [];
+  const rows = scenario[CANONICAL_TELEMETRY_FIELD];
+  return Array.isArray(rows) ? rows : [];
+}
+
+// Latest reading per channel, for a one-card-per-channel summary. The window is
+// a time series; showing every sample would repeat channels, and showing the
+// first would show the oldest — which is how the safety layer's condition
+// extractors came to read a stale healthy value over a live dropout.
+export function latestPerChannel(scenario) {
+  const latest = new Map();
+  canonicalWindow(scenario).forEach((row, index) => {
+    if (!row || !row.parameter) return;
+    const t = typeof row.relative_time_s === "number" ? row.relative_time_s : null;
+    const previous = latest.get(row.parameter);
+    if (
+      !previous ||
+      (t !== null && (previous.t === null || t > previous.t)) ||
+      (t === null && previous.t === null && index > previous.index)
+    ) {
+      latest.set(row.parameter, { row, t, index });
     }
-  },
-  {
-    "scenario_id": 4,
-    "fault_type": "ESA_ADB_ANOMALY",
-    "source_type": "Real ESA Telemetry",
-    "source_note": "Real anonymized telemetry from ESA Anomaly Detection Benchmark (Mission 1, id_109). Channel names are anonymized; no root-cause label available.",
-    "incident_id": "ESA-Mission1-id_109",
-    "fault_register": "ESA_LABEL:id_109;CLASS:class_3;SUBCLASS:subclass_2",
-    "pre_fault_telemetry": [
-      {"parameter": "channel_41", "value": 0.960135, "nominal_min": 0.797548, "nominal_max": 0.82607},
-      {"parameter": "channel_42", "value": 0.0, "nominal_min": 0.764285, "nominal_max": 0.806006},
-      {"parameter": "channel_43", "value": 0.93332, "nominal_min": 0.758193, "nominal_max": 0.786285},
-      {"parameter": "channel_44", "value": 0.947167, "nominal_min": 0.780812, "nominal_max": 0.815033},
-      {"parameter": "channel_45", "value": 0.977107, "nominal_min": 0.797574, "nominal_max": 0.829473},
-      {"parameter": "channel_46", "value": 0.95193, "nominal_min": 0.747717, "nominal_max": 0.78975}
-    ],
-    "event_log": [
-      {"timestamp": "T+0s", "source": "ESA_ADB_LABEL", "message": "id_109 labelled Anomaly starts; class=class_3"},
-      {"timestamp": "T+7s", "source": "ESA_ADB_LABEL", "message": "id_109 labelled interval ends"}
-    ],
-    "hardware_state": {
-      "last_reset_cause": "NOT_PROVIDED_BY_ESA_ADB",
-      "watchdog_status": "NOT_PROVIDED_BY_ESA_ADB"
-    },
-    "operating_context": {
-      "source_dataset": "ESA Anomaly Dataset / ESA-ADB",
-      "mission_folder": "ESA-Mission1",
-      "label_id": "id_109"
-    }
+  });
+  return Array.from(latest.values()).map((e) => e.row);
+}
+
+// Format a reading for display. `value` is null for an unusable sample and
+// `value_text` preserves what actually arrived ("NaN" / "MISSING"), so a dropout
+// stays visible instead of rendering as a blank or as 0.
+export function formatReading(row) {
+  if (!row) return "—";
+  if (row.value === null || row.value === undefined) {
+    return row.value_text || "MISSING";
   }
-];
+  const magnitude = Math.abs(row.value);
+  const digits = magnitude !== 0 && magnitude < 0.01 ? 4 : magnitude < 1 ? 3 : 1;
+  const text = Number(row.value).toFixed(digits);
+  return row.unit ? `${text} ${row.unit}` : text;
+}
+
+export function formatRange(row) {
+  if (!row) return "Range: not specified";
+  const lo = row.nominal_min;
+  const hi = row.nominal_max;
+  if (lo === null || lo === undefined || hi === null || hi === undefined) {
+    return "Range: not specified";
+  }
+  return `Range: ${lo}–${hi}`;
+}
+
+// ─── ROUTING ──────────────────────────────────────────────────────
+// Normalize the path before comparing. A strict `!== "/dashboard"` check meant
+// "/dashboard/" (with a trailing slash) fell through to the landing iframe,
+// which — because no /landing.html exists at the served root — resolved via the
+// catch-all to index.html and embedded the demo page inside the dashboard.
+export function isDashboardPath(pathname) {
+  if (typeof pathname !== "string") return false;
+  const normalized = pathname.replace(/\/+$/, "").toLowerCase();
+  return normalized === "/dashboard";
+}
+
+// Scenario definitions live ONLY in the backend.
+//
+// Phase 3 removed a 188-line copy of the scenario catalogue that lived here.
+// It was described as a fallback "used ONLY as analysis input when the backend
+// is unreachable", but in practice it was a second source of truth: the local
+// copy and app/api/scenarios.py had already diverged (the local copy carried
+// only the deprecated pre_fault_telemetry array, no provenance notes and no
+// telemetry window), so the dashboard could show one thing and the backend
+// analyse another.
+//
+// There is now no offline fallback by design. If the catalogue cannot be
+// fetched, the UI says so — see the scenariosState === "unavailable" branch.
+// Showing stale local scenarios while the backend is down is exactly the
+// failure mode Phase 0 set out to remove.
 
 function App() {
   const [currentPath, setCurrentPath] = useState(window.location.pathname);
@@ -216,8 +179,13 @@ function App() {
     window.scrollTo(0, 0);
   }, [currentPath]);
 
-  const [scenarios, setScenarios] = useState(LOCAL_PRESET_SCENARIOS);
-  const [selectedScenarioId, setSelectedScenarioId] = useState(1);
+  // Phase 3: the catalogue starts EMPTY and is only ever filled from
+  // GET /api/v1/scenarios. There is no local copy to fall back to.
+  const [scenarios, setScenarios] = useState([]);
+  const [scenariosState, setScenariosState] = useState("loading"); // loading|ready|unavailable
+  const [scenariosError, setScenariosError] = useState(null);
+  const [contractMismatch, setContractMismatch] = useState(null);
+  const [selectedScenarioId, setSelectedScenarioId] = useState(null);
   const [customDump, setCustomDump] = useState("");
   const [isCustomMode, setIsCustomMode] = useState(false);
   
@@ -226,27 +194,68 @@ function App() {
   const [result, setResult] = useState(null);
   const [completedSteps, setCompletedSteps] = useState(new Set());
   const [backendStatus, setBackendStatus] = useState("checking"); // "online" | "offline"
+
+  // Phase 2: the backend AnomalyReport for the selected scenario.
+  // null means "no detection result available" — never "nothing is anomalous".
+  const [detectionReport, setDetectionReport] = useState(null);
+  const [detectionState, setDetectionState] = useState("idle"); // idle|loading|ready|unavailable
   
   const terminalEndRef = useRef(null);
 
-  // Fetch scenarios from backend on mount
+  // Fetch the scenario catalogue from the versioned endpoint on mount.
+  //
+  // Phase 3: this is the ONLY place scenario definitions enter the frontend.
+  // The response is the ScenarioListResponse envelope, which carries the
+  // contract version — checked here so a frontend built against one contract
+  // talking to a backend serving another reports that plainly instead of
+  // failing later as an undefined field in a render.
   useEffect(() => {
+    let cancelled = false;
     async function init() {
+      setScenariosState("loading");
       try {
-        const res = await fetch(`${BACKEND_URL}/scenarios`);
-        if (res.ok) {
-          const data = await res.json();
-          setScenarios(data);
-          setBackendStatus("online");
-        } else {
-          setBackendStatus("offline");
+        const res = await fetch(`${BACKEND_URL}${API.scenarios}`);
+        if (!res.ok) {
+          throw new Error(`GET ${API.scenarios} returned ${res.status}`);
         }
+        const payload = await res.json();
+        const list = Array.isArray(payload.scenarios) ? payload.scenarios : [];
+        if (cancelled) return;
+
+        if (payload.contract_version && payload.contract_version !== CONTRACT_VERSION) {
+          setContractMismatch({
+            frontend: CONTRACT_VERSION,
+            backend: payload.contract_version,
+          });
+        } else {
+          setContractMismatch(null);
+        }
+
+        setScenarios(list);
+        setScenariosState(list.length ? "ready" : "unavailable");
+        setScenariosError(list.length ? null : "The backend returned an empty catalogue.");
+        setSelectedScenarioId((current) => {
+          if (current !== null && list.some((s) => s.scenario_id === current)) {
+            return current;
+          }
+          return list.length ? list[0].scenario_id : null;
+        });
+        setBackendStatus("online");
       } catch (err) {
-        console.warn("Backend scenarios fetch failed, using local presets.", err);
+        if (cancelled) return;
+        // No silent fallback. An empty catalogue plus an explicit message is
+        // honest; stale local scenarios shown as if live are not.
+        console.warn("Scenario catalogue fetch failed.", err);
+        setScenarios([]);
+        setScenariosState("unavailable");
+        setScenariosError(err.message || String(err));
         setBackendStatus("offline");
       }
     }
     init();
+    return () => {
+      cancelled = true;
+    };
   }, []);
 
   // Scroll terminal logs to bottom on update
@@ -255,6 +264,16 @@ function App() {
       terminalEndRef.current.scrollIntoView({ behavior: "smooth" });
     }
   }, [logs]);
+
+  // Phase 2: re-run backend detection whenever the selected payload changes.
+  // Detection is pure computation on the backend — no LLM, no API key — so it
+  // is cheap enough to run on selection rather than only on analysis.
+  useEffect(() => {
+    const dump = isCustomMode
+      ? (() => { try { return JSON.parse(customDump); } catch { return null; } })()
+      : scenarios.find(s => s.scenario_id === selectedScenarioId) || scenarios[0];
+    fetchDetection(dump);
+  }, [scenarios, selectedScenarioId, isCustomMode, customDump]);
 
   // Handle scenario selector change
   const handleScenarioChange = (e) => {
@@ -279,11 +298,47 @@ function App() {
     return scenarios.find(s => s.scenario_id === selectedScenarioId) || scenarios[0];
   };
 
-  // Check if a parameter is anomalous
-  const isAnomalous = (param) => {
-    const val = parseFloat(param.value);
-    if (isNaN(val)) return true; // NaN is always anomalous
-    return val < param.nominal_min || val > param.nominal_max;
+  // Phase 2: anomaly status comes from the backend detection pipeline, not from
+  // a client-side approximation. This used to be a local min/max range check
+  // (labelled "Z-Score Monitoring Active" until Phase 0 corrected the label),
+  // which meant the UI and the backend could disagree about what was anomalous.
+  //
+  // detectionReport is the AnomalyReport from POST /detect. Until it arrives,
+  // or if the backend is unreachable, no anomaly claim is made at all — the
+  // cards render as UNKNOWN rather than guessing.
+  const channelSeverity = (paramName) => {
+    if (!detectionReport || !Array.isArray(detectionReport.channels)) return null;
+    const finding = detectionReport.channels.find(c => c.channel === paramName);
+    return finding ? finding.severity : "NOMINAL";
+  };
+
+  const channelDetectors = (paramName) => {
+    if (!detectionReport || !Array.isArray(detectionReport.channels)) return [];
+    const finding = detectionReport.channels.find(c => c.channel === paramName);
+    return finding ? finding.detectors : [];
+  };
+
+  // Ask the backend to run detection on the selected scenario.
+  const fetchDetection = async (dump) => {
+    if (!dump) {
+      setDetectionReport(null);
+      return;
+    }
+    setDetectionState("loading");
+    try {
+      const res = await fetch(`${BACKEND_URL}${API.detect}`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(dump),
+      });
+      if (!res.ok) throw new Error(`Detection returned status ${res.status}`);
+      setDetectionReport(await res.json());
+      setDetectionState("ready");
+    } catch (err) {
+      console.warn("Detection request failed; no anomaly claim will be shown.", err);
+      setDetectionReport(null);
+      setDetectionState("unavailable");
+    }
   };
 
   // Run the FDIR diagnostic streaming analysis
@@ -303,7 +358,7 @@ function App() {
     setLogs([{ type: "status", text: "Connecting to Sentinel FDIR telemetry stream..." }]);
 
     try {
-      const response = await fetch(`${BACKEND_URL}/analyze`, {
+      const response = await fetch(`${BACKEND_URL}${API.analyze}`, {
         method: "POST",
         headers: {
           "Content-Type": "application/json"
@@ -402,7 +457,7 @@ function App() {
 
   const activeScenario = getActiveScenario();
 
-  if (currentPath !== "/dashboard") {
+  if (!isDashboardPath(currentPath)) {
     return (
       <iframe
         src="/landing.html"
@@ -416,7 +471,7 @@ function App() {
           display: "block",
           backgroundColor: "#040816"
         }}
-        title="SENTINEL Landing Page"
+        title="SENTINEL Landing Page (demonstration)"
       />
     );
   }
@@ -443,9 +498,21 @@ function App() {
               {backendStatus === "online" ? "Online" : "Offline"}
             </span>
           </div>
+          {/* Phase 0: this was a hardcoded "SAFE_MODE" badge that reflected no
+              spacecraft state. It now shows the provenance of the loaded
+              scenario, which IS backend-derived. */}
           <div className="status-indicator">
-            <span>Mode:</span>
-            <span className="status-badge safe-mode">SAFE_MODE</span>
+            <span>Data:</span>
+            <span
+              className="status-badge"
+              style={{
+                color: provenanceDisplay(activeScenario).color,
+                border: `1px solid ${provenanceDisplay(activeScenario).border}`,
+                backgroundColor: provenanceDisplay(activeScenario).background,
+              }}
+            >
+              {provenanceDisplay(activeScenario).label}
+            </span>
           </div>
           <a href="/" style={{
             textDecoration: "none",
@@ -489,25 +556,93 @@ function App() {
             </div>
             
             <div className="scenario-select-wrapper">
-              <select className="custom-select" onChange={handleScenarioChange} value={isCustomMode ? "custom" : selectedScenarioId}>
+              <select
+                className="custom-select"
+                onChange={handleScenarioChange}
+                value={isCustomMode ? "custom" : (selectedScenarioId ?? "")}
+              >
+                {/* Phase 3: options come only from GET /api/v1/scenarios.
+                    When the catalogue is unavailable the list is empty and the
+                    notice below explains why, rather than the selector quietly
+                    offering stale locally-embedded scenarios. */}
+                {scenariosState === "loading" && (
+                  <option value="">Loading scenario catalogue…</option>
+                )}
+                {scenariosState === "unavailable" && (
+                  <option value="">No scenarios — backend unavailable</option>
+                )}
                 {scenarios.map(s => (
                   <option key={s.scenario_id} value={s.scenario_id}>
-                    Scenario {s.scenario_id}: {s.fault_type.replace(/_/g, " ")} [{s.source_type || "Synthetic Safe Mode"}]
+                    Scenario {s.scenario_id}: {(s.fault_type || "UNSPECIFIED FAULT").replace(/_/g, " ")} [{provenanceDisplay(s).label}]
                   </option>
                 ))}
                 <option value="custom">⚙️ Upload Custom Crash Dump JSON</option>
               </select>
               
-              <button className="btn-primary" onClick={runAnalysis} disabled={isAnalyzing || (isCustomMode && !customDump)}>
+              <button
+                className="btn-primary"
+                onClick={runAnalysis}
+                disabled={
+                  isAnalyzing ||
+                  (isCustomMode && !customDump) ||
+                  (!isCustomMode && scenariosState !== "ready")
+                }
+              >
                 {isAnalyzing ? "Diagnosing..." : "Run FDIR Analysis"}
               </button>
             </div>
 
+            {/* Catalogue unavailable notice. Phase 3 removed the local copy of
+                the scenarios, so this is now a real state rather than one
+                masked by a silent fallback. */}
+            {scenariosState === "unavailable" && (
+              <div style={{
+                marginTop: "0.5rem",
+                padding: "0.4rem 0.6rem",
+                borderRadius: "4px",
+                border: "1px solid rgba(239, 68, 68, 0.3)",
+                background: "rgba(239, 68, 68, 0.08)",
+                color: "var(--text-muted)",
+                fontSize: "0.68rem",
+                lineHeight: 1.5,
+              }}>
+                Scenario catalogue unavailable — the backend at {BACKEND_URL} could
+                not be reached{scenariosError ? ` (${scenariosError})` : ""}. Scenario
+                definitions live only in the backend, so none are shown. Start the
+                backend and reload; you can still paste a custom crash dump below.
+              </div>
+            )}
+
+            {contractMismatch && (
+              <div style={{
+                marginTop: "0.5rem",
+                padding: "0.4rem 0.6rem",
+                borderRadius: "4px",
+                border: "1px solid rgba(245, 183, 77, 0.35)",
+                background: "rgba(245, 183, 77, 0.10)",
+                color: "rgba(245, 183, 77, 0.95)",
+                fontSize: "0.68rem",
+                lineHeight: 1.5,
+              }}>
+                CONTRACT VERSION MISMATCH — this dashboard was generated against
+                contract {contractMismatch.frontend}; the backend serves{" "}
+                {contractMismatch.backend}. Fields may be missing or renamed.
+                Regenerate with{" "}
+                <code>python3 sentinel/backend/scripts/export_contracts.py</code>.
+              </div>
+            )}
+
+            {/* Provenance badge.
+                Previously this decided "REAL ESA TELEMETRY" by testing whether
+                source_type merely CONTAINED the string "ESA", which labelled
+                metadata-derived synthetic payloads as real. It now renders the
+                scenario's declared provenance code, and unrecognised values
+                resolve to PROVENANCE UNKNOWN rather than to REAL. */}
             {!isCustomMode && activeScenario && (() => {
-              const isESA = (activeScenario.source_type || "").includes("ESA");
-              const badgeColor = isESA ? "rgba(255, 183, 77, 0.9)" : "rgba(0, 229, 255, 0.7)";
-              const bgColor = isESA ? "rgba(255, 183, 77, 0.08)" : "rgba(0, 229, 255, 0.05)";
-              const borderColor = isESA ? "rgba(255, 183, 77, 0.25)" : "rgba(0, 229, 255, 0.15)";
+              const prov = provenanceDisplay(activeScenario);
+              const badgeColor = prov.color;
+              const bgColor = prov.background;
+              const borderColor = prov.border;
               return (
                 <div style={{ marginTop: "0.5rem" }}>
                   <span style={{
@@ -515,15 +650,30 @@ function App() {
                     padding: "0.15rem 0.5rem",
                     borderRadius: "3px",
                     fontSize: "0.65rem",
-                    fontWeight: "600",
+                    fontWeight: "700",
                     letterSpacing: "0.05em",
                     color: badgeColor,
                     border: `1px solid ${borderColor}`,
                     background: bgColor,
                     marginBottom: "0.3rem",
                   }}>
-                    {isESA ? "🛰️ REAL ESA TELEMETRY" : "🔬 SYNTHETIC SAFE MODE"}
+                    {prov.label}
                   </span>
+                  {!isRealTelemetry(activeScenario) && (
+                    <span style={{
+                      display: "inline-block",
+                      marginLeft: "0.4rem",
+                      padding: "0.15rem 0.5rem",
+                      borderRadius: "3px",
+                      fontSize: "0.65rem",
+                      fontWeight: "700",
+                      letterSpacing: "0.08em",
+                      color: "#1A1200",
+                      background: "#F59E0B",
+                    }}>
+                      SIMULATION
+                    </span>
+                  )}
                   {activeScenario.source_note && (
                     <div style={{
                       padding: "0.4rem 0.6rem",
@@ -556,29 +706,98 @@ function App() {
           </section>
 
           {/* TELEMETRY MATRIX */}
-          {activeScenario && activeScenario.pre_fault_telemetry && (
+          {activeScenario && canonicalWindow(activeScenario).length > 0 && (
             <section className="glass-panel">
               <div className="panel-header">
                 <h2><span className="panel-icon">📊</span> Pre-Fault Telemetry Window</h2>
-                <span className="telemetry-unit">Z-Score Monitoring Active</span>
+                {/* Phase 2: anomaly status is the backend's, not the client's. */}
+                <span className="telemetry-unit">
+                  {detectionState === "ready"
+                    ? `Backend detection: ${detectionReport.anomaly_count} finding(s) on ${detectionReport.anomalous_channels}/${detectionReport.total_channels} channel(s)`
+                    : detectionState === "loading"
+                    ? "Running backend detection…"
+                    : "Detection unavailable — no anomaly status shown"}
+                </span>
               </div>
-              
+
+              {detectionState === "unavailable" && (
+                <div style={{
+                  padding: "0.4rem 0.6rem",
+                  marginBottom: "0.5rem",
+                  borderRadius: "4px",
+                  border: "1px solid rgba(148, 163, 184, 0.3)",
+                  background: "rgba(148, 163, 184, 0.08)",
+                  color: "var(--text-muted)",
+                  fontSize: "0.68rem",
+                }}>
+                  The backend detection pipeline could not be reached. Anomaly status is
+                  shown as UNKNOWN rather than computed in the browser — a client-side
+                  approximation would not match what the backend actually detects.
+                </div>
+              )}
+
+              {/* Phase 3: rendered from the CANONICAL window. One card per
+                  channel showing its most recent sample — the window is a time
+                  series, so the previous per-row render over the deprecated
+                  array had neither timing nor status to show. An unusable
+                  reading now displays its preserved text ("NaN" / "MISSING")
+                  instead of NaN-from-Number() or a blank. */}
               <div className="telemetry-grid">
-                {activeScenario.pre_fault_telemetry.map((param, idx) => {
-                  const abnormal = isAnomalous(param);
+                {latestPerChannel(activeScenario).map((param, idx) => {
+                  const severity = channelSeverity(param.parameter);
+                  const detectors = channelDetectors(param.parameter);
+                  const abnormal =
+                    severity !== null && severity !== "NOMINAL";
+                  const unknown = severity === null;
                   return (
-                    <div key={idx} className={`telemetry-card ${abnormal ? "anomalous" : ""}`}>
+                    <div
+                      key={param.parameter || idx}
+                      className={`telemetry-card ${abnormal ? "anomalous" : ""}`}
+                      title={
+                        abnormal
+                          ? `${severity} — detected by ${detectors.join(", ")}`
+                          : unknown
+                          ? "No detection result available"
+                          : "No anomaly detected on this channel"
+                      }
+                    >
                       <span className="telemetry-label">{param.parameter}</span>
                       <span className="telemetry-value">
-                        {param.value === "NaN" ? "NaN" : Number(param.value).toFixed(1)}
+                        {formatReading(param)}
                       </span>
                       <span className="telemetry-range">
-                        Range: {param.nominal_min}–{param.nominal_max}
+                        {formatRange(param)}
+                      </span>
+                      <span className="telemetry-range" style={{
+                        color: abnormal
+                          ? "var(--color-rose, #ef4444)"
+                          : "var(--text-muted)",
+                        letterSpacing: "0.04em",
+                      }}>
+                        {param.timestamp ? `${param.timestamp} · ` : ""}
+                        {unknown ? "UNKNOWN" : abnormal ? severity : "NOMINAL"}
                       </span>
                     </div>
                   );
                 })}
               </div>
+
+              {detectionState === "ready" && detectionReport.warnings.length > 0 && (
+                <div style={{
+                  marginTop: "0.6rem",
+                  padding: "0.4rem 0.6rem",
+                  borderRadius: "4px",
+                  border: "1px solid rgba(245, 183, 77, 0.25)",
+                  background: "rgba(245, 183, 77, 0.08)",
+                  color: "rgba(245, 183, 77, 0.95)",
+                  fontSize: "0.66rem",
+                  lineHeight: 1.5,
+                }}>
+                  {detectionReport.warnings.map((w, i) => (
+                    <div key={i}>· {w}</div>
+                  ))}
+                </div>
+              )}
             </section>
           )}
 
@@ -586,7 +805,11 @@ function App() {
           <section className="glass-panel" style={{ flex: 1 }}>
             <div className="panel-header">
               <h2><span className="panel-icon">⌨</span> FDIR Agent Live Thoughts</h2>
-              <span className="telemetry-unit">SSE Streaming Active</span>
+              {/* Phase 0: was a decorative "SSE Streaming Active" label that
+                  was shown regardless of whether a stream was open. */}
+              <span className="telemetry-unit">
+                {isAnalyzing ? "Streaming from backend" : backendStatus === "online" ? "Backend reachable — idle" : "Backend offline"}
+              </span>
             </div>
             
             <div className="console-terminal">
@@ -622,7 +845,10 @@ function App() {
                   color: result.requires_human_review ? "var(--color-rose)" : "var(--color-emerald)",
                   border: result.requires_human_review ? "1px solid var(--color-rose)" : "1px solid var(--color-emerald)"
                 }}>
-                  {result.requires_human_review ? "HUMAN REVIEW REQ." : "AUTO RECOVERY PERMITTED"}
+                  {/* Phase 0: the false branch previously read "AUTO RECOVERY
+                      PERMITTED". SENTINEL never executes or uplinks a command,
+                      so no recovery is ever auto-permitted. */}
+                  {result.requires_human_review ? "HUMAN REVIEW REQUIRED" : "OPERATOR APPROVAL REQUIRED"}
                 </span>
               )}
             </div>
@@ -670,9 +896,25 @@ function App() {
                   </div>
                 ))}
                 
+                {/* Phase 0: make explicit that these are LLM-generated
+                    hypotheses, not a validated diagnosis. */}
+                <div style={{
+                  marginTop: "0.6rem",
+                  padding: "0.4rem 0.6rem",
+                  borderRadius: "4px",
+                  border: "1px solid rgba(245, 183, 77, 0.25)",
+                  background: "rgba(245, 183, 77, 0.08)",
+                  color: "rgba(245, 183, 77, 0.95)",
+                  fontSize: "0.68rem",
+                  letterSpacing: "0.04em",
+                }}>
+                  LLM-generated hypotheses, ranked by the model. Not a validated diagnosis —
+                  no physics or state-estimation check has been applied.
+                </div>
+
                 {result.reasoning_summary && (
                   <div className="summary-panel-content">
-                    <h3>Diagnostic Reasoning Summary</h3>
+                    <h3>Reasoning Summary (model-generated)</h3>
                     <p>{result.reasoning_summary}</p>
                   </div>
                 )}
@@ -684,8 +926,12 @@ function App() {
           {result && result.recovery_plan && (
             <section className="glass-panel" style={{ flex: 1 }}>
               <div className="panel-header">
-                <h2><span className="panel-icon">🔧</span> Step-by-Step Recovery Procedures</h2>
-                <span className="telemetry-unit">ECSS Standardized Commands</span>
+                <h2><span className="panel-icon">🔧</span> Proposed Recovery Steps</h2>
+                {/* Phase 0: previously read "ECSS Standardized Commands". The
+                    commands are LLM-proposed and filtered by the deterministic
+                    safety whitelist; they are not ECSS-standardised commands
+                    and carry no compliance assertion. */}
+                <span className="telemetry-unit">LLM-proposed · safety-filtered · operator approval required</span>
               </div>
 
               {result.requires_human_review && (

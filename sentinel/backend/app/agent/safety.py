@@ -1,23 +1,40 @@
 """
-SENTINEL — Deterministic Command Whitelist Validator (safety.py)
+SENTINEL — Deterministic Command Safety Validator (safety.py)
 
-Step 7 of the SENTINEL build plan. This module is the deterministic
-backstop for every recovery command the LLM produces. It enforces:
+This module is the deterministic backstop for every recovery command the LLM
+produces. It enforces:
 
-  1. Command whitelist — only known, safe CMD_ commands pass
-  2. Physical constraint checks — battery floor, gyro health, comms lock,
-     thermal survival
+  1. Registry membership — only commands defined in app/validation/
+     command_registry.py may pass, and only while they are enabled
+  2. Declared constraint checks — each command's required_preconditions and
+     prohibited_conditions, evaluated against the crash dump
   3. Escalation rules — HIGH-risk steps and low-confidence outputs force
      requires_human_review = True
 
-Design rules:
+Phase 1 changes
+---------------
+The command whitelist used to be a literal ``dict[str, set[str]]`` in this file.
+It is now DERIVED from the registry, which is the single source of truth shared
+with the procedure/RAG layer and the LLM prompt. ``COMMAND_WHITELIST`` remains
+available as a derived view so existing callers keep working.
+
+Two behaviours were corrected:
+
+  * Total rejection no longer masquerades as success. When every step is
+    blocked, ``apply_validation_to_output`` now returns an EMPTY recovery_plan
+    with ``safety_status = BLOCKED``. It used to substitute a fabricated
+    ``CMD_HEALTH_CHECK`` step at LOW risk, which rendered as a clean one-step
+    recovery.
+  * Blocked steps are preserved as structured data on the response
+    (``SentinelOutput.blocked_steps``) instead of being flattened into a
+    ``[SAFETY: ...]`` suffix on ``reasoning_summary``.
+
+Design rules (unchanged):
   - Pure Python. No AI calls. No LLM dependency. No new packages.
   - Never crashes on missing context — uses safe .get() everywhere.
-  - Missing context is permissive UNLESS a mandatory prerequisite is
-    explicitly required by safety policy.
-  - CMD_VERIFY_* commands are always safe (observation-only).
-  - Deterministic, side-effect free, target < 5 ms for a full plan.
-  - 100% catch rate on intentionally inserted unsafe commands.
+  - Missing context is permissive; see app/validation/conditions.py for the
+    documented tri-state policy and its trade-off.
+  - Deterministic, side-effect free.
 
 Public API:
   validate_recovery_plan(sentinel_output, crash_dump_context) -> ValidationResult
@@ -30,12 +47,42 @@ Public API:
 from __future__ import annotations
 
 import logging
-import math
 from typing import Any
 
 from pydantic import BaseModel, Field
 
-from app.api.models import RecoveryStep, RiskLevel, SentinelOutput
+from app.api.models import (
+    BlockedCommand,
+    BlockSeverity,
+    RecoveryStep,
+    RiskLevel,
+    SafetyStatus,
+    SentinelOutput,
+)
+from app.validation.command_registry import (
+    COMMAND_REGISTRY,
+    Condition,
+    get_command,
+    is_enabled,
+    is_registered,
+    registry_by_subsystem,
+    registry_subsystem,
+    registry_status,
+)
+from app.validation.conditions import (
+    BATTERY_FLOOR_SOC,
+    CONDITION_SUBSYSTEM,
+    CONDITION_VIOLATION_CODE,
+    THERMAL_SURVIVAL_LIMIT,
+    ConditionState,
+    describe_condition,
+    evaluate_condition,
+    get_battery_soc,
+    get_gyro_rate,
+    get_max_temperature,
+    get_transponder_lock,
+    is_value_nan_or_missing,
+)
 
 logger = logging.getLogger("sentinel.safety")
 
@@ -59,10 +106,28 @@ class ConstraintViolation(BaseModel):
         default=None,
         description="Subsystem related to the violation (if applicable)",
     )
+    condition: str | None = Field(
+        default=None,
+        description=(
+            "The registry Condition that produced this violation, when the "
+            "violation came from a declared precondition/prohibition"
+        ),
+    )
+    supporting_context: dict[str, Any] = Field(
+        default_factory=dict,
+        description=(
+            "Observed values the verdict was based on, e.g. "
+            "{'battery_soc_pct': 12.0, 'floor_pct': 15.0}"
+        ),
+    )
 
 
 class BlockedStep(BaseModel):
-    """A recovery step that was blocked by the safety validator."""
+    """A recovery step that was blocked by the safety validator.
+
+    Internal record. ``to_api()`` converts it to the stable API shape
+    (``app.api.models.BlockedCommand``) that is returned to the operator.
+    """
     original_step: RecoveryStep
     reason: str = Field(
         ...,
@@ -77,6 +142,26 @@ class BlockedStep(BaseModel):
         default=None,
         description="Subsystem the blocked command belongs to",
     )
+    severity: BlockSeverity = Field(
+        default=BlockSeverity.HIGH,
+        description="Consequence of executing this command anyway",
+    )
+    supporting_context: dict[str, Any] = Field(
+        default_factory=dict,
+        description="Observed values the block decision was based on",
+    )
+
+    def to_api(self) -> BlockedCommand:
+        """Convert to the API-facing structured form."""
+        return BlockedCommand(
+            step=self.original_step.step,
+            command=self.original_step.command,
+            reason=self.reason,
+            violated_constraint=self.violation_code,
+            severity=self.severity,
+            subsystem=self.subsystem,
+            supporting_context=dict(self.supporting_context),
+        )
 
 
 class ValidationResult(BaseModel):
@@ -104,106 +189,85 @@ class ValidationResult(BaseModel):
         min_length=1,
         description="Human-readable summary of the validation outcome",
     )
+    safety_status: SafetyStatus = Field(
+        default=SafetyStatus.NOT_VALIDATED,
+        description=(
+            "Truthful status derived from the validation outcome. Replaces the "
+            "unconditional 'Safety validation passed.' message."
+        ),
+    )
+
+    @property
+    def all_blocked(self) -> bool:
+        """True when at least one step was proposed and none survived."""
+        return bool(self.blocked_steps) and not self.validated_steps
+
+    def blocked_for_api(self) -> list[BlockedCommand]:
+        """The blocked steps in their stable API form."""
+        return [b.to_api() for b in self.blocked_steps]
+
+
+def derive_safety_status(
+    validated_count: int,
+    blocked_count: int,
+    requires_human_review: bool,
+) -> SafetyStatus:
+    """Map a validation outcome onto a SafetyStatus.
+
+    Precedence (most severe first):
+        BLOCKED > PARTIALLY_BLOCKED > REQUIRES_HUMAN_REVIEW > VALIDATED
+
+    NOT_VALIDATED is never returned here — it is the status of a plan that was
+    never given to the validator, which only the caller can know.
+    """
+    if blocked_count and validated_count == 0:
+        return SafetyStatus.BLOCKED
+    if blocked_count:
+        return SafetyStatus.PARTIALLY_BLOCKED
+    if requires_human_review:
+        return SafetyStatus.REQUIRES_HUMAN_REVIEW
+    return SafetyStatus.VALIDATED
+
+
+# Severity attached to each violation code, i.e. what would happen if the
+# command were executed anyway.
+_SEVERITY_BY_CODE: dict[str, BlockSeverity] = {
+    # An unrecognised or malformed command has no defined behaviour on the bus.
+    "INVALID_FORMAT": BlockSeverity.CRITICAL,
+    "NOT_IN_REGISTRY": BlockSeverity.CRITICAL,
+    "NOT_WHITELISTED": BlockSeverity.CRITICAL,  # legacy alias, kept for callers
+    "COMMAND_DISABLED": BlockSeverity.HIGH,
+    # Attitude actuation on bad rate data can tumble the vehicle; rebooting the
+    # OBC without a confirmed uplink can lose contact permanently.
+    "GYRO_HEALTH_PREREQUISITE": BlockSeverity.CRITICAL,
+    "COMMS_LOCK_REBOOT": BlockSeverity.CRITICAL,
+    # These deepen an existing fault rather than causing immediate loss.
+    "BATTERY_FLOOR": BlockSeverity.HIGH,
+    "THERMAL_SURVIVAL": BlockSeverity.HIGH,
+}
+
+
+def _severity_for(code: str) -> BlockSeverity:
+    return _SEVERITY_BY_CODE.get(code, BlockSeverity.HIGH)
 
 
 # ═══════════════════════════════════════════════════════════════════════════
 # SECTION 2 — COMMAND WHITELIST BY SUBSYSTEM
 # ═══════════════════════════════════════════════════════════════════════════
 
-COMMAND_WHITELIST: dict[str, set[str]] = {
-    "ADCS": {
-        # Gyro commands
-        "CMD_GYRO_RESET",
-        "CMD_GYRO_A_DRIVER_RESET",
-        "CMD_GYRO_B_DRIVER_RESET",
-        "CMD_GYRO_A_RESET",
-        "CMD_GYRO_B_RESET",
-        "CMD_GYRO_SWITCH_TO_BACKUP",
-        "CMD_GYRO_BACKUP_SWITCH",
-        # Attitude commands
-        "CMD_ATTITUDE_REACQUISITION",
-        "CMD_ATTITUDE_RESET",
-        "CMD_ATTITUDE_HOLD",
-        # Reaction wheel commands
-        "CMD_REACTION_WHEEL_DESAT",
-        "CMD_REACTION_WHEEL_RESET",
-        "CMD_REACTION_WHEEL_SPEED_CHECK",
-        # Sun acquisition
-        "CMD_SUN_ACQUISITION",
-        "CMD_SUN_SENSOR_CHECK",
-        # SEU
-        "CMD_VERIFY_SEU_COUNTER",
-        "CMD_SEU_CHECK",
-    },
-    "EPS": {
-        # Solar array
-        "CMD_SOLAR_ARRAY_VERIFY",
-        "CMD_SOLAR_ARRAY_REDEPLOY",
-        "CMD_SOLAR_ARRAY_CHECK",
-        "CMD_SOLAR_PANEL_RESET",
-        # Battery
-        "CMD_BATTERY_VERIFY",
-        "CMD_BATTERY_CHECK",
-        "CMD_BATTERY_HEATER_ENABLE",
-        "CMD_BATTERY_HEATER_DISABLE",
-        # Bus voltage
-        "CMD_BUS_VOLTAGE_CHECK",
-        "CMD_BUS_VOLTAGE_VERIFY",
-        # Power management
-        "CMD_POWER_SHED_NONESSENTIAL",
-        "CMD_POWER_RESTORE",
-        "CMD_POWER_CHECK",
-    },
-    "OBC": {
-        "CMD_OBC_CONTROLLED_REBOOT",
-        "CMD_OBC_WATCHDOG_CLEAR",
-        "CMD_OBC_SOFT_RESET",
-        "CMD_WATCHDOG_CLEAR",
-        "CMD_WATCHDOG_RESET",
-        "CMD_CPU_LOAD_CHECK",
-        "CMD_CPU_TEMP_CHECK",
-        "CMD_MEMORY_DUMP",
-        "CMD_MEMORY_CHECK",
-        "CMD_SAFE_MODE_EXIT",
-        "CMD_SAFE_MODE_ENTRY",
-    },
-    "TCS": {
-        "CMD_HEATER_ENABLE",
-        "CMD_HEATER_DISABLE",
-        "CMD_HEATER_OFF",
-        "CMD_HEATER_ON",
-        "CMD_HEATER_RESET",
-        "CMD_HEATER_CHECK",
-        "CMD_THERMAL_MONITOR_CHECK",
-        "CMD_THERMAL_CHECK",
-        "CMD_THERMAL_OVERRIDE_OFF",
-        "CMD_THERMAL_OVERRIDE_ON",
-    },
-    "COMMS": {
-        "CMD_TRANSPONDER_LOCK_VERIFY",
-        "CMD_TRANSPONDER_RESET",
-        "CMD_TRANSPONDER_CHECK",
-        "CMD_COMMS_SIGNAL_CHECK",
-        "CMD_COMMS_RESET",
-        "CMD_COMMS_CHECK",
-        "CMD_ANTENNA_SWITCH",
-        "CMD_LOW_GAIN_ANTENNA_SWITCH",
-        "CMD_ANTENNA_CHECK",
-    },
-    "SYSTEM": {
-        "CMD_HEALTH_CHECK",
-        "CMD_TELEMETRY_DUMP",
-        "CMD_TELEMETRY_CHECK",
-        "CMD_VERIFY_STATUS",
-        "CMD_VERIFY_HEALTH",
-        "CMD_VERIFY_POWER",
-        "CMD_VERIFY_ATTITUDE",
-        "CMD_VERIFY_THERMAL",
-        "CMD_VERIFY_COMMS",
-        "CMD_VERIFY_SEU_COUNTER",
-        "CMD_VERIFY_GYRO_RATE",
-    },
-}
+# DERIVED, NOT DECLARED.
+#
+# This used to be a hand-maintained literal. It is now built from
+# app/validation/command_registry.py, which is the single source of truth shared
+# with the procedure/RAG layer and the LLM prompt. Editing this file can no
+# longer make the whitelist disagree with the procedures — add the command to
+# the registry instead, and app/validation/conflicts.py will confirm every
+# consumer agrees.
+#
+# Only ENABLED commands appear. A registered-but-disabled command is rejected
+# with COMMAND_DISABLED rather than NOT_IN_REGISTRY, so the operator can tell
+# "we withdrew this" apart from "we never had this".
+COMMAND_WHITELIST: dict[str, set[str]] = registry_by_subsystem(enabled_only=True)
 
 # Flat set for fast O(1) lookup
 _ALL_WHITELISTED: set[str] = set()
@@ -250,10 +314,18 @@ _PREFIX_MAP: list[tuple[str, str]] = [
 
 
 def infer_subsystem(command: str) -> str | None:
-    """Infer the subsystem a command belongs to from its prefix.
+    """Resolve the subsystem a command belongs to.
 
-    Returns the subsystem string (e.g. "ADCS", "EPS") or None if
-    the command doesn't match any known prefix pattern.
+    Resolution order:
+      1. The registry's DECLARED subsystem (authoritative)
+      2. The prefix heuristic below, for commands the registry doesn't know
+
+    The heuristic is retained only so that unregistered commands — which are
+    blocked anyway — can still be attributed to a subsystem in the operator's
+    blocked-step list. It is not a source of truth. Before Phase 1 the heuristic
+    was the only mechanism, so registry commands that don't follow a known
+    prefix (CMD_DISABLE_HEATER_ZONE, CMD_SWITCH_BACKUP_TRANSPONDER,
+    CMD_CONFIRM_COMMS_LOCK, ...) resolved to None.
 
     Args:
         command: Command string, e.g. "CMD_GYRO_RESET".
@@ -263,6 +335,10 @@ def infer_subsystem(command: str) -> str | None:
     """
     if not command or not command.startswith("CMD_"):
         return None
+
+    declared = registry_subsystem(command)
+    if declared is not None:
+        return declared
 
     for prefix, subsystem in _PREFIX_MAP:
         if command.startswith(prefix):
@@ -300,14 +376,16 @@ def is_command_whitelisted(
 
 
 def get_whitelist_status() -> dict:
-    """Return diagnostic information about the whitelist.
+    """Return diagnostic information about the derived whitelist.
 
-    Useful for tests, debugging, and demo status panels.
+    Useful for tests, debugging, and status panels. ``duplicates`` is now always
+    empty by construction: the registry is keyed by command_id, so one command
+    cannot be filed under two subsystems. It is kept in the payload for
+    backward compatibility with existing callers.
     """
     counts = {sub: len(cmds) for sub, cmds in COMMAND_WHITELIST.items()}
     total = sum(counts.values())
 
-    # Detect duplicates across subsystems
     all_cmds: list[str] = []
     for cmds in COMMAND_WHITELIST.values():
         all_cmds.extend(cmds)
@@ -319,6 +397,9 @@ def get_whitelist_status() -> dict:
         "total_commands": total,
         "unique_commands": len(_ALL_WHITELISTED),
         "duplicates": duplicates,
+        # Phase 1 additions — the registry is the source of truth.
+        "source": "app.validation.command_registry",
+        "registry": registry_status(),
     }
 
 
@@ -327,163 +408,29 @@ def get_whitelist_status() -> dict:
 # ═══════════════════════════════════════════════════════════════════════════
 
 def _is_verify_command(command: str) -> bool:
-    """CMD_VERIFY_* commands are always safe (observation-only)."""
+    """True when a command has no state prerequisites at all.
+
+    Phase 1: this now reads the registry's declared metadata
+    (``CommandSpec.is_observation_only``) instead of pattern-matching the name.
+    The old implementation was ``command.startswith("CMD_VERIFY_")``, which
+    meant a command was treated as safe because of how it was spelled. The name
+    check is kept as a fallback for unregistered commands so the function never
+    changes answer for a caller that passes something the registry lacks.
+    """
+    spec = get_command(command)
+    if spec is not None:
+        return spec.is_observation_only
     return command.startswith("CMD_VERIFY_")
 
 
-def _is_value_nan_or_missing(value: Any) -> bool:
-    """Check if a value is missing, None, NaN, or non-numeric."""
-    if value is None:
-        return True
-    if isinstance(value, str):
-        return value.strip().upper() in ("NAN", "NONE", "", "N/A", "NULL")
-    if isinstance(value, (int, float)):
-        return math.isnan(value) if isinstance(value, float) else False
-    return True  # Any other type is considered invalid for sensor data
-
-
-def _get_battery_soc(ctx: dict[str, Any]) -> float | None:
-    """Extract battery state-of-charge from crash dump context.
-
-    Tries multiple key patterns permissively.
-    Returns None if not found (caller treats this as permissive).
-    """
-    # Direct keys
-    for key in ("SOC", "BATTERY_SOC", "battery_soc", "SoC_pct", "soc_pct"):
-        val = ctx.get(key)
-        if val is not None and not _is_value_nan_or_missing(val):
-            try:
-                return float(val)
-            except (ValueError, TypeError):
-                pass
-
-    # Nested in pre_fault_telemetry
-    telemetry = ctx.get("pre_fault_telemetry")
-    if isinstance(telemetry, list):
-        for entry in telemetry:
-            if isinstance(entry, dict):
-                param = entry.get("parameter", "")
-                if param in ("SoC_pct", "SOC", "battery_soc", "BATTERY_SOC"):
-                    val = entry.get("value")
-                    if val is not None and not _is_value_nan_or_missing(val):
-                        try:
-                            return float(val)
-                        except (ValueError, TypeError):
-                            pass
-
-    # Nested in hardware_state
-    hw = ctx.get("hardware_state")
-    if isinstance(hw, dict):
-        for key in ("battery_soc", "SOC", "BATTERY_SOC", "SoC_pct"):
-            val = hw.get(key)
-            if val is not None and not _is_value_nan_or_missing(val):
-                try:
-                    return float(val)
-                except (ValueError, TypeError):
-                    pass
-
-    return None
-
-
-def _get_gyro_rate(ctx: dict[str, Any]) -> Any:
-    """Extract gyro rate value from crash dump context.
-
-    Returns the raw value (could be NaN, None, numeric, or string).
-    Returns a sentinel "NOT_FOUND" string if no gyro data exists at all.
-    """
-    # Direct keys
-    for key in ("GYRO_A_RATE", "gyro_a_rate", "Gyro_rate_degs",
-                "GYRO_B_RATE", "gyro_b_rate"):
-        if key in ctx:
-            return ctx[key]
-
-    # In pre_fault_telemetry
-    telemetry = ctx.get("pre_fault_telemetry")
-    if isinstance(telemetry, list):
-        for entry in telemetry:
-            if isinstance(entry, dict):
-                param = entry.get("parameter", "")
-                if param in ("Gyro_rate_degs", "GYRO_A_RATE", "gyro_a_rate",
-                             "GYRO_B_RATE", "gyro_b_rate"):
-                    return entry.get("value")
-
-    # In hardware_state
-    hw = ctx.get("hardware_state")
-    if isinstance(hw, dict):
-        gyro_health = hw.get("gyro_health")
-        if gyro_health == "degraded":
-            return None  # Degraded = treat as invalid
-
-    return "NOT_FOUND"
-
-
-def _get_transponder_lock(ctx: dict[str, Any]) -> Any:
-    """Extract transponder lock status.
-
-    Returns the raw value. "NOT_FOUND" if absent.
-    """
-    for key in ("TRANSPONDER_LOCK", "transponder_lock", "Transponder_lock"):
-        if key in ctx:
-            return ctx[key]
-
-    # In pre_fault_telemetry
-    telemetry = ctx.get("pre_fault_telemetry")
-    if isinstance(telemetry, list):
-        for entry in telemetry:
-            if isinstance(entry, dict):
-                param = entry.get("parameter", "")
-                if param in ("Transponder_lock", "TRANSPONDER_LOCK",
-                             "transponder_lock"):
-                    return entry.get("value")
-
-    return "NOT_FOUND"
-
-
-def _get_max_temperature(ctx: dict[str, Any]) -> float | None:
-    """Extract the maximum component temperature from crash dump context.
-
-    Scans flat keys, nested dicts, and telemetry lists.
-    Returns None if no temperature data found.
-    """
-    temps: list[float] = []
-
-    # Direct temperature keys
-    for key in ("Component_temp_C", "component_temp_c", "TEMP_C",
-                "temperature_c", "temp_c", "OBC_temp_C"):
-        val = ctx.get(key)
-        if val is not None and not _is_value_nan_or_missing(val):
-            try:
-                temps.append(float(val))
-            except (ValueError, TypeError):
-                pass
-
-    # In pre_fault_telemetry
-    telemetry = ctx.get("pre_fault_telemetry")
-    if isinstance(telemetry, list):
-        for entry in telemetry:
-            if isinstance(entry, dict):
-                param = str(entry.get("parameter", ""))
-                if "temp" in param.lower():
-                    val = entry.get("value")
-                    if val is not None and not _is_value_nan_or_missing(val):
-                        try:
-                            temps.append(float(val))
-                        except (ValueError, TypeError):
-                            pass
-
-    # Nested temperature values
-    for key in ("temperatures", "temp_readings"):
-        val = ctx.get(key)
-        if isinstance(val, list):
-            for v in val:
-                if isinstance(v, (int, float)) and not (isinstance(v, float) and math.isnan(v)):
-                    temps.append(float(v))
-        elif isinstance(val, dict):
-            for v in val.values():
-                if isinstance(v, (int, float)) and not (isinstance(v, float) and math.isnan(v)):
-                    temps.append(float(v))
-
-    return max(temps) if temps else None
+# The extraction helpers moved to app/validation/conditions.py in Phase 1 so
+# that the registry's conditions and this validator cannot disagree about how a
+# value is read. Private aliases are kept for backward compatibility.
+_is_value_nan_or_missing = is_value_nan_or_missing
+_get_battery_soc = get_battery_soc
+_get_gyro_rate = get_gyro_rate
+_get_transponder_lock = get_transponder_lock
+_get_max_temperature = get_max_temperature
 
 
 # ═══════════════════════════════════════════════════════════════════════════
@@ -494,184 +441,216 @@ def _get_max_temperature(ctx: dict[str, Any]) -> float | None:
 # Returns None if the step passes the check.
 # ═══════════════════════════════════════════════════════════════════════════
 
-# Commands that require significant power or are non-essential
+# DERIVED, NOT DECLARED.
+#
+# These sets used to be hand-maintained here, separately from the whitelist.
+# They are now computed from each command's declared conditions in the registry,
+# so a command's constraints travel with its definition.
 _POWER_REQUIRING_COMMANDS: set[str] = {
-    "CMD_ATTITUDE_REACQUISITION",
-    "CMD_ATTITUDE_RESET",
-    "CMD_SUN_ACQUISITION",
-    "CMD_REACTION_WHEEL_DESAT",
-    "CMD_REACTION_WHEEL_RESET",
-    "CMD_OBC_CONTROLLED_REBOOT",
-    "CMD_OBC_SOFT_RESET",
-    "CMD_POWER_RESTORE",
-    "CMD_SOLAR_ARRAY_REDEPLOY",
-    "CMD_HEATER_ENABLE",
-    "CMD_HEATER_ON",
+    cid for cid, spec in COMMAND_REGISTRY.items()
+    if Condition.BATTERY_BELOW_FLOOR in spec.prohibited_conditions
+    or Condition.BATTERY_ABOVE_FLOOR in spec.required_preconditions
 }
 
-# Commands that require valid gyro data
 _GYRO_DEPENDENT_COMMANDS: set[str] = {
-    "CMD_ATTITUDE_REACQUISITION",
-    "CMD_SUN_ACQUISITION",
-    "CMD_REACTION_WHEEL_DESAT",
-    "CMD_REACTION_WHEEL_RESET",
-    "CMD_REACTION_WHEEL_SPEED_CHECK",
+    cid for cid, spec in COMMAND_REGISTRY.items()
+    if Condition.GYRO_DATA_VALID in spec.required_preconditions
+    or Condition.GYRO_DATA_INVALID in spec.prohibited_conditions
 }
 
-# Battery floor threshold (percentage)
-BATTERY_FLOOR_SOC: float = 15.0
+_COMMS_LOCK_COMMANDS: set[str] = {
+    cid for cid, spec in COMMAND_REGISTRY.items()
+    if Condition.COMMS_LOCK_CONFIRMED in spec.required_preconditions
+    or Condition.COMMS_LOCK_ABSENT in spec.prohibited_conditions
+}
 
-# Thermal survival threshold (Celsius)
-THERMAL_SURVIVAL_LIMIT: float = 85.0
+_THERMAL_CONSTRAINED_COMMANDS: set[str] = {
+    cid for cid, spec in COMMAND_REGISTRY.items()
+    if Condition.THERMAL_ABOVE_SURVIVAL in spec.prohibited_conditions
+    or Condition.THERMAL_WITHIN_SURVIVAL in spec.required_preconditions
+}
+
+# BATTERY_FLOOR_SOC and THERMAL_SURVIVAL_LIMIT now live with the predicates that
+# use them, in app/validation/conditions.py. They are imported at the top of this
+# module, so existing callers doing `from app.agent.safety import
+# BATTERY_FLOOR_SOC` keep working unchanged.
 
 # Confidence threshold for human review escalation
 CONFIDENCE_REVIEW_THRESHOLD: float = 0.70
+
+
+def _violation_from_condition(
+    command: str,
+    condition: Condition,
+    support: dict[str, Any],
+) -> ConstraintViolation:
+    """Build a ConstraintViolation for a predicate that blocked a command."""
+    return ConstraintViolation(
+        code=CONDITION_VIOLATION_CODE.get(condition, condition.value),
+        reason=(
+            f"{describe_condition(condition, support)} "
+            f"Command '{command}' declares this constraint and is therefore "
+            f"blocked."
+        ),
+        subsystem=CONDITION_SUBSYSTEM.get(condition),
+        condition=condition.value,
+        supporting_context=support,
+    )
+
+
+# Fixed evaluation order for the physical quantities, as (positive, hazard).
+#
+# Deliberately NOT the registry declaration order. When more than one constraint
+# is violated at once, the reported violation code must be stable, and it must be
+# the SAME code the pre-Phase-1 validator reported — its check order was
+# battery, gyro, comms, thermal. Changing which of several simultaneous
+# violations gets reported would silently alter the operator-facing reason for
+# every multi-fault dump.
+_CONDITION_EVALUATION_ORDER: tuple[tuple[Condition, Condition], ...] = (
+    (Condition.BATTERY_ABOVE_FLOOR, Condition.BATTERY_BELOW_FLOOR),
+    (Condition.GYRO_DATA_VALID, Condition.GYRO_DATA_INVALID),
+    (Condition.COMMS_LOCK_CONFIRMED, Condition.COMMS_LOCK_ABSENT),
+    (Condition.THERMAL_WITHIN_SURVIVAL, Condition.THERMAL_ABOVE_SURVIVAL),
+)
+
+
+def evaluate_declared_conditions(
+    step: RecoveryStep,
+    ctx: dict[str, Any],
+) -> ConstraintViolation | None:
+    """Check a step against the conditions its registry entry declares.
+
+    This is the single constraint gate. Returns the first blocking violation, or
+    None if the command may proceed. Evaluation follows
+    ``_CONDITION_EVALUATION_ORDER`` so the reported code is stable when several
+    constraints are violated simultaneously.
+    """
+    spec = get_command(step.command)
+    if spec is None:
+        # Unregistered commands never reach here — validate_recovery_plan blocks
+        # them earlier. Returning None keeps this function total.
+        return None
+
+    required = set(spec.required_preconditions)
+    prohibited = set(spec.prohibited_conditions)
+
+    for positive, hazard in _CONDITION_EVALUATION_ORDER:
+        if positive in required:
+            state, support = evaluate_condition(positive, ctx)
+            if state is ConditionState.VIOLATED:
+                return _violation_from_condition(step.command, positive, support)
+        elif hazard in prohibited:
+            state, support = evaluate_condition(hazard, ctx)
+            if state is ConditionState.SATISFIED:  # hazard is present
+                return _violation_from_condition(step.command, hazard, support)
+
+    return None
+
+
+def _check_single_condition(
+    step: RecoveryStep,
+    ctx: dict[str, Any],
+    positive: Condition,
+    hazard: Condition,
+) -> ConstraintViolation | None:
+    """Shared body for the four named checks below.
+
+    Only fires when the command's registry entry actually declares the
+    condition, so each named check keeps reporting only its own violation code.
+    """
+    spec = get_command(step.command)
+    if spec is None:
+        return None
+
+    declares_required = positive in spec.required_preconditions
+    declares_prohibited = hazard in spec.prohibited_conditions
+    if not (declares_required or declares_prohibited):
+        return None
+
+    condition = positive if declares_required else hazard
+    state, support = evaluate_condition(condition, ctx)
+
+    blocked = (
+        state is ConditionState.VIOLATED if declares_required
+        else state is ConditionState.SATISFIED
+    )
+    if not blocked:
+        return None
+
+    return _violation_from_condition(step.command, condition, support)
 
 
 def check_battery_floor(
     step: RecoveryStep,
     ctx: dict[str, Any],
 ) -> ConstraintViolation | None:
-    """Block power-requiring commands if battery SoC < 15%.
+    """Block commands declaring a battery-floor constraint when SoC is below it.
 
-    Verify commands are always allowed.
-    Missing SoC data is permissive (does not block).
+    Which commands those are is now declared in the registry
+    (``prohibited_conditions: BATTERY_BELOW_FLOOR``) rather than listed here.
+    Observation-only commands declare no conditions and so are unaffected.
+    Missing SoC data is permissive.
     """
-    if _is_verify_command(step.command):
-        return None
-
-    if step.command not in _POWER_REQUIRING_COMMANDS:
-        return None
-
-    soc = _get_battery_soc(ctx)
-    if soc is None:
-        return None  # Missing data → permissive
-
-    if soc < BATTERY_FLOOR_SOC:
-        return ConstraintViolation(
-            code="BATTERY_FLOOR",
-            reason=(
-                f"Battery SoC is {soc:.1f}% (below {BATTERY_FLOOR_SOC:.0f}% "
-                f"floor). Command '{step.command}' requires more power than "
-                f"available. Shed non-essential loads first."
-            ),
-            subsystem="EPS",
-        )
-
-    return None
+    return _check_single_condition(
+        step, ctx,
+        Condition.BATTERY_ABOVE_FLOOR,
+        Condition.BATTERY_BELOW_FLOOR,
+    )
 
 
 def check_gyro_health_prerequisite(
     step: RecoveryStep,
     ctx: dict[str, Any],
 ) -> ConstraintViolation | None:
-    """Block attitude maneuver commands if gyro data is invalid.
+    """Block attitude actuation when gyro rate data is invalid.
 
-    Gyro data is invalid when: missing, None, NaN, or non-numeric.
-    This is a mandatory prerequisite — blocks even with missing context,
-    because running attitude maneuvers without gyro data risks tumbling.
+    Gyro data is invalid when it is present but None, NaN, or non-numeric.
+    Absent gyro data is permissive — the sensor may be healthy and simply not
+    included in the dump.
     """
-    if _is_verify_command(step.command):
-        return None
-
-    if step.command not in _GYRO_DEPENDENT_COMMANDS:
-        return None
-
-    gyro_value = _get_gyro_rate(ctx)
-
-    # If gyro data is not found at all, this is permissive
-    # (the sensor might be working fine, we just don't have it in context)
-    if gyro_value == "NOT_FOUND":
-        return None
-
-    # If gyro data IS present but invalid → block
-    if _is_value_nan_or_missing(gyro_value):
-        return ConstraintViolation(
-            code="GYRO_HEALTH_PREREQUISITE",
-            reason=(
-                f"Gyro rate data is invalid (value={gyro_value!r}). "
-                f"Command '{step.command}' requires valid attitude data. "
-                f"Reset gyro driver and verify rate before attitude maneuver."
-            ),
-            subsystem="ADCS",
-        )
-
-    return None
+    return _check_single_condition(
+        step, ctx,
+        Condition.GYRO_DATA_VALID,
+        Condition.GYRO_DATA_INVALID,
+    )
 
 
 def check_comms_lock_for_reboot(
     step: RecoveryStep,
     ctx: dict[str, Any],
 ) -> ConstraintViolation | None:
-    """Block OBC reboot if transponder lock is not confirmed.
+    """Block an OBC reboot when transponder lock is not confirmed.
 
-    Rebooting without a comms lock risks losing the uplink during the
-    reboot window, which could make the spacecraft unrecoverable.
-
-    This is a mandatory prerequisite — if lock status is 0 or False,
-    block the reboot. If lock status is simply absent, we treat it as
-    permissive (operator may have confirmed lock out-of-band).
+    Rebooting without a comms lock risks losing the uplink during the reboot
+    window, which could make the spacecraft unrecoverable. An explicitly absent
+    lock blocks; a missing lock reading is permissive, because the operator may
+    have confirmed it out of band.
     """
-    if step.command not in ("CMD_OBC_CONTROLLED_REBOOT", "CMD_OBC_SOFT_RESET"):
-        return None
-
-    lock_value = _get_transponder_lock(ctx)
-
-    if lock_value == "NOT_FOUND":
-        return None  # Not in context → permissive
-
-    # Explicitly no lock
-    if lock_value in (0, False, "0", "false", "False", "no", "NO"):
-        return ConstraintViolation(
-            code="COMMS_LOCK_REBOOT",
-            reason=(
-                f"Transponder lock is not confirmed (value={lock_value!r}). "
-                f"Command '{step.command}' requires verified comms lock "
-                f"before reboot. Verify transponder lock first."
-            ),
-            subsystem="COMMS",
-        )
-
-    return None
+    return _check_single_condition(
+        step, ctx,
+        Condition.COMMS_LOCK_CONFIRMED,
+        Condition.COMMS_LOCK_ABSENT,
+    )
 
 
 def check_thermal_survival(
     step: RecoveryStep,
     ctx: dict[str, Any],
 ) -> ConstraintViolation | None:
-    """Block non-essential commands if any temperature exceeds 85°C.
+    """Block commands declaring a thermal constraint when over the survival limit.
 
-    Verification commands are always allowed.
+    Thermal remedies (CMD_DISABLE_HEATER_ZONE, CMD_HEATER_DISABLE,
+    CMD_HEATER_OFF, CMD_THERMAL_OVERRIDE_OFF, ...) and observation-only commands
+    declare no thermal prohibition, so they are never blocked during an
+    over-temperature event — blocking the remedy for the fault being remediated
+    was one of the conflicts Phase 1 fixed.
     Missing temperature data is permissive.
     """
-    if _is_verify_command(step.command):
-        return None
-
-    # Allow temperature-related commands (they're actively addressing the issue)
-    if step.command in (
-        "CMD_HEATER_DISABLE", "CMD_HEATER_OFF",
-        "CMD_THERMAL_OVERRIDE_OFF", "CMD_THERMAL_CHECK",
-        "CMD_THERMAL_MONITOR_CHECK",
-    ):
-        return None
-
-    max_temp = _get_max_temperature(ctx)
-    if max_temp is None:
-        return None  # Missing data → permissive
-
-    if max_temp > THERMAL_SURVIVAL_LIMIT:
-        return ConstraintViolation(
-            code="THERMAL_SURVIVAL",
-            reason=(
-                f"Component temperature is {max_temp:.1f}°C (exceeds "
-                f"{THERMAL_SURVIVAL_LIMIT:.0f}°C limit). Command "
-                f"'{step.command}' is blocked until thermal conditions "
-                f"are resolved. Disable heaters and monitor temperatures."
-            ),
-            subsystem="TCS",
-        )
-
-    return None
+    return _check_single_condition(
+        step, ctx,
+        Condition.THERMAL_WITHIN_SURVIVAL,
+        Condition.THERMAL_ABOVE_SURVIVAL,
+    )
 
 
 def check_high_risk_escalation(
@@ -714,6 +693,24 @@ _ESCALATION_CHECKS = [
 # SECTION 7 — PUBLIC API
 # ═══════════════════════════════════════════════════════════════════════════
 
+def _blocked(
+    step: RecoveryStep,
+    reason: str,
+    code: str,
+    subsystem: str | None,
+    support: dict[str, Any] | None = None,
+) -> BlockedStep:
+    """Build a BlockedStep with its severity resolved from the violation code."""
+    return BlockedStep(
+        original_step=step,
+        reason=reason,
+        violation_code=code,
+        subsystem=subsystem,
+        severity=_severity_for(code),
+        supporting_context=support or {},
+    )
+
+
 def validate_recovery_plan(
     sentinel_output: SentinelOutput,
     crash_dump_context: dict[str, Any],
@@ -745,45 +742,65 @@ def validate_recovery_plan(
 
         # --- Check 1: Command must be CMD_-prefixed ---
         if not step.command.startswith("CMD_"):
-            blocked.append(BlockedStep(
-                original_step=step,
+            blocked.append(_blocked(
+                step,
                 reason=(
                     f"Command '{step.command}' does not follow the "
                     f"CMD_UPPER_SNAKE_CASE naming convention."
                 ),
-                violation_code="INVALID_FORMAT",
+                code="INVALID_FORMAT",
                 subsystem=None,
+                support={"command": step.command},
             ))
             step_blocked = True
 
-        # --- Check 2: Whitelist ---
-        elif not is_command_whitelisted(step.command):
-            blocked.append(BlockedStep(
-                original_step=step,
+        # --- Check 2: Registry membership ---
+        elif not is_registered(step.command):
+            blocked.append(_blocked(
+                step,
                 reason=(
-                    f"Command '{step.command}' is not in the approved "
-                    f"command whitelist."
+                    f"Command '{step.command}' is not defined in the SENTINEL "
+                    f"command registry, so its subsystem, risk and "
+                    f"preconditions are unknown. It cannot be authorised."
                 ),
-                violation_code="NOT_WHITELISTED",
+                code="NOT_IN_REGISTRY",
                 subsystem=infer_subsystem(step.command),
+                support={"command": step.command,
+                         "registry_size": len(COMMAND_REGISTRY)},
             ))
             step_blocked = True
 
-        # --- Check 3: Blocking constraint checks ---
-        if not step_blocked:
-            for check_fn in _BLOCKING_CHECKS:
-                violation = check_fn(step, ctx)
-                if violation is not None:
-                    blocked.append(BlockedStep(
-                        original_step=step,
-                        reason=violation.reason,
-                        violation_code=violation.code,
-                        subsystem=violation.subsystem,
-                    ))
-                    step_blocked = True
-                    break  # First blocking violation wins
+        # --- Check 3: Command is registered but withdrawn ---
+        elif not is_enabled(step.command):
+            spec = get_command(step.command)
+            blocked.append(_blocked(
+                step,
+                reason=(
+                    f"Command '{step.command}' exists in the registry but is "
+                    f"disabled. "
+                    + (spec.disabled_reason or "No reason recorded.")
+                ),
+                code="COMMAND_DISABLED",
+                subsystem=infer_subsystem(step.command),
+                support={"command": step.command,
+                         "disabled_reason": spec.disabled_reason},
+            ))
+            step_blocked = True
 
-        # --- Check 4: Escalation checks (non-blocking) ---
+        # --- Check 4: Declared preconditions / prohibited conditions ---
+        if not step_blocked:
+            violation = evaluate_declared_conditions(step, ctx)
+            if violation is not None:
+                blocked.append(_blocked(
+                    step,
+                    reason=violation.reason,
+                    code=violation.code,
+                    subsystem=violation.subsystem,
+                    support=violation.supporting_context,
+                ))
+                step_blocked = True
+
+        # --- Check 5: Escalation checks (non-blocking) ---
         if not step_blocked:
             for check_fn in _ESCALATION_CHECKS:
                 violation = check_fn(step, ctx)
@@ -799,9 +816,22 @@ def validate_recovery_plan(
     if blocked:
         force_human_review = True
 
-    # Build summary
+    status = derive_safety_status(
+        validated_count=len(validated),
+        blocked_count=len(blocked),
+        requires_human_review=force_human_review,
+    )
+
+    # Build summary. This narrates the outcome; it never asserts success when
+    # steps were blocked, and it is NOT the mechanism by which blocked steps
+    # reach the operator — that is SentinelOutput.blocked_steps.
     summary_parts: list[str] = []
-    if not blocked:
+    if status is SafetyStatus.BLOCKED:
+        summary_parts.append(
+            f"BLOCKED: all {len(blocked)} proposed recovery step(s) were "
+            f"rejected by safety validation. No safe action is available."
+        )
+    elif not blocked:
         summary_parts.append(
             f"All {len(validated)} recovery step(s) passed safety validation."
         )
@@ -810,6 +840,8 @@ def validate_recovery_plan(
             f"{len(blocked)} step(s) blocked, "
             f"{len(validated)} step(s) approved."
         )
+
+    if blocked:
         codes = sorted(set(b.violation_code for b in blocked))
         summary_parts.append(f"Violations: {', '.join(codes)}.")
 
@@ -822,6 +854,7 @@ def validate_recovery_plan(
         blocked_steps=blocked,
         requires_human_review=force_human_review,
         safety_summary=" ".join(summary_parts),
+        safety_status=status,
     )
 
 
@@ -845,39 +878,27 @@ def apply_validation_to_output(
     Returns:
         New SentinelOutput with safety-validated recovery plan.
     """
-    # Re-number validated steps sequentially (1, 2, 3, ...)
+    # Re-number surviving steps sequentially (1, 2, 3, ...)
     renumbered_steps: list[RecoveryStep] = []
     for i, step in enumerate(validation_result.validated_steps, start=1):
         renumbered_steps.append(step.model_copy(update={"step": i}))
 
-    # If all steps were blocked, keep at least the first safe verification
-    # step so SentinelOutput validates (min_length=1 on recovery_plan).
-    if not renumbered_steps:
-        renumbered_steps = [RecoveryStep(
-            step=1,
-            command="CMD_HEALTH_CHECK",
-            rationale=(
-                "All LLM-proposed recovery steps were blocked by safety "
-                "validation. Running a health check as the minimum safe action."
-            ),
-            wait_seconds=5,
-            verify="Health check returns nominal status",
-            risk=RiskLevel.LOW,
-        )]
+    # NOTE ON TOTAL REJECTION
+    # -----------------------
+    # When every step is blocked the plan stays EMPTY and safety_status is
+    # BLOCKED. This function used to substitute a fabricated
+    #     RecoveryStep(command="CMD_HEALTH_CHECK", risk=LOW, ...)
+    # so that the old min_length=1 constraint on recovery_plan was satisfied.
+    # The effect was that a completely rejected plan rendered as a clean
+    # one-step recovery at LOW risk. SentinelOutput invariant 6 now enforces
+    # the opposite: an empty plan is legal ONLY when safety_status is BLOCKED,
+    # and a BLOCKED plan must carry blocked_steps explaining what was refused.
 
-    # Update reasoning summary with safety info
+    # Reasoning summary is left ALONE. Blocked steps used to be flattened into
+    # it as a "[SAFETY: ...]" suffix; they are now returned as structured data
+    # in SentinelOutput.blocked_steps so the frontend can render them properly.
     reasoning = sentinel_output.reasoning_summary
-    if validation_result.blocked_steps:
-        blocked_cmds = ", ".join(
-            b.original_step.command for b in validation_result.blocked_steps
-        )
-        reasoning += (
-            f" [SAFETY: {len(validation_result.blocked_steps)} command(s) "
-            f"blocked ({blocked_cmds}). "
-            f"{validation_result.safety_summary}]"
-        )
 
-    # Determine requires_human_review
     requires_review = (
         sentinel_output.requires_human_review
         or validation_result.requires_human_review
@@ -888,5 +909,9 @@ def apply_validation_to_output(
     new_data["recovery_plan"] = [s.model_dump() for s in renumbered_steps]
     new_data["requires_human_review"] = requires_review
     new_data["reasoning_summary"] = reasoning
+    new_data["safety_status"] = validation_result.safety_status.value
+    new_data["blocked_steps"] = [
+        b.model_dump() for b in validation_result.blocked_for_api()
+    ]
 
     return SentinelOutput(**new_data)

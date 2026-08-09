@@ -1,0 +1,80 @@
+{
+  "$defs": {
+    "BaselineSource": {
+      "description": "Where the statistics a detector compared against came from.\n\nThis is the single most important provenance field in Phase 2. The\npre-Phase-2 detector derived sigma as ``(hi - lo) / 6`` from *engineering\nlimits* and then reported the result as a statistical z-score. That is not a\nstatistic — it assumes the limits are a 3-sigma band, which for a channel\nlike ``Watchdog_counter`` (0..1000) makes a genuine overflow score z=2.85 and\nslip under a 3.0 threshold.\n\nFindings whose baseline is RANGE_DERIVED are explicitly marked as weak\nevidence so nothing downstream mistakes them for observed statistics.",
+      "enum": [
+        "OBSERVED_PROVIDED",
+        "OBSERVED_WINDOW",
+        "RANGE_DERIVED",
+        "NONE"
+      ],
+      "title": "BaselineSource",
+      "type": "string"
+    },
+    "Confidence": {
+      "description": "How much weight a finding's evidence deserves.",
+      "enum": [
+        "HIGH",
+        "MEDIUM",
+        "LOW"
+      ],
+      "title": "Confidence",
+      "type": "string"
+    }
+  },
+  "description": "How a finding was reached, and how far it can be trusted.",
+  "properties": {
+    "baseline_sample_count": {
+      "anyOf": [
+        {
+          "type": "integer"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "description": "Number of observations behind the baseline, when known",
+      "title": "Baseline Sample Count"
+    },
+    "baseline_source": {
+      "$ref": "#/definitions/BaselineSource",
+      "default": "NONE",
+      "description": "Where the comparison statistics came from"
+    },
+    "confidence": {
+      "$ref": "#/definitions/Confidence",
+      "default": "HIGH",
+      "description": "Weight this evidence deserves"
+    },
+    "detector_module": {
+      "description": "Module that produced the finding, e.g. 'app.detection.limits'",
+      "title": "Detector Module",
+      "type": "string"
+    },
+    "deterministic": {
+      "default": true,
+      "description": "True when the check involves no estimated statistics. Always True for limits.py; True for statistical/temporal detectors too, in the sense that they are reproducible — no detector samples randomness.",
+      "title": "Deterministic",
+      "type": "boolean"
+    },
+    "notes": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "description": "Any caveat an operator should read alongside the finding",
+      "title": "Notes"
+    }
+  },
+  "required": [
+    "detector_module"
+  ],
+  "title": "AnomalyProvenance",
+  "type": "object"
+}

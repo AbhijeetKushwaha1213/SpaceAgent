@@ -1,0 +1,53 @@
+{
+  "additionalProperties": false,
+  "description": "Response to a recorded operator decision.",
+  "properties": {
+    "actor": {
+      "default": "OPERATOR",
+      "title": "Actor",
+      "type": "string"
+    },
+    "chain_valid": {
+      "description": "Whether the run's chain still verifies after the append",
+      "title": "Chain Valid",
+      "type": "boolean"
+    },
+    "entry_hash": {
+      "title": "Entry Hash",
+      "type": "string"
+    },
+    "note": {
+      "default": "Recorded as an operator decision. operator_id is stored verbatim and is NOT authenticated by this endpoint.",
+      "title": "Note",
+      "type": "string"
+    },
+    "recorded_at": {
+      "title": "Recorded At",
+      "type": "string"
+    },
+    "run_id": {
+      "title": "Run Id",
+      "type": "string"
+    },
+    "seq": {
+      "description": "Server-assigned position",
+      "minimum": 1,
+      "title": "Seq",
+      "type": "integer"
+    },
+    "stage": {
+      "default": "operator_decision",
+      "title": "Stage",
+      "type": "string"
+    }
+  },
+  "required": [
+    "run_id",
+    "seq",
+    "recorded_at",
+    "entry_hash",
+    "chain_valid"
+  ],
+  "title": "OperatorDecisionAccepted",
+  "type": "object"
+}

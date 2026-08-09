@@ -1,0 +1,87 @@
+{
+  "$defs": {
+    "CheckFamily": {
+      "description": "The seven check families the Phase 8 specification requires.",
+      "enum": [
+        "PHYSICAL_CONSISTENCY",
+        "TELEMETRY_CONSISTENCY",
+        "STATE_TRANSITION_CONSISTENCY",
+        "ACTUATOR_FEASIBILITY",
+        "SENSOR_CONSISTENCY",
+        "ENERGY_CONSISTENCY",
+        "THERMAL_CONSISTENCY"
+      ],
+      "title": "CheckFamily",
+      "type": "string"
+    },
+    "CheckOutcome": {
+      "description": "Result of evaluating one constraint against one hypothesis.",
+      "enum": [
+        "PASS",
+        "FAIL",
+        "NOT_APPLICABLE",
+        "INDETERMINATE"
+      ],
+      "title": "CheckOutcome",
+      "type": "string"
+    }
+  },
+  "description": "One constraint evaluated against one hypothesis.",
+  "properties": {
+    "caveat": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Caveat"
+    },
+    "channels": {
+      "items": {
+        "type": "string"
+      },
+      "title": "Channels",
+      "type": "array"
+    },
+    "constraint_id": {
+      "title": "Constraint Id",
+      "type": "string"
+    },
+    "detail": {
+      "description": "What the evidence showed, in this hypothesis's terms",
+      "title": "Detail",
+      "type": "string"
+    },
+    "family": {
+      "$ref": "#/definitions/CheckFamily"
+    },
+    "outcome": {
+      "$ref": "#/definitions/CheckOutcome"
+    },
+    "residual_refs": {
+      "description": "Channels whose residuals this check rests on",
+      "items": {
+        "type": "string"
+      },
+      "title": "Residual Refs",
+      "type": "array"
+    },
+    "statement": {
+      "title": "Statement",
+      "type": "string"
+    }
+  },
+  "required": [
+    "constraint_id",
+    "family",
+    "outcome",
+    "statement",
+    "detail"
+  ],
+  "title": "ConstraintCheck",
+  "type": "object"
+}

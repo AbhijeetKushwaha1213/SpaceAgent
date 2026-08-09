@@ -1,7 +1,9 @@
 {
   "scenario_id": 1,
   "fault_type": "ADCS_GYRO_SEU",
-  "source_type": "Synthetic Safe Mode",
+  "provenance": "SYNTHETIC",
+  "source_type": "SYNTHETIC DATA",
+  "safety_status": "VALIDATED",
   "sentinel_output": {
     "hypotheses": [
       {
@@ -56,7 +58,7 @@
       },
       {
         "step": 3,
-        "command": "CMD_SWITCH_TO_GYRO_B",
+        "command": "CMD_GYRO_SWITCH_TO_BACKUP",
         "rationale": "Switch to backup gyroscope B as redundant path if GYRO_A reset fails",
         "wait_seconds": 20,
         "verify": "GYRO_B health status nominal and attitude error decreasing",
@@ -64,7 +66,7 @@
       },
       {
         "step": 4,
-        "command": "CMD_ATTITUDE_RECOVERY_SUN_POINT",
+        "command": "CMD_SUN_ACQUISITION",
         "rationale": "Re-establish sun-pointing attitude to restore power-positive state",
         "wait_seconds": 60,
         "verify": "Attitude_error_deg < 0.5\u00b0 and solar array current I_sa > 5.0A",
@@ -74,7 +76,9 @@
     "confidence": 0.92,
     "requires_human_review": false,
     "reasoning_summary": "SEU burst at T-62s corrupted GYRO_A registers causing attitude divergence to 7.3\u00b0. All other subsystems (EPS, OBC, TCS, COMMS) nominal. Single-event radiation fault with high confidence. Recovery: verify SEU count \u2192 reset GYRO_A \u2192 failover to GYRO_B \u2192 sun-point.",
-    "status": "complete"
+    "status": "complete",
+    "safety_status": "VALIDATED",
+    "blocked_steps": []
   },
   "sse_trace": [
     {
@@ -126,13 +130,13 @@
     },
     {
       "event_type": "status",
-      "data": "Analysis complete. Safety validation passed."
+      "data": "Analysis complete. Safety status: VALIDATED."
     },
     {
       "event_type": "result",
-      "data": "{\"hypotheses\":[{\"rank\":1,\"root_cause\":\"ADCS_GYRO_SEU\",\"affected_component\":\"GYRO_A\",\"confidence\":0.92,\"causal_chain\":[\"SEU burst at T-62s corrupted GYRO_A memory registers\",\"Gyro_rate_degs became NaN (sensor output invalid)\",\"ADCS attitude error grew to 7.3\u00b0 exceeding 0.01\u00b0 threshold\",\"FDIR triggered safe-mode entry via ADCS_ERROR flag\"]},{\"rank\":2,\"root_cause\":\"MULTI_CASCADE\",\"affected_component\":\"ADCS_EPS_CHAIN\",\"confidence\":0.05,\"causal_chain\":[\"Multi-subsystem cascade is a low-probability alternative\",\"V_bat and SoC_pct are within nominal limits, ruling out EPS contribution\"]},{\"rank\":3,\"root_cause\":\"OBC_WATCHDOG_OVERFLOW\",\"affected_component\":\"OBC_FLIGHT_SOFTWARE\",\"confidence\":0.03,\"causal_chain\":[\"Software fault is possible but CPU_load and Watchdog_counter are nominal\",\"No evidence of memory corruption or thread deadlock in event log\"]}],\"recovery_plan\":[{\"step\":1,\"command\":\"CMD_VERIFY_SEU_COUNTER\",\"rationale\":\"Confirm radiation-induced SEU as the initiating event before taking corrective action\",\"wait_seconds\":15,\"verify\":\"SEU_counter value recorded and stable (no further increments)\",\"risk\":\"LOW\"},{\"step\":2,\"command\":\"CMD_GYRO_A_DRIVER_RESET\",\"rationale\":\"Reset gyroscope A driver to clear corrupted register state from SEU\",\"wait_seconds\":30,\"verify\":\"Gyro_rate_degs returns valid numeric reading within [0.0, 7.0] deg/s\",\"risk\":\"MEDIUM\"},{\"step\":3,\"command\":\"CMD_SWITCH_TO_GYRO_B\",\"rationale\":\"Switch to backup gyroscope B as redundant path if GYRO_A reset fails\",\"wait_seconds\":20,\"verify\":\"GYRO_B health status nominal and attitude error decreasing\",\"risk\":\"MEDIUM\"},{\"step\":4,\"command\":\"CMD_ATTITUDE_RECOVERY_SUN_POINT\",\"rationale\":\"Re-establish sun-pointing attitude to restore power-positive state\",\"wait_seconds\":60,\"verify\":\"Attitude_error_deg < 0.5\u00b0 and solar array current I_sa > 5.0A\",\"risk\":\"LOW\"}],\"confidence\":0.92,\"requires_human_review\":false,\"reasoning_summary\":\"SEU burst at T-62s corrupted GYRO_A registers causing attitude divergence to 7.3\u00b0. All other subsystems (EPS, OBC, TCS, COMMS) nominal. Single-event radiation fault with high confidence. Recovery: verify SEU count \u2192 reset GYRO_A \u2192 failover to GYRO_B \u2192 sun-point.\",\"status\":\"complete\"}"
+      "data": "{\"hypotheses\":[{\"rank\":1,\"root_cause\":\"ADCS_GYRO_SEU\",\"affected_component\":\"GYRO_A\",\"confidence\":0.92,\"causal_chain\":[\"SEU burst at T-62s corrupted GYRO_A memory registers\",\"Gyro_rate_degs became NaN (sensor output invalid)\",\"ADCS attitude error grew to 7.3\u00b0 exceeding 0.01\u00b0 threshold\",\"FDIR triggered safe-mode entry via ADCS_ERROR flag\"]},{\"rank\":2,\"root_cause\":\"MULTI_CASCADE\",\"affected_component\":\"ADCS_EPS_CHAIN\",\"confidence\":0.05,\"causal_chain\":[\"Multi-subsystem cascade is a low-probability alternative\",\"V_bat and SoC_pct are within nominal limits, ruling out EPS contribution\"]},{\"rank\":3,\"root_cause\":\"OBC_WATCHDOG_OVERFLOW\",\"affected_component\":\"OBC_FLIGHT_SOFTWARE\",\"confidence\":0.03,\"causal_chain\":[\"Software fault is possible but CPU_load and Watchdog_counter are nominal\",\"No evidence of memory corruption or thread deadlock in event log\"]}],\"recovery_plan\":[{\"step\":1,\"command\":\"CMD_VERIFY_SEU_COUNTER\",\"rationale\":\"Confirm radiation-induced SEU as the initiating event before taking corrective action\",\"wait_seconds\":15,\"verify\":\"SEU_counter value recorded and stable (no further increments)\",\"risk\":\"LOW\"},{\"step\":2,\"command\":\"CMD_GYRO_A_DRIVER_RESET\",\"rationale\":\"Reset gyroscope A driver to clear corrupted register state from SEU\",\"wait_seconds\":30,\"verify\":\"Gyro_rate_degs returns valid numeric reading within [0.0, 7.0] deg/s\",\"risk\":\"MEDIUM\"},{\"step\":3,\"command\":\"CMD_GYRO_SWITCH_TO_BACKUP\",\"rationale\":\"Switch to backup gyroscope B as redundant path if GYRO_A reset fails\",\"wait_seconds\":20,\"verify\":\"GYRO_B health status nominal and attitude error decreasing\",\"risk\":\"MEDIUM\"},{\"step\":4,\"command\":\"CMD_SUN_ACQUISITION\",\"rationale\":\"Re-establish sun-pointing attitude to restore power-positive state\",\"wait_seconds\":60,\"verify\":\"Attitude_error_deg < 0.5\u00b0 and solar array current I_sa > 5.0A\",\"risk\":\"LOW\"}],\"confidence\":0.92,\"requires_human_review\":false,\"reasoning_summary\":\"SEU burst at T-62s corrupted GYRO_A registers causing attitude divergence to 7.3\u00b0. All other subsystems (EPS, OBC, TCS, COMMS) nominal. Single-event radiation fault with high confidence. Recovery: verify SEU count \u2192 reset GYRO_A \u2192 failover to GYRO_B \u2192 sun-point.\",\"status\":\"complete\",\"safety_status\":\"VALIDATED\",\"blocked_steps\":[]}"
     }
   ],
-  "generated_at": "2026-06-14T05:56:10.715868+00:00",
-  "note": "This is a pre-generated demo fallback. The SentinelOutput was crafted to match the synthetic crash dump scenario. It is NOT the result of a live LLM call."
+  "generated_at": "2026-08-08T16:09:41.430651+00:00",
+  "note": "DEMO / REPLAY payload. Pre-generated fallback, hand-written to match the synthetic crash dump scenario. It is NOT the result of a live LLM call and NOT a validated diagnosis. Its recovery commands HAVE been checked against the SENTINEL command registry and the deterministic safety validator with an empty crash-dump context, so physical constraint predicates were UNKNOWN (permissive) at generation time."
 }

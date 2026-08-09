@@ -1,0 +1,80 @@
+{
+  "$defs": {
+    "BlockSeverity": {
+      "description": "How consequential executing a blocked command anyway would be.",
+      "enum": [
+        "CRITICAL",
+        "HIGH",
+        "MEDIUM",
+        "LOW"
+      ],
+      "title": "BlockSeverity",
+      "type": "string"
+    }
+  },
+  "description": "A recovery action the safety validator refused, as structured data.\n\nAdded in Phase 1. Previously this information was flattened into a\n``[SAFETY: ...]`` string appended to ``reasoning_summary``, which meant the\nthing an operator most needs to see — what the AI proposed and why it was\nrefused — was the thing the API threw away.\n\nThis is deliberately a separate model from ``safety.BlockedStep``:\nBlockedStep is the validator's internal record and embeds the whole\nRecoveryStep; this is the stable API surface.",
+  "properties": {
+    "command": {
+      "description": "The command that was refused, exactly as proposed",
+      "minLength": 1,
+      "title": "Command",
+      "type": "string"
+    },
+    "reason": {
+      "description": "Operator-facing explanation of why it was refused",
+      "minLength": 5,
+      "title": "Reason",
+      "type": "string"
+    },
+    "severity": {
+      "$ref": "#/definitions/BlockSeverity",
+      "description": "Consequence of executing this command anyway"
+    },
+    "step": {
+      "anyOf": [
+        {
+          "type": "integer"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "description": "Position this command held in the model's original plan",
+      "title": "Step"
+    },
+    "subsystem": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "description": "Subsystem the command or constraint belongs to",
+      "title": "Subsystem"
+    },
+    "supporting_context": {
+      "additionalProperties": true,
+      "description": "Observed values the decision was based on, e.g. {'battery_soc_pct': 12.0, 'floor_pct': 15.0}. Only values actually read from the crash dump appear here.",
+      "title": "Supporting Context",
+      "type": "object"
+    },
+    "violated_constraint": {
+      "description": "Machine-readable constraint code, e.g. NOT_IN_REGISTRY, BATTERY_FLOOR, COMMS_LOCK_REBOOT, THERMAL_SURVIVAL",
+      "minLength": 1,
+      "title": "Violated Constraint",
+      "type": "string"
+    }
+  },
+  "required": [
+    "command",
+    "reason",
+    "violated_constraint",
+    "severity"
+  ],
+  "title": "BlockedCommand",
+  "type": "object"
+}

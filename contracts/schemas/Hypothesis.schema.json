@@ -1,0 +1,49 @@
+{
+  "description": "A single ranked diagnosis hypothesis.\n\nThe agent MUST always produce exactly 3 hypotheses.\nEven for obvious faults: H1 (high confidence), H2 and H3 (low).\nThis enables multi-hypothesis reasoning and graceful degradation\nwhen the top hypothesis is wrong.",
+  "properties": {
+    "affected_component": {
+      "description": "Affected component, e.g. SOLAR_ARRAY_A, GYRO_A",
+      "minLength": 2,
+      "title": "Affected Component",
+      "type": "string"
+    },
+    "causal_chain": {
+      "description": "Ordered list of events from trigger to safe mode, e.g. ['I_sa drops to 0A', 'V_bat falls to 24V', 'EPS fault flag set']",
+      "items": {
+        "type": "string"
+      },
+      "minItems": 2,
+      "title": "Causal Chain",
+      "type": "array"
+    },
+    "confidence": {
+      "description": "Confidence in this hypothesis (0.0–1.0)",
+      "maximum": 1.0,
+      "minimum": 0.0,
+      "title": "Confidence",
+      "type": "number"
+    },
+    "rank": {
+      "description": "Rank 1 = most likely",
+      "maximum": 3,
+      "minimum": 1,
+      "title": "Rank",
+      "type": "integer"
+    },
+    "root_cause": {
+      "description": "Fault class, e.g. ADCS_GYRO_SEU, EPS_SOLAR_UNDERVOLT",
+      "minLength": 3,
+      "title": "Root Cause",
+      "type": "string"
+    }
+  },
+  "required": [
+    "rank",
+    "root_cause",
+    "affected_component",
+    "confidence",
+    "causal_chain"
+  ],
+  "title": "Hypothesis",
+  "type": "object"
+}

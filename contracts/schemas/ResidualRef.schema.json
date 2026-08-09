@@ -1,0 +1,87 @@
+{
+  "description": "A compact reference to one Phase 7 residual supporting a verdict.",
+  "properties": {
+    "channel": {
+      "title": "Channel",
+      "type": "string"
+    },
+    "equation": {
+      "default": "",
+      "title": "Equation",
+      "type": "string"
+    },
+    "from_timestamp": {
+      "default": "",
+      "title": "From Timestamp",
+      "type": "string"
+    },
+    "observed": {
+      "anyOf": [
+        {
+          "type": "number"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Observed"
+    },
+    "predicted": {
+      "anyOf": [
+        {
+          "type": "number"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Predicted"
+    },
+    "residual": {
+      "anyOf": [
+        {
+          "type": "number"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Residual"
+    },
+    "status": {
+      "title": "Status",
+      "type": "string"
+    },
+    "to_timestamp": {
+      "default": "",
+      "title": "To Timestamp",
+      "type": "string"
+    },
+    "tolerance": {
+      "anyOf": [
+        {
+          "type": "number"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Tolerance"
+    },
+    "unit": {
+      "default": "",
+      "title": "Unit",
+      "type": "string"
+    }
+  },
+  "required": [
+    "channel",
+    "status"
+  ],
+  "title": "ResidualRef",
+  "type": "object"
+}

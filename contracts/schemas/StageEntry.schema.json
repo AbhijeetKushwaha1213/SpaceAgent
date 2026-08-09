@@ -1,0 +1,122 @@
+{
+  "$defs": {
+    "Actor": {
+      "description": "Who produced an entry.",
+      "enum": [
+        "SYSTEM",
+        "OPERATOR"
+      ],
+      "title": "Actor",
+      "type": "string"
+    },
+    "Stage": {
+      "description": "The pipeline stages an audit record can carry.\n\nOrdered as the architecture runs them: telemetry → detection → state\nestimation → hypotheses → physics/safety validation → recommendation. The\nLLM sits between evidence gathering and validation, and is recorded as one\nstage among several rather than as the pipeline.",
+      "enum": [
+        "input",
+        "detection",
+        "state_estimation",
+        "rag",
+        "llm",
+        "hypotheses",
+        "physics_validation",
+        "safety_validation",
+        "diagnosis",
+        "operator_decision"
+      ],
+      "title": "Stage",
+      "type": "string"
+    },
+    "StageStatus": {
+      "description": "Outcome of a stage. The distinctions here are the point of the enum.",
+      "enum": [
+        "OK",
+        "DEGRADED",
+        "FAILED",
+        "SKIPPED",
+        "NOT_RUN",
+        "NOT_IMPLEMENTED"
+      ],
+      "title": "StageStatus",
+      "type": "string"
+    }
+  },
+  "additionalProperties": false,
+  "description": "One append-only entry in a run's log.\n\nFrozen. The store has no update path and the database aborts UPDATE, so an\nentry is immutable at three levels: the object, the API, and the schema.",
+  "properties": {
+    "actor": {
+      "$ref": "#/definitions/Actor",
+      "default": "SYSTEM",
+      "description": "SYSTEM for pipeline output, OPERATOR for a human decision"
+    },
+    "duration_ms": {
+      "anyOf": [
+        {
+          "minimum": 0.0,
+          "type": "number"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "description": "Measured wall-clock duration of the stage. None when the stage did not execute, so a NOT_IMPLEMENTED stage cannot report a runtime.",
+      "title": "Duration Ms"
+    },
+    "entry_hash": {
+      "description": "This entry's chain hash",
+      "title": "Entry Hash",
+      "type": "string"
+    },
+    "payload": {
+      "additionalProperties": true,
+      "description": "Stage detail, already redacted",
+      "title": "Payload",
+      "type": "object"
+    },
+    "payload_sha256": {
+      "description": "SHA-256 of the canonical payload",
+      "title": "Payload Sha256",
+      "type": "string"
+    },
+    "prev_hash": {
+      "description": "entry_hash of the previous entry",
+      "title": "Prev Hash",
+      "type": "string"
+    },
+    "recorded_at": {
+      "description": "ISO-8601 UTC instant the entry was written",
+      "title": "Recorded At",
+      "type": "string"
+    },
+    "seq": {
+      "description": "1-indexed position within the run",
+      "minimum": 1,
+      "title": "Seq",
+      "type": "integer"
+    },
+    "stage": {
+      "$ref": "#/definitions/Stage"
+    },
+    "status": {
+      "$ref": "#/definitions/StageStatus"
+    },
+    "summary": {
+      "description": "One line an operator can read without opening the payload",
+      "minLength": 1,
+      "title": "Summary",
+      "type": "string"
+    }
+  },
+  "required": [
+    "seq",
+    "stage",
+    "status",
+    "recorded_at",
+    "summary",
+    "payload_sha256",
+    "prev_hash",
+    "entry_hash"
+  ],
+  "title": "StageEntry",
+  "type": "object"
+}

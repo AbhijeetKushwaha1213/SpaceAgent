@@ -16,6 +16,20 @@
 const fs = require('fs');
 const path = require('path');
 
+// ─── SINGLE SOURCE OF TRUTH FOR THE BACKEND URL ───────────────────
+// REACT_APP_BACKEND_URL in sentinel/frontend/.env is the only value an
+// operator should need to set. This script writes it into config.js, which
+// both frontends read at runtime via window.SENTINEL_BACKEND_URL.
+//
+// DEFAULT_BACKEND_URL below is the fallback when no .env is present. If you
+// change it, change the matching fallback in all of these, or the ports will
+// drift apart again (they previously read 8000 / 8001 / 8005):
+//   - sentinel/frontend/index.html          (SENTINEL_DEFAULT_BACKEND_URL)
+//   - sentinel/frontend/public/landing.html (SENTINEL_DEFAULT_BACKEND_URL)
+//   - sentinel/frontend/src/App.jsx         (DEFAULT_BACKEND_URL)
+//   - sentinel/frontend/.env.example
+const DEFAULT_BACKEND_URL = 'http://localhost:8000';
+
 // Load .env if present (manual simple parser — no dotenv dependency needed)
 const envPath = path.join(__dirname, '..', '.env');
 if (fs.existsSync(envPath)) {
@@ -33,7 +47,7 @@ if (fs.existsSync(envPath)) {
   }
 }
 
-const backendUrl = process.env.REACT_APP_BACKEND_URL || 'http://localhost:8000';
+const backendUrl = process.env.REACT_APP_BACKEND_URL || DEFAULT_BACKEND_URL;
 
 const timestamp = new Date().toISOString();
 

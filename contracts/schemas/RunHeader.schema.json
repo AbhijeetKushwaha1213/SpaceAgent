@@ -1,0 +1,105 @@
+{
+  "additionalProperties": false,
+  "description": "Immutable facts established when a run starts.",
+  "properties": {
+    "audit_schema_version": {
+      "default": "1.0.0",
+      "title": "Audit Schema Version",
+      "type": "string"
+    },
+    "contract_version": {
+      "default": "1.0.0",
+      "title": "Contract Version",
+      "type": "string"
+    },
+    "fault_type": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Fault Type"
+    },
+    "incident_id": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Incident Id"
+    },
+    "input_sha256": {
+      "default": "",
+      "description": "SHA-256 of the canonical input crash dump, for dedup and proof",
+      "title": "Input Sha256",
+      "type": "string"
+    },
+    "origin": {
+      "default": "unknown",
+      "description": "How the run was requested, e.g. 'POST /api/v1/analyze'. Recorded so a run triggered by a test or a script is distinguishable from one an operator started.",
+      "title": "Origin",
+      "type": "string"
+    },
+    "provenance": {
+      "default": "UNKNOWN",
+      "description": "REAL | SYNTHETIC | SYNTHETIC_FROM_REAL_METADATA | DEMO | UNKNOWN. Normalized on construction: an unrecognised value becomes UNKNOWN, never REAL.",
+      "title": "Provenance",
+      "type": "string"
+    },
+    "run_id": {
+      "minLength": 8,
+      "title": "Run Id",
+      "type": "string"
+    },
+    "scenario_id": {
+      "anyOf": [
+        {
+          "type": "integer"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "description": "Catalogue scenario id, when the input was one",
+      "title": "Scenario Id"
+    },
+    "source_note": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Source Note"
+    },
+    "source_type": {
+      "default": "",
+      "description": "Display label DERIVED from provenance, never authored",
+      "title": "Source Type",
+      "type": "string"
+    },
+    "started_at": {
+      "description": "ISO-8601 UTC",
+      "title": "Started At",
+      "type": "string"
+    }
+  },
+  "required": [
+    "run_id",
+    "started_at"
+  ],
+  "title": "RunHeader",
+  "type": "object"
+}

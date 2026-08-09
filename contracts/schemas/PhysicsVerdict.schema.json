@@ -1,0 +1,317 @@
+{
+  "$defs": {
+    "CheckFamily": {
+      "description": "The seven check families the Phase 8 specification requires.",
+      "enum": [
+        "PHYSICAL_CONSISTENCY",
+        "TELEMETRY_CONSISTENCY",
+        "STATE_TRANSITION_CONSISTENCY",
+        "ACTUATOR_FEASIBILITY",
+        "SENSOR_CONSISTENCY",
+        "ENERGY_CONSISTENCY",
+        "THERMAL_CONSISTENCY"
+      ],
+      "title": "CheckFamily",
+      "type": "string"
+    },
+    "CheckOutcome": {
+      "description": "Result of evaluating one constraint against one hypothesis.",
+      "enum": [
+        "PASS",
+        "FAIL",
+        "NOT_APPLICABLE",
+        "INDETERMINATE"
+      ],
+      "title": "CheckOutcome",
+      "type": "string"
+    },
+    "ConstraintCheck": {
+      "description": "One constraint evaluated against one hypothesis.",
+      "properties": {
+        "caveat": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Caveat"
+        },
+        "channels": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Channels",
+          "type": "array"
+        },
+        "constraint_id": {
+          "title": "Constraint Id",
+          "type": "string"
+        },
+        "detail": {
+          "description": "What the evidence showed, in this hypothesis's terms",
+          "title": "Detail",
+          "type": "string"
+        },
+        "family": {
+          "$ref": "#/definitions/CheckFamily"
+        },
+        "outcome": {
+          "$ref": "#/definitions/CheckOutcome"
+        },
+        "residual_refs": {
+          "description": "Channels whose residuals this check rests on",
+          "items": {
+            "type": "string"
+          },
+          "title": "Residual Refs",
+          "type": "array"
+        },
+        "statement": {
+          "title": "Statement",
+          "type": "string"
+        }
+      },
+      "required": [
+        "constraint_id",
+        "family",
+        "outcome",
+        "statement",
+        "detail"
+      ],
+      "title": "ConstraintCheck",
+      "type": "object"
+    },
+    "PhysicsStatus": {
+      "description": "Verdict on one hypothesis.",
+      "enum": [
+        "VALID",
+        "INVALID",
+        "UNCERTAIN"
+      ],
+      "title": "PhysicsStatus",
+      "type": "string"
+    },
+    "ResidualRef": {
+      "description": "A compact reference to one Phase 7 residual supporting a verdict.",
+      "properties": {
+        "channel": {
+          "title": "Channel",
+          "type": "string"
+        },
+        "equation": {
+          "default": "",
+          "title": "Equation",
+          "type": "string"
+        },
+        "from_timestamp": {
+          "default": "",
+          "title": "From Timestamp",
+          "type": "string"
+        },
+        "observed": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Observed"
+        },
+        "predicted": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Predicted"
+        },
+        "residual": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Residual"
+        },
+        "status": {
+          "title": "Status",
+          "type": "string"
+        },
+        "to_timestamp": {
+          "default": "",
+          "title": "To Timestamp",
+          "type": "string"
+        },
+        "tolerance": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Tolerance"
+        },
+        "unit": {
+          "default": "",
+          "title": "Unit",
+          "type": "string"
+        }
+      },
+      "required": [
+        "channel",
+        "status"
+      ],
+      "title": "ResidualRef",
+      "type": "object"
+    }
+  },
+  "description": "The Phase 8 result for one hypothesis, with every required field.",
+  "properties": {
+    "applicable_constraints": {
+      "items": {
+        "type": "string"
+      },
+      "title": "Applicable Constraints",
+      "type": "array"
+    },
+    "caveats": {
+      "items": {
+        "type": "string"
+      },
+      "title": "Caveats",
+      "type": "array"
+    },
+    "checks": {
+      "items": {
+        "$ref": "#/definitions/ConstraintCheck"
+      },
+      "title": "Checks",
+      "type": "array"
+    },
+    "claims_rationale": {
+      "default": "",
+      "title": "Claims Rationale",
+      "type": "string"
+    },
+    "corroborated_constraints": {
+      "items": {
+        "type": "string"
+      },
+      "title": "Corroborated Constraints",
+      "type": "array"
+    },
+    "explanation": {
+      "title": "Explanation",
+      "type": "string"
+    },
+    "fault_id": {
+      "default": "",
+      "title": "Fault Id",
+      "type": "string"
+    },
+    "fault_name": {
+      "default": "",
+      "title": "Fault Name",
+      "type": "string"
+    },
+    "has_physics_coverage": {
+      "default": true,
+      "title": "Has Physics Coverage",
+      "type": "boolean"
+    },
+    "hypothesis_id": {
+      "title": "Hypothesis Id",
+      "type": "string"
+    },
+    "indeterminate_constraints": {
+      "items": {
+        "type": "string"
+      },
+      "title": "Indeterminate Constraints",
+      "type": "array"
+    },
+    "model_version": {
+      "description": "Composite version of every model the verdict depends on: the constraint set, the Phase 7 parameter set, and the Phase 6 fault dictionary. A verdict is only comparable within one composite.",
+      "title": "Model Version",
+      "type": "string"
+    },
+    "refuted_by": {
+      "description": "The subset of violated_constraints that actually refuted the hypothesis. Empty unless validation_status is INVALID. Exists because a failed alternative mechanism is a real finding worth reporting without being a rejection.",
+      "items": {
+        "type": "string"
+      },
+      "title": "Refuted By",
+      "type": "array"
+    },
+    "relevant_channels": {
+      "items": {
+        "type": "string"
+      },
+      "title": "Relevant Channels",
+      "type": "array"
+    },
+    "subsystem": {
+      "default": "",
+      "title": "Subsystem",
+      "type": "string"
+    },
+    "supporting_residuals": {
+      "description": "The Phase 7 residuals this verdict rests on",
+      "items": {
+        "$ref": "#/definitions/ResidualRef"
+      },
+      "title": "Supporting Residuals",
+      "type": "array"
+    },
+    "timestamps": {
+      "description": "Telemetry offsets the supporting residuals span",
+      "items": {
+        "type": "string"
+      },
+      "title": "Timestamps",
+      "type": "array"
+    },
+    "validation_status": {
+      "$ref": "#/definitions/PhysicsStatus"
+    },
+    "verdict_basis": {
+      "default": "Deterministic evaluation of declared constraints against Phase 7 residuals. No language model is consulted. INVALID requires a DECIDED contradiction; a missing corroboration yields UNCERTAIN.",
+      "title": "Verdict Basis",
+      "type": "string"
+    },
+    "violated_constraints": {
+      "description": "Every constraint_id that FAILED. Non-empty does NOT imply INVALID: where a fault declares several alternative mechanisms, refuting one leaves the others standing. Read ``refuted_by`` for the failures that actually drove the verdict.",
+      "items": {
+        "type": "string"
+      },
+      "title": "Violated Constraints",
+      "type": "array"
+    }
+  },
+  "required": [
+    "hypothesis_id",
+    "validation_status",
+    "explanation",
+    "model_version"
+  ],
+  "title": "PhysicsVerdict",
+  "type": "object"
+}

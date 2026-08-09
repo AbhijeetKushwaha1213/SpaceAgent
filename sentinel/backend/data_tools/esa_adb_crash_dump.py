@@ -362,6 +362,16 @@ def build_crash_dump(args: argparse.Namespace) -> dict[str, Any]:
         "scenario_id": scenario_id,
         "timestamp": iso_z(event_end),
         "fault_type": f"ESA_ADB_{anomaly_type.get('Category', 'EVENT').upper().replace(' ', '_')}",
+        # REAL: every value in pre_fault_telemetry below was read from the
+        # ESA-ADB channel archives via pd.read_pickle. Nothing is generated.
+        # See app/api/provenance.py for the vocabulary.
+        "provenance": "REAL",
+        "source_type": "REAL ESA TELEMETRY",
+        "source_note": (
+            f"Numeric telemetry read directly from the ESA Anomaly Detection Benchmark "
+            f"({dataset.name}, {args.event_id}) channel archives. Channel names are "
+            f"anonymized; no root-cause label or recovery command is available."
+        ),
         "fault_register": (
             f"ESA_LABEL:{args.event_id};"
             f"CLASS:{anomaly_type.get('Class', 'unknown')};"

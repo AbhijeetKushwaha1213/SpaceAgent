@@ -1,0 +1,42 @@
+{
+  "additionalProperties": false,
+  "description": "Result of recomputing a run's hash chain.",
+  "properties": {
+    "checked_at": {
+      "title": "Checked At",
+      "type": "string"
+    },
+    "entry_count": {
+      "title": "Entry Count",
+      "type": "integer"
+    },
+    "final_hash": {
+      "default": "0000000000000000000000000000000000000000000000000000000000000000",
+      "title": "Final Hash",
+      "type": "string"
+    },
+    "problems": {
+      "items": {
+        "type": "string"
+      },
+      "title": "Problems",
+      "type": "array"
+    },
+    "run_id": {
+      "title": "Run Id",
+      "type": "string"
+    },
+    "valid": {
+      "title": "Valid",
+      "type": "boolean"
+    }
+  },
+  "required": [
+    "run_id",
+    "valid",
+    "entry_count",
+    "checked_at"
+  ],
+  "title": "ChainVerification",
+  "type": "object"
+}

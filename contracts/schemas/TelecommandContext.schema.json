@@ -1,0 +1,66 @@
+{
+  "description": "Behavioral layer: telecommand interval analysis.\n\nCaptures the execution timing pattern of the command correlated with the\nsafe-mode entry event.\n\nPhase 3 made ``gap_seconds`` and ``gap_percentile`` optional. They were\nrequired, but presets 4, 5 and 6 ship them as null (the interval statistics\nwere not computed for those payloads), so ``CrashDumpRequest.model_validate``\nrejected three of the ten scenarios the API serves. A missing statistic is\nrepresented as absent rather than as a fabricated number.",
+  "properties": {
+    "anomaly_flag": {
+      "description": "True if the interval crosses baseline bounds",
+      "title": "Anomaly Flag",
+      "type": "boolean"
+    },
+    "event_id": {
+      "description": "Unique sequence identifier for the telecommand execution log",
+      "title": "Event Id",
+      "type": "integer"
+    },
+    "execution_timestamp": {
+      "description": "ISO 8601 timestamp of command execution",
+      "format": "date-time",
+      "title": "Execution Timestamp",
+      "type": "string"
+    },
+    "gap_classification": {
+      "description": "Statistical interval classification (burst, nominal, stale)",
+      "title": "Gap Classification",
+      "type": "string"
+    },
+    "gap_percentile": {
+      "anyOf": [
+        {
+          "type": "number"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "description": "Historical percentile rating of this execution delta. None when not computed.",
+      "title": "Gap Percentile"
+    },
+    "gap_seconds": {
+      "anyOf": [
+        {
+          "type": "number"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "description": "Delta-T in seconds since the previous execution of this command. None when the interval statistics were not computed.",
+      "title": "Gap Seconds"
+    },
+    "telecommand": {
+      "description": "System command identifier (e.g. telecommand_63)",
+      "title": "Telecommand",
+      "type": "string"
+    }
+  },
+  "required": [
+    "event_id",
+    "telecommand",
+    "execution_timestamp",
+    "gap_classification",
+    "anomaly_flag"
+  ],
+  "title": "TelecommandContext",
+  "type": "object"
+}
