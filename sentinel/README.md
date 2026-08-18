@@ -43,12 +43,29 @@ SENTINEL provides a reproducible evaluation harness (`backend/app/evaluation/`) 
 
 ### Matrix Metrics (Held-Out Test Set)
 
+Reproducible from the committed artifact `backend/app/evaluation/results/evaluation_results.json`
+(`split: HELD_OUT_TEST`, 4 scenarios, seed 42, stub LLM mode):
+
+```bash
+cd backend && python3 -m app.evaluation.runner --split HELD_OUT_TEST --mode stub
+```
+
 | Pipeline Configuration | Anomaly F1 | Top-1 Accuracy | Top-3 Accuracy | Brier Score | ECE | RAG Precision | Safety Blocking | Latency |
 |---|---|---|---|---|---|---|---|---|
-| **Baseline 1** (Z-Score + Rules) | 0.82 | 0.65 | 0.78 | 0.220 | 0.180 | N/A | 0.85 | ~5 ms |
-| **Baseline 2** (Enhanced Detector) | 0.89 | 0.72 | 0.84 | 0.180 | 0.140 | N/A | 0.90 | ~12 ms |
-| **Baseline 3** (Detector + Unconstrained LLM) | 0.89 | 0.78 | 0.88 | 0.150 | 0.120 | 0.82 | 0.70 | ~850 ms |
-| **SENTINEL** (Deterministic + Physics + Safety + LLM) | **0.95** | **0.91** | **0.98** | **0.065** | **0.042** | **0.94** | **1.00** | **~420 ms** |
+| **Baseline 1** (Z-Score + Rules) | 0.29 | 0.25 | 0.25 | 0.250 | 0.250 | N/A | 1.00 | ~0.3 ms |
+| **Baseline 2** (Enhanced Detector) | 0.29 | 0.50 | 0.75 | 0.369 | 0.323 | N/A | 1.00 | ~0.8 ms |
+| **Baseline 3** (Detector + Unconstrained LLM) | 0.29 | 0.50 | 0.75 | 0.369 | 0.323 | 0.00 | 1.00 | ~1.2 ms |
+| **SENTINEL** (Deterministic + Physics + Safety + LLM) | **0.29** | **0.25** | **0.25** | **0.189** | **0.210** | 0.00 | **1.00** | ~3959 ms |
+
+> **Honest labelling:** this committed run executes in `STUB` mode — the LLM stage
+> serves a fixed response, so LLM-dependent numbers (Top-1/Top-3, RAG precision)
+> reflect stub behaviour, not a live model. Token counts are reported as
+> `measured: false` (the provider interface returns text only; no token counts
+> are fabricated). Every result file's `provenance.llm` records the exact
+> mode/provider/model/endpoint used, with `api_key_value_recorded: false`.
+> Live-model numbers require `--mode local` (sovereign endpoint) or
+> `--mode cloud`; guardrail-corrected stub runs intentionally differ from the
+> numbers a tuned live model would produce.
 
 ---
 

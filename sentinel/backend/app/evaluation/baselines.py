@@ -103,6 +103,9 @@ def run_baseline_3(crash_dump: dict[str, Any], agent: Any) -> dict[str, Any]:
     """Baseline 3: Detector + hypotheses + RAG + LLM (unconstrained, no physics).
 
     Uses legacy agent pipeline without physics validation or ranking guardrails.
+
+    Token usage is not measured by the provider interface; the token fields
+    are reported as 0 rather than fabricated.
     """
     t0 = time.perf_counter()
     report = run_detection_on_crash_dump(crash_dump)
@@ -153,7 +156,7 @@ def run_baseline_3(crash_dump: dict[str, Any], agent: Any) -> dict[str, Any]:
             "llm_ms": llm_ms,
             "end_to_end_ms": det_ms + rag_ms + llm_ms,
         },
-        "tokens": {"prompt": 850, "completion": 320, "total": 1170},
+        "tokens": {"prompt": 0, "completion": 0, "total": 0},
     }
 
 
@@ -228,5 +231,5 @@ def run_sentinel_full(crash_dump: dict[str, Any], agent: Any) -> dict[str, Any]:
             "llm_ms": llm_ms,
             "end_to_end_ms": total_ms,
         },
-        "tokens": {"prompt": 1240, "completion": 410, "total": 1650},
+        "tokens": {"prompt": 0, "completion": 0, "total": 0},
     }

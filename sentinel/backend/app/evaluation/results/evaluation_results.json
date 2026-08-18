@@ -6,9 +6,21 @@
     "api_version": "v1",
     "model": "stub:eval-runner",
     "seed": 42,
-    "timestamp": "2026-08-18T10:23:37.182145+00:00",
+    "timestamp": "2026-08-18T17:38:30.382205+00:00",
     "split": "DEV",
-    "scenarios_evaluated": 3
+    "scenarios_evaluated": 3,
+    "llm": {
+      "mode": "stub",
+      "llm_mode": "STUB",
+      "provider": "none_stubbed_response",
+      "model": "stub:eval-runner",
+      "endpoint": "",
+      "inference_performed": false,
+      "local_inference": false,
+      "stub_label": "eval-runner",
+      "api_key_present": false,
+      "api_key_value_recorded": false
+    }
   },
   "summary": {
     "total_scenarios": 3,
@@ -29,7 +41,7 @@
         "recall": 0.1667,
         "f1": 0.2222,
         "false_positive_rate": 0.0,
-        "detection_latency_ms": 0.36
+        "detection_latency_ms": 0.21
       },
       "hypothesis_generation": {
         "top1_accuracy": 0.3333,
@@ -55,15 +67,17 @@
         "blocked_plan_rate": 0.0
       },
       "system_performance": {
-        "end_to_end_latency_ms": 0.36,
-        "detector_latency_ms": 0.36,
+        "end_to_end_latency_ms": 0.21,
+        "detector_latency_ms": 0.21,
         "physics_latency_ms": 0.0,
         "rag_latency_ms": 0.0,
         "llm_latency_ms": 0.0,
         "token_usage": {
           "avg_prompt_tokens": 0,
           "avg_completion_tokens": 0,
-          "total_tokens": 0
+          "total_tokens": 0,
+          "measured": false,
+          "note": "The provider interface returns text only; no token counts are exposed. Token fields are 0 rather than fabricated."
         }
       },
       "scenario_details": [
@@ -79,7 +93,7 @@
               "recall": 0.5,
               "f1": 0.6667,
               "false_positive_rate": 0.0,
-              "latency_ms": 0.68
+              "latency_ms": 0.31
             },
             "hypothesis": {
               "top1_accuracy": 1.0,
@@ -114,7 +128,7 @@
               "recall": 0.0,
               "f1": 0.0,
               "false_positive_rate": 0.0,
-              "latency_ms": 0.22
+              "latency_ms": 0.19
             },
             "hypothesis": {
               "top1_accuracy": 0.0,
@@ -149,7 +163,7 @@
               "recall": 0.0,
               "f1": 0.0,
               "false_positive_rate": 0.0,
-              "latency_ms": 0.2
+              "latency_ms": 0.13
             },
             "hypothesis": {
               "top1_accuracy": 0.0,
@@ -182,7 +196,7 @@
         "recall": 0.1667,
         "f1": 0.2222,
         "false_positive_rate": 0.0,
-        "detection_latency_ms": 0.23
+        "detection_latency_ms": 0.17
       },
       "hypothesis_generation": {
         "top1_accuracy": 0.6667,
@@ -208,15 +222,17 @@
         "blocked_plan_rate": 0.0
       },
       "system_performance": {
-        "end_to_end_latency_ms": 1.2,
-        "detector_latency_ms": 0.23,
+        "end_to_end_latency_ms": 0.85,
+        "detector_latency_ms": 0.17,
         "physics_latency_ms": 0.0,
         "rag_latency_ms": 0.0,
         "llm_latency_ms": 0.0,
         "token_usage": {
           "avg_prompt_tokens": 0,
           "avg_completion_tokens": 0,
-          "total_tokens": 0
+          "total_tokens": 0,
+          "measured": false,
+          "note": "The provider interface returns text only; no token counts are exposed. Token fields are 0 rather than fabricated."
         }
       },
       "scenario_details": [
@@ -232,7 +248,7 @@
               "recall": 0.5,
               "f1": 0.6667,
               "false_positive_rate": 0.0,
-              "latency_ms": 0.23
+              "latency_ms": 0.19
             },
             "hypothesis": {
               "top1_accuracy": 0.0,
@@ -267,7 +283,7 @@
               "recall": 0.0,
               "f1": 0.0,
               "false_positive_rate": 0.0,
-              "latency_ms": 0.3
+              "latency_ms": 0.19
             },
             "hypothesis": {
               "top1_accuracy": 1.0,
@@ -302,7 +318,7 @@
               "recall": 0.0,
               "f1": 0.0,
               "false_positive_rate": 0.0,
-              "latency_ms": 0.16
+              "latency_ms": 0.13
             },
             "hypothesis": {
               "top1_accuracy": 1.0,
@@ -335,7 +351,7 @@
         "recall": 0.1667,
         "f1": 0.2222,
         "false_positive_rate": 0.0,
-        "detection_latency_ms": 0.24
+        "detection_latency_ms": 0.17
       },
       "hypothesis_generation": {
         "top1_accuracy": 0.6667,
@@ -361,15 +377,17 @@
         "blocked_plan_rate": 0.0
       },
       "system_performance": {
-        "end_to_end_latency_ms": 1.38,
-        "detector_latency_ms": 0.24,
+        "end_to_end_latency_ms": 1.03,
+        "detector_latency_ms": 0.17,
         "physics_latency_ms": 0.0,
-        "rag_latency_ms": 0.91,
-        "llm_latency_ms": 0.23,
+        "rag_latency_ms": 0.69,
+        "llm_latency_ms": 0.17,
         "token_usage": {
-          "avg_prompt_tokens": 877,
-          "avg_completion_tokens": 292,
-          "total_tokens": 3510
+          "avg_prompt_tokens": 0,
+          "avg_completion_tokens": 0,
+          "total_tokens": 0,
+          "measured": false,
+          "note": "The provider interface returns text only; no token counts are exposed. Token fields are 0 rather than fabricated."
         }
       },
       "scenario_details": [
@@ -385,7 +403,7 @@
               "recall": 0.5,
               "f1": 0.6667,
               "false_positive_rate": 0.0,
-              "latency_ms": 0.31
+              "latency_ms": 0.19
             },
             "hypothesis": {
               "top1_accuracy": 0.0,
@@ -420,7 +438,7 @@
               "recall": 0.0,
               "f1": 0.0,
               "false_positive_rate": 0.0,
-              "latency_ms": 0.23
+              "latency_ms": 0.19
             },
             "hypothesis": {
               "top1_accuracy": 1.0,
@@ -455,7 +473,7 @@
               "recall": 0.0,
               "f1": 0.0,
               "false_positive_rate": 0.0,
-              "latency_ms": 0.17
+              "latency_ms": 0.13
             },
             "hypothesis": {
               "top1_accuracy": 1.0,
@@ -488,7 +506,7 @@
         "recall": 0.1667,
         "f1": 0.2222,
         "false_positive_rate": 0.0,
-        "detection_latency_ms": 0.28
+        "detection_latency_ms": 0.21
       },
       "hypothesis_generation": {
         "top1_accuracy": 1.0,
@@ -514,15 +532,17 @@
         "blocked_plan_rate": 0.0
       },
       "system_performance": {
-        "end_to_end_latency_ms": 5.42,
-        "detector_latency_ms": 0.28,
-        "physics_latency_ms": 1.25,
-        "rag_latency_ms": 0.78,
-        "llm_latency_ms": 3.1,
+        "end_to_end_latency_ms": 12.43,
+        "detector_latency_ms": 0.21,
+        "physics_latency_ms": 1.18,
+        "rag_latency_ms": 0.69,
+        "llm_latency_ms": 10.34,
         "token_usage": {
-          "avg_prompt_tokens": 1237,
-          "avg_completion_tokens": 412,
-          "total_tokens": 4950
+          "avg_prompt_tokens": 0,
+          "avg_completion_tokens": 0,
+          "total_tokens": 0,
+          "measured": false,
+          "note": "The provider interface returns text only; no token counts are exposed. Token fields are 0 rather than fabricated."
         }
       },
       "scenario_details": [
@@ -538,7 +558,7 @@
               "recall": 0.5,
               "f1": 0.6667,
               "false_positive_rate": 0.0,
-              "latency_ms": 0.37
+              "latency_ms": 0.2
             },
             "hypothesis": {
               "top1_accuracy": 1.0,
@@ -573,7 +593,7 @@
               "recall": 0.0,
               "f1": 0.0,
               "false_positive_rate": 0.0,
-              "latency_ms": 0.3
+              "latency_ms": 0.26
             },
             "hypothesis": {
               "top1_accuracy": 1.0,
@@ -688,10 +708,10 @@
         "SENTINEL"
       ],
       "data": [
-        0.36,
-        1.2,
-        1.38,
-        5.42
+        0.21,
+        0.85,
+        1.03,
+        12.43
       ]
     }
   }

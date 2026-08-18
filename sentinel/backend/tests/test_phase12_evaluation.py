@@ -23,7 +23,9 @@ Run:
 import json
 import os
 import sys
+import threading
 import unittest
+from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from unittest.mock import patch
 
@@ -245,6 +247,143 @@ class TestEvaluationRunner(unittest.TestCase):
         self.assertIn("accuracy_comparison", charts)
         self.assertIn("safety_blocking", charts)
         self.assertIn("latency_breakdown", charts)
+
+    def test_provenance_llm_identity_stub(self):
+        """Provenance must expose the LLM identity honestly (STUB = no inference)."""
+        runner = EvaluationRunner(seed=42, model_mode="stub")
+        results = runner.run_evaluation(split="DEV", run_baselines=("sentinel",))
+
+        llm = results["provenance"]["llm"]
+        self.assertEqual(llm["llm_mode"], "STUB")
+        self.assertEqual(llm["provider"], "none_stubbed_response")
+        self.assertFalse(llm["inference_performed"])
+        self.assertFalse(llm["local_inference"])
+        self.assertEqual(llm["stub_label"], "eval-runner")
+        self.assertFalse(llm["api_key_value_recorded"])
+
+    def test_token_usage_not_fabricated(self):
+        """Token counts must be 0-with-a-note, never fabricated proportions."""
+        runner = EvaluationRunner(seed=42, model_mode="stub")
+        results = runner.run_evaluation(split="DEV", run_baselines=("sentinel",))
+
+        perf = results["pipelines"]["sentinel"]["system_performance"]
+        tokens = perf["token_usage"]
+        self.assertEqual(tokens["avg_prompt_tokens"], 0)
+        self.assertEqual(tokens["avg_completion_tokens"], 0)
+        self.assertEqual(tokens["total_tokens"], 0)
+        self.assertFalse(tokens["measured"])
+
+
+# ═══════════════════════════════════════════════════════════════════════════
+# 8. EVALUATION RUNNER IN SOVEREIGN LOCAL MODE (e2e)
+# ═══════════════════════════════════════════════════════════════════════════
+
+class _MockOpenAICompatibleServer:
+    """Minimal OpenAI-compatible /v1/chat/completions server.
+
+    Serves exactly the response the STUB mode would serve, so the LOCAL
+    evaluation path is proven end-to-end against a local endpoint only.
+    """
+
+    def __init__(self, content: str):
+        self.requests = []
+        self._server = None
+        self._thread = None
+
+        class Handler(BaseHTTPRequestHandler):
+            def log_message(self, *args):
+                pass
+
+            def do_POST(self):
+                length = int(self.headers.get("Content-Length", "0"))
+                body = self.rfile.read(length).decode("utf-8")
+                self.server.captured.append(
+                    (self.path, dict(self.headers), body)
+                )
+                response = json.dumps({
+                    "choices": [
+                        {"message": {"role": "assistant", "content": content}}
+                    ]
+                }).encode("utf-8")
+                self.send_response(200)
+                self.send_header("Content-Type", "application/json")
+                self.send_header("Content-Length", str(len(response)))
+                self.end_headers()
+                self.wfile.write(response)
+
+        self._server = ThreadingHTTPServer(("127.0.0.1", 0), Handler)
+        self._server.captured = self.requests
+        self._thread = threading.Thread(target=self._server.serve_forever, daemon=True)
+        self._thread.start()
+
+    @property
+    def base_url(self):
+        return f"http://127.0.0.1:{self._server.server_address[1]}/v1"
+
+    def close(self):
+        self._server.shutdown()
+        self._server.server_close()
+
+
+class TestEvaluationRunnerLocalMode(unittest.TestCase):
+    """Full evaluation run in LOCAL mode: all LLM traffic must stay local.
+
+    Mirrors the Phase 11 sovereignty proof, but through the Phase 12
+    evaluation harness (run_sentinel_full + provenance binding).
+    """
+
+    @classmethod
+    def setUpClass(cls):
+        cls._stub_content = EvaluationRunner()._default_stub_json()
+        cls.mock_server = _MockOpenAICompatibleServer(cls._stub_content)
+        cls._env = dict(os.environ)
+        os.environ["LLM_BASE_URL"] = cls.mock_server.base_url
+        os.environ["LLM_MODEL"] = "mock-eval-local-7b"
+        os.environ["LLM_API_KEY"] = "sovereign-eval-key"
+        cls.runner = EvaluationRunner(seed=7, model_mode="local")
+
+    @classmethod
+    def tearDownClass(cls):
+        os.environ.clear()
+        os.environ.update(cls._env)
+        cls.mock_server.close()
+
+    def test_evaluation_runs_local_only(self):
+        with patch(
+            "app.llm.provider.GeminiProvider.call",
+            side_effect=AssertionError("cloud provider must not be called"),
+        ):
+            results = self.runner.run_evaluation(
+                split="DEV", run_baselines=("sentinel",),
+            )
+
+        self.assertTrue(self.mock_server.requests, "no local LLM request made")
+
+        path, headers, body = self.mock_server.requests[0]
+        self.assertEqual(path, "/v1/chat/completions")
+        self.assertEqual(headers.get("Authorization"), "Bearer sovereign-eval-key")
+        payload = json.loads(body)
+        self.assertEqual(payload["model"], "mock-eval-local-7b")
+
+        sentinel_res = results["pipelines"]["sentinel"]
+        self.assertIsInstance(sentinel_res, dict)
+        self.assertIn("final_diagnosis", sentinel_res)
+
+        llm = results["provenance"]["llm"]
+        self.assertEqual(llm["llm_mode"], "LOCAL")
+        self.assertEqual(llm["provider"], "openai_compatible_local")
+        self.assertEqual(llm["model"], "mock-eval-local-7b")
+        self.assertEqual(llm["endpoint"], self.mock_server.base_url)
+        self.assertTrue(llm["inference_performed"])
+        self.assertTrue(llm["local_inference"])
+        self.assertFalse(llm["api_key_value_recorded"])
+
+    def test_all_requests_hit_local_endpoint_only(self):
+        for path, _headers, _body in self.mock_server.requests:
+            self.assertTrue(
+                path.startswith("/v1/"),
+                f"request escaped to non-local path: {path}",
+            )
 
 
 # ═══════════════════════════════════════════════════════════════════════════

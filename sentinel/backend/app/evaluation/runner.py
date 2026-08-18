@@ -69,6 +69,28 @@ class EvaluationRunner:
         )
         self.agent = SentinelAgent(agent_config)
 
+    def _llm_provenance(self) -> dict[str, Any]:
+        """Expose the LLM identity used for this run (no key values ever).
+
+        Mirrors the audit trail's llm_identity payload so evaluation results
+        stay reproducible per mode/provider/model/endpoint.
+        """
+        from app.audit.record import llm_identity
+
+        identity = llm_identity(self.agent.config)
+        return {
+            "mode": identity.get("mode"),
+            "llm_mode": identity.get("llm_mode"),
+            "provider": identity.get("provider"),
+            "model": identity.get("model"),
+            "endpoint": identity.get("endpoint"),
+            "inference_performed": identity.get("inference_performed"),
+            "local_inference": identity.get("local_inference"),
+            "stub_label": identity.get("stub_label"),
+            "api_key_present": identity.get("api_key_present"),
+            "api_key_value_recorded": identity.get("api_key_value_recorded"),
+        }
+
     def _default_stub_json(self) -> str:
         return json.dumps({
             "ranked_hypotheses": [
@@ -132,6 +154,7 @@ class EvaluationRunner:
             "timestamp": timestamp_iso,
             "split": split.upper(),
             "scenarios_evaluated": len(scenarios),
+            "llm": self._llm_provenance(),
         }
 
         pipeline_names = ["baseline_1", "baseline_2", "baseline_3", "sentinel"]
@@ -320,9 +343,15 @@ class EvaluationRunner:
                 "rag_latency_ms": round(sum(rag_lats) / n, 2),
                 "llm_latency_ms": round(sum(llm_lats) / n, 2),
                 "token_usage": {
-                    "avg_prompt_tokens": int(tokens_total / n * 0.75),
-                    "avg_completion_tokens": int(tokens_total / n * 0.25),
+                    "avg_prompt_tokens": 0,
+                    "avg_completion_tokens": 0,
                     "total_tokens": tokens_total,
+                    "measured": False,
+                    "note": (
+                        "The provider interface returns text only; no token "
+                        "counts are exposed. Token fields are 0 rather than "
+                        "fabricated."
+                    ),
                 },
             },
             "scenario_details": scenario_outputs,
