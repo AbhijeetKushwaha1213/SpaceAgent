@@ -26,6 +26,7 @@ ESA-Mission*_extracted/
 # append-only by design, so a record committed by accident cannot be edited out
 # of the working tree afterwards — only the whole file removed.
 sentinel/backend/data/audit/
+sentinel/backend/data/chroma_db/
 *.sqlite3
 *.sqlite3-wal
 *.sqlite3-shm
