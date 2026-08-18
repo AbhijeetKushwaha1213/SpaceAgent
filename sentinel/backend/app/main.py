@@ -20,7 +20,7 @@ from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import StreamingResponse
 
-from app.agent.agent import SentinelAgent
+from app.agent.agent import AgentConfig, ModelMode, SentinelAgent
 from app.api.adapters import canonical_window_dicts, with_canonical_window
 from app.audit import (
     AUDIT_SCHEMA_VERSION,
@@ -89,8 +89,37 @@ app.add_middleware(
     expose_headers=["X-Correlation-ID"],
 )
 
-# Instantiate agent once at startup (lazy-loads Gemini client on first call)
-agent = SentinelAgent()
+# Instantiate agent once at startup (lazy-loads Gemini client on first call).
+# STUB mode (LLM_MODE=stub) serves a pre-recorded response so the full
+# pipeline runs without a cloud key: the response comes from
+# SENTINEL_STUB_RESPONSE (inline JSON), SENTINEL_STUB_RESPONSE_FILE (path), or
+# data/stub_response.json. The audit trail records stub_label, so the origin
+# stays visible. Every other mode uses the default AgentConfig.
+def _build_agent() -> SentinelAgent:
+    mode = os.environ.get("LLM_MODE", "").lower().strip()
+    if mode != "stub":
+        return SentinelAgent()
+    stub = os.environ.get("SENTINEL_STUB_RESPONSE", "").strip()
+    if not stub:
+        stub_file = os.environ.get(
+            "SENTINEL_STUB_RESPONSE_FILE",
+            str(_BACKEND_DIR / "data" / "stub_response.json"),
+        )
+        try:
+            stub = Path(stub_file).read_text()
+        except OSError as exc:
+            logger.warning("STUB mode requested but no stub response found: %s", exc)
+            stub = ""
+    return SentinelAgent(
+        AgentConfig(
+            mode=ModelMode.STUB,
+            stub_response=stub,
+            stub_label="worked-example",
+        )
+    )
+
+
+agent = _build_agent()
 
 
 # ---------------------------------------------------------------------------

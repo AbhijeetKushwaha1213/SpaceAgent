@@ -1,0 +1,65 @@
+{
+  "hypotheses": [
+    {
+      "rank": 1,
+      "root_cause": "ADCS_GYRO_SEU",
+      "affected_component": "GYRO_A",
+      "confidence": 0.88,
+      "causal_chain": [
+        "SEU_counter increments to 3 at T-62s",
+        "Gyro_rate_degs returns NaN at T-60s",
+        "Attitude_error_deg reaches 7.3 deg at T-30s",
+        "FDIR raises ADCS_ERROR and commands safe mode at T-0s"
+      ]
+    },
+    {
+      "rank": 2,
+      "root_cause": "ADCS_GYRO_HARDWARE_FAILURE",
+      "affected_component": "GYRO_A",
+      "confidence": 0.08,
+      "causal_chain": [
+        "Gyro bearing or driver degradation",
+        "Rate output becomes invalid without an SEU trigger"
+      ]
+    },
+    {
+      "rank": 3,
+      "root_cause": "OBC_SENSOR_BUS_FAULT",
+      "affected_component": "OBC",
+      "confidence": 0.04,
+      "causal_chain": [
+        "Sensor bus read error",
+        "Gyro telemetry dropout without gyro hardware fault"
+      ]
+    }
+  ],
+  "recovery_plan": [
+    {
+      "step": 1,
+      "command": "CMD_GYRO_A_DRIVER_RESET",
+      "rationale": "Power-cycle the gyro driver to clear the SEU latch-up.",
+      "wait_seconds": 30,
+      "verify": "Gyro_rate_degs returns a finite value within limits",
+      "risk": "LOW"
+    },
+    {
+      "step": 2,
+      "command": "CMD_PURGE_SEU_MEMORY_BANK",
+      "rationale": "Invented command \u2014 exercises the registry check.",
+      "wait_seconds": 10,
+      "verify": "SEU_counter returns to 0",
+      "risk": "MEDIUM"
+    },
+    {
+      "step": 3,
+      "command": "CMD_ATTITUDE_RESET",
+      "rationale": "Re-establish the attitude reference once rates are valid.",
+      "wait_seconds": 60,
+      "verify": "Attitude_error_deg below 0.01 deg",
+      "risk": "MEDIUM"
+    }
+  ],
+  "confidence": 0.88,
+  "requires_human_review": false,
+  "reasoning_summary": "The SEU counter incremented before the gyro rate became invalid, and attitude error grew only afterwards. That ordering favours a single-event upset in the gyro driver over a mechanical failure, which would not be preceded by an SEU count."
+}

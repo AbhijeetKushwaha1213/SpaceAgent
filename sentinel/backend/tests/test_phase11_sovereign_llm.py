@@ -18,7 +18,9 @@ Run:
 import json
 import os
 import sys
+import threading
 import unittest
+from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from unittest.mock import MagicMock, patch
 
 # Ensure backend/ root is on sys.path for standalone execution
@@ -31,7 +33,9 @@ except ImportError:
 
 from app.main import app, get_system_status
 from app.agent.agent import AgentConfig, AgentError, LLMCallError, ModelMode, SentinelAgent
-from app.audit.record import llm_identity
+from app.audit.record import AuditRecorder, llm_identity
+from app.api.adapters import with_canonical_window
+from app.api.scenarios import get_all_scenarios
 from app.llm.provider import (
     GeminiProvider,
     LLMProvider,
@@ -288,6 +292,175 @@ class TestFactualDisclaimer(unittest.TestCase):
     def test_sovereignty_disclaimer_content(self):
         sov = SovereigntyInfo(local_execution=True, cloud_telemetry_disabled=True)
         self.assertIn("No security or compliance certifications", sov.disclaimer)
+
+
+# ═══════════════════════════════════════════════════════════════════════════
+# 8. END-TO-END LOCAL MODE (full pipeline against a local OpenAI-compatible
+#    server; the audit record must say LOCAL and name the local endpoint)
+# ═══════════════════════════════════════════════════════════════════════════
+
+LOCAL_WORKED_EXAMPLE = json.dumps({
+    "hypotheses": [
+        {
+            "rank": 1,
+            "root_cause": "ADCS_GYRO_SEU",
+            "affected_component": "GYRO_A",
+            "confidence": 0.88,
+            "causal_chain": [
+                "SEU_counter increments to 3 at T-62s",
+                "Gyro_rate_degs returns NaN at T-60s",
+                "Attitude_error_deg reaches 7.3 deg at T-30s",
+                "FDIR raises ADCS_ERROR and commands safe mode at T-0s",
+            ],
+        },
+        {
+            "rank": 2,
+            "root_cause": "ADCS_GYRO_HARDWARE_FAILURE",
+            "affected_component": "GYRO_A",
+            "confidence": 0.08,
+            "causal_chain": [
+                "Gyro bearing or driver degradation",
+                "Rate output becomes invalid without an SEU trigger",
+            ],
+        },
+        {
+            "rank": 3,
+            "root_cause": "OBC_SENSOR_BUS_FAULT",
+            "affected_component": "OBC",
+            "confidence": 0.04,
+            "causal_chain": [
+                "Sensor bus read error",
+                "Gyro telemetry dropout without gyro hardware fault",
+            ],
+        },
+    ],
+    "recovery_plan": [
+        {
+            "step": 1,
+            "command": "CMD_GYRO_A_DRIVER_RESET",
+            "rationale": "Power-cycle the gyro driver to clear the SEU latch-up.",
+            "wait_seconds": 30,
+            "verify": "Gyro_rate_degs returns a finite value within limits",
+            "risk": "LOW",
+        }
+    ],
+    "confidence": 0.88,
+    "requires_human_review": False,
+    "reasoning_summary": "Local endpoint end-to-end verification.",
+})
+
+
+class MockOpenAICompatibleServer:
+    """Tiny OpenAI-compatible /v1/chat/completions server.
+
+    Records every request so the test can assert what the agent actually sent
+    (model id, auth header, and that the payload body was the telemetry).
+    """
+
+    def __init__(self):
+        self.requests = []
+        self._server = None
+        self._thread = None
+
+        class Handler(BaseHTTPRequestHandler):
+            def log_message(self, *args):
+                pass
+
+            def do_POST(self):
+                length = int(self.headers.get("Content-Length", "0"))
+                body = self.rfile.read(length).decode("utf-8")
+                self.server.captured.append(
+                    (self.path, dict(self.headers), body)
+                )
+                response = json.dumps({
+                    "choices": [
+                        {"message": {"role": "assistant", "content": LOCAL_WORKED_EXAMPLE}}
+                    ]
+                }).encode("utf-8")
+                self.send_response(200)
+                self.send_header("Content-Type", "application/json")
+                self.send_header("Content-Length", str(len(response)))
+                self.end_headers()
+                self.wfile.write(response)
+
+        self._server = ThreadingHTTPServer(("127.0.0.1", 0), Handler)
+        self._server.captured = self.requests
+        self._thread = threading.Thread(target=self._server.serve_forever, daemon=True)
+        self._thread.start()
+
+    @property
+    def port(self):
+        return self._server.server_address[1]
+
+    @property
+    def base_url(self):
+        return f"http://127.0.0.1:{self.port}/v1"
+
+    def close(self):
+        self._server.shutdown()
+        self._server.server_close()
+
+
+class TestLocalModeEndToEnd(unittest.TestCase):
+    """Full SentinelAgent pipeline in LOCAL mode against a local server."""
+
+    @classmethod
+    def setUpClass(cls):
+        cls.mock_server = MockOpenAICompatibleServer()
+        cls.config = AgentConfig(
+            mode=ModelMode.LOCAL,
+            fallback_model="mock-local-7b",
+            fallback_base_url=cls.mock_server.base_url,
+            fallback_api_key="sovereign-local-key",
+        )
+        cls.agent = SentinelAgent(cls.config)
+
+    @classmethod
+    def tearDownClass(cls):
+        cls.mock_server.close()
+
+    def test_full_pipeline_runs_local_and_audits_local(self):
+        scenario = next(
+            s for s in get_all_scenarios() if s.get("scenario_id") == 1
+        )
+        crash_dump = with_canonical_window(scenario)
+        recorder = AuditRecorder.begin(crash_dump, origin="phase11-e2e")
+
+        result = self.agent.analyze_crash_dump(crash_dump, recorder=recorder)
+
+        self.assertEqual(result.hypotheses[0].root_cause, "ADCS_GYRO_SEU")
+        self.assertTrue(self.mock_server.requests)
+
+        path, headers, body = self.mock_server.requests[0]
+        self.assertEqual(path, "/v1/chat/completions")
+        self.assertEqual(headers.get("Authorization"), "Bearer sovereign-local-key")
+        payload = json.loads(body)
+        self.assertEqual(payload["model"], "mock-local-7b")
+
+        # The telemetry must be IN the local request (it is sent to the local
+        # endpoint, never to a cloud endpoint).
+        self.assertIn("pre_fault_telemetry_window", body)
+
+        # Audit: the LLM stage must record llm_mode=LOCAL + the local endpoint.
+        entries = recorder.entries
+        llm_entries = [e for e in entries if e.stage.value == "llm"]
+        self.assertTrue(llm_entries, "LLM stage was not recorded")
+        payload_dict = llm_entries[0].payload
+        self.assertEqual(payload_dict["llm_mode"], "LOCAL")
+        self.assertEqual(payload_dict["provider"], "openai_compatible_local")
+        self.assertEqual(payload_dict["model"], "mock-local-7b")
+        self.assertEqual(payload_dict["endpoint"], self.mock_server.base_url)
+        self.assertTrue(payload_dict["local_inference"])
+        self.assertEqual(payload_dict["api_key_value_recorded"], False)
+
+    def test_no_cloud_call_during_local_pipeline(self):
+        with patch.object(self.agent, "_call_gemini") as mock_gemini:
+            scenario = next(
+                s for s in get_all_scenarios() if s.get("scenario_id") == 1
+            )
+            crash_dump = with_canonical_window(scenario)
+            self.agent.analyze_crash_dump(crash_dump, recorder=None)
+            mock_gemini.assert_not_called()
 
 
 if __name__ == "__main__":
