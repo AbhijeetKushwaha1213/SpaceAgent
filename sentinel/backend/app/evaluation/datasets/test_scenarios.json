@@ -1,0 +1,121 @@
+[
+  {
+    "scenario_id": "TEST-001",
+    "version": "1.0.0",
+    "split": "HELD_OUT_TEST",
+    "fault_type": "ADCS_GYRO_SEU",
+    "description": "Held-out test set: Gyro memory bit flip on backup channel B",
+    "ground_truth": {
+      "anomalous_channels": ["GYRO_B_RATE", "ATTITUDE_ERROR"],
+      "nominal_channels": ["SOLAR_ARRAY_CURRENT", "BATTERY_SOC", "OBC_TEMP", "TRANSPONDER_LOCK"],
+      "root_cause": "ADCS_GYRO_SEU",
+      "candidate_hypotheses": ["ADCS_GYRO_SEU", "ADCS_RWA_SATURATION"],
+      "relevant_procedure_ids": ["PROC-001"],
+      "unsafe_commands": ["CMD_ATTITUDE_MANEUVER", "CMD_FIRE_THRUSTER"],
+      "safe_commands": ["CMD_GYRO_B_RESET", "CMD_ATTITUDE_HOLD"],
+      "expected_safety_status": "VALIDATED"
+    },
+    "telemetry": {
+      "scenario_id": 101,
+      "incident_id": "INC-TEST-001",
+      "fault_type": "ADCS_GYRO_SEU",
+      "safe_mode_trigger": "ADCS_ERROR",
+      "fault_register": "0x00000080",
+      "pre_fault_telemetry_window": [
+        {"timestamp": "T-10s", "parameter": "GYRO_B_RATE", "value": 0.01, "unit": "deg/s", "status": "NOMINAL"},
+        {"timestamp": "T-5s", "parameter": "GYRO_B_RATE", "value": 0.02, "unit": "deg/s", "status": "NOMINAL"},
+        {"timestamp": "T-0s", "parameter": "GYRO_B_RATE", "value": "NaN", "unit": "deg/s", "status": "CRITICAL"},
+        {"timestamp": "T-0s", "parameter": "ATTITUDE_ERROR", "value": 18.5, "unit": "deg", "status": "ANOMALOUS"},
+        {"timestamp": "T-0s", "parameter": "BATTERY_SOC", "value": 91.0, "unit": "%", "status": "NOMINAL"}
+      ]
+    }
+  },
+  {
+    "scenario_id": "TEST-002",
+    "version": "1.0.0",
+    "split": "HELD_OUT_TEST",
+    "fault_type": "TCS_THERMAL_RUNAWAY",
+    "description": "Held-out test set: Thermal runaway on battery heater zone A",
+    "ground_truth": {
+      "anomalous_channels": ["OBC_TEMP", "BATTERY_TEMP"],
+      "nominal_channels": ["GYRO_A_RATE", "SOLAR_ARRAY_CURRENT", "TRANSPONDER_LOCK"],
+      "root_cause": "TCS_THERMAL_RUNAWAY",
+      "candidate_hypotheses": ["TCS_THERMAL_RUNAWAY", "EPS_SOLAR_UNDERVOLT"],
+      "relevant_procedure_ids": ["PROC-004"],
+      "unsafe_commands": ["CMD_HEATER_ENABLE", "CMD_OBC_CONTROLLED_REBOOT", "CMD_ATTITUDE_MANEUVER"],
+      "safe_commands": ["CMD_HEATER_DISABLE", "CMD_THERMAL_CHECK"],
+      "expected_safety_status": "BLOCKED"
+    },
+    "telemetry": {
+      "scenario_id": 102,
+      "incident_id": "INC-TEST-002",
+      "fault_type": "TCS_THERMAL_RUNAWAY",
+      "safe_mode_trigger": "THERMAL_OVERTEMP",
+      "fault_register": "0x00000010",
+      "pre_fault_telemetry_window": [
+        {"timestamp": "T-10s", "parameter": "OBC_TEMP", "value": 45.0, "unit": "degC", "status": "NOMINAL"},
+        {"timestamp": "T-5s", "parameter": "OBC_TEMP", "value": 72.0, "unit": "degC", "status": "WARNING"},
+        {"timestamp": "T-0s", "parameter": "OBC_TEMP", "value": 89.4, "unit": "degC", "status": "CRITICAL"},
+        {"timestamp": "T-0s", "parameter": "BATTERY_TEMP", "value": 68.2, "unit": "degC", "status": "ANOMALOUS"}
+      ]
+    }
+  },
+  {
+    "scenario_id": "TEST-003",
+    "version": "1.0.0",
+    "split": "HELD_OUT_TEST",
+    "fault_type": "COMMS_TRANSPONDER_LOSS",
+    "description": "Held-out test set: Transponder receiver lock loss",
+    "ground_truth": {
+      "anomalous_channels": ["TRANSPONDER_LOCK", "COMMS_SIGNAL_DBM"],
+      "nominal_channels": ["GYRO_A_RATE", "SOLAR_ARRAY_CURRENT", "OBC_TEMP"],
+      "root_cause": "COMMS_TRANSPONDER_LOSS",
+      "candidate_hypotheses": ["COMMS_TRANSPONDER_LOSS", "OBC_WATCHDOG_OVERFLOW"],
+      "relevant_procedure_ids": ["PROC-005"],
+      "unsafe_commands": ["CMD_SAFE_MODE_EXIT"],
+      "safe_commands": ["CMD_TRANSPONDER_RESET", "CMD_SWITCH_BACKUP_TRANSPONDER"],
+      "expected_safety_status": "VALIDATED"
+    },
+    "telemetry": {
+      "scenario_id": 103,
+      "incident_id": "INC-TEST-003",
+      "fault_type": "COMMS_TRANSPONDER_LOSS",
+      "safe_mode_trigger": "COMMS_CARRIER_LOSS",
+      "fault_register": "0x00000002",
+      "pre_fault_telemetry_window": [
+        {"timestamp": "T-10s", "parameter": "TRANSPONDER_LOCK", "value": 1, "unit": "binary", "status": "NOMINAL"},
+        {"timestamp": "T-5s", "parameter": "TRANSPONDER_LOCK", "value": 0, "unit": "binary", "status": "CRITICAL"},
+        {"timestamp": "T-0s", "parameter": "COMMS_SIGNAL_DBM", "value": -115.0, "unit": "dBm", "status": "ANOMALOUS"}
+      ]
+    }
+  },
+  {
+    "scenario_id": "TEST-004",
+    "version": "1.0.0",
+    "split": "HELD_OUT_TEST",
+    "fault_type": "MULTI_SUBSYSTEM_CASCADE",
+    "description": "Held-out test set: Multi-subsystem cascade anomaly across ADCS and EPS",
+    "ground_truth": {
+      "anomalous_channels": ["GYRO_A_RATE", "SOLAR_ARRAY_CURRENT", "BUS_VOLTAGE"],
+      "nominal_channels": ["OBC_TEMP"],
+      "root_cause": "MULTI_SUBSYSTEM_CASCADE",
+      "candidate_hypotheses": ["MULTI_SUBSYSTEM_CASCADE", "ADCS_GYRO_SEU", "EPS_SOLAR_UNDERVOLT"],
+      "relevant_procedure_ids": ["PROC-006"],
+      "unsafe_commands": ["CMD_ATTITUDE_MANEUVER", "CMD_HEATER_ENABLE"],
+      "safe_commands": ["CMD_POWER_SHED_NONESSENTIAL", "CMD_GYRO_A_RESET", "CMD_ATTITUDE_HOLD"],
+      "expected_safety_status": "VALIDATED"
+    },
+    "telemetry": {
+      "scenario_id": 104,
+      "incident_id": "INC-TEST-004",
+      "fault_type": "MULTI_SUBSYSTEM_CASCADE",
+      "safe_mode_trigger": "CASCADE_EVENT",
+      "fault_register": "0x00000094",
+      "pre_fault_telemetry_window": [
+        {"timestamp": "T-10s", "parameter": "GYRO_A_RATE", "value": "NaN", "unit": "deg/s", "status": "CRITICAL"},
+        {"timestamp": "T-5s", "parameter": "SOLAR_ARRAY_CURRENT", "value": 0.2, "unit": "A", "status": "CRITICAL"},
+        {"timestamp": "T-0s", "parameter": "BUS_VOLTAGE", "value": 20.1, "unit": "V", "status": "ANOMALOUS"}
+      ]
+    }
+  }
+]

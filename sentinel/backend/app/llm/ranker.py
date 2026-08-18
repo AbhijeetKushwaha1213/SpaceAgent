@@ -73,16 +73,16 @@ YOU MUST NOT:
 - Claim certainty when evidence is ambiguous
 
 OUTPUT FORMAT: Return ONLY a JSON object with these exact fields:
-{
+{{
   "ranked_hypotheses": [
-    {
+    {{
       "fault_id": "<from valid_fault_ids>",
       "rank": 1,
       "confidence": 0.85,
       "justification": "<concise operational reasoning>",
       "affected_component": "<component name>",
       "causal_chain": ["event1", "event2", "event3"]
-    }
+    }}
   ],
   "reasoning_summary": "<2-4 sentence operational summary>",
   "supporting_evidence_ids": ["<evidence IDs from input>"],
@@ -90,7 +90,7 @@ OUTPUT FORMAT: Return ONLY a JSON object with these exact fields:
   "selected_procedure_ids": ["<from valid_procedure_ids>"],
   "uncertainty": "<where you are unsure>",
   "requires_human_review": true
-}
+}}
 
 CONSTRAINTS:
 - ranked_hypotheses must contain exactly 3 entries with ranks 1, 2, 3
@@ -356,10 +356,46 @@ def _extract_json(raw: str) -> dict[str, Any]:
     raise ValueError(f"Could not extract JSON from LLM response (len={len(text)})")
 
 
+# Forbidden keys that indicate the LLM tried to generate commands
+_COMMAND_KEYS = frozenset({
+    "command", "commands", "command_sequence",
+    "raw_command", "actuator_command",
+})
+
+# Certainty words not justified by deterministic evidence
+_UNSUPPORTED_CERTAINTY_WORDS = (
+    "definitely", "certainly", "confirmed", "100%",
+    "100 percent", "absolutely certain", "without doubt",
+    "undoubtedly", "unquestionably",
+)
+
+
+def _find_command_keys(value: Any, path: str = "$") -> list[tuple[str, str]]:
+    """Return forbidden command fields anywhere in a parsed LLM payload.
+
+    Command fields can be nested under an otherwise valid output field, so a
+    top-level-only check is insufficient.  The returned JSON paths make the
+    guardrail audit record actionable without retaining command content.
+    """
+    matches: list[tuple[str, str]] = []
+    if isinstance(value, dict):
+        for key, child in value.items():
+            key_text = str(key)
+            child_path = f"{path}.{key_text}"
+            if key_text.casefold() in _COMMAND_KEYS:
+                matches.append((key_text, child_path))
+            matches.extend(_find_command_keys(child, child_path))
+    elif isinstance(value, list):
+        for index, child in enumerate(value):
+            matches.extend(_find_command_keys(child, f"{path}[{index}]"))
+    return matches
+
+
 def validate_ranking_output(
     output: LLMRankingOutput,
     ranking_input: LLMRankingInput,
     physics_report: Any = None,
+    raw_parsed: dict[str, Any] | None = None,
 ) -> GuardrailResult:
     """Validate the LLM's ranking output against guardrails.
 
@@ -369,7 +405,8 @@ def validate_ranking_output(
       3. Supporting/contradicting evidence IDs should reference real evidence
       4. If physics says INVALID for a fault, the LLM must not rank it #1
          with high confidence (physics is authoritative)
-      5. No invented commands
+      5. No invented commands (reject if raw JSON contains command keys)
+      6. No unsupported certainty claims
 
     Returns:
         GuardrailResult with violations and optionally a corrected output.
@@ -447,47 +484,108 @@ def validate_ranking_output(
                 ))
 
     # --- 4. Physics override check ---
+    # The supplied PhysicsContext is enough to apply this guardrail in unit
+    # callers; a full physics report, when available, is authoritative too.
+    invalidated = set(ranking_input.physics.invalidated)
     if physics_report is not None:
-        invalidated = set(getattr(physics_report, "invalidated", []))
-        for rh in output.ranked_hypotheses:
-            if (rh.fault_id in invalidated
-                    and rh.rank == 1
-                    and rh.confidence > 0.5):
-                violations.append(GuardrailViolation(
-                    violation_type=ViolationType.PHYSICS_OVERRIDE,
-                    detail=(
-                        f"LLM ranked physics-INVALID fault '{rh.fault_id}' "
-                        f"as #1 with confidence {rh.confidence:.2f}. "
-                        f"Physics validation is authoritative."
+        invalidated.update(getattr(physics_report, "invalidated", []))
+
+    invalid_ranked = [
+        h for h in corrected_hypotheses if h.fault_id in invalidated
+    ]
+    non_invalid_ranked = [
+        h for h in corrected_hypotheses if h.fault_id not in invalidated
+    ]
+    if invalid_ranked and non_invalid_ranked:
+        first_invalid = min(invalid_ranked, key=lambda h: h.rank)
+        first_non_invalid = min(non_invalid_ranked, key=lambda h: h.rank)
+        if first_invalid.rank <= first_non_invalid.rank:
+            violations.append(GuardrailViolation(
+                violation_type=ViolationType.PHYSICS_OVERRIDE,
+                detail=(
+                    f"LLM ranked physics-INVALID fault "
+                    f"'{first_invalid.fault_id}' ahead of a non-invalid "
+                    f"candidate. Physics validation is authoritative."
+                ),
+                offending_value=first_invalid.fault_id,
+                corrective_action=(
+                    "Physics-invalid hypotheses demoted below non-invalid "
+                    "candidates"
+                ),
+            ))
+
+            # Preserve the LLM ordering within each group, but force all
+            # physics-invalid candidates below the remaining candidates and
+            # normalize ranks so downstream consumers see a real demotion.
+            reordered = sorted(
+                non_invalid_ranked, key=lambda h: h.rank
+            ) + sorted(invalid_ranked, key=lambda h: h.rank)
+            corrected_hypotheses = [
+                RankedHypothesis(
+                    fault_id=h.fault_id,
+                    rank=index,
+                    confidence=min(h.confidence, 0.3)
+                    if h.fault_id in invalidated else h.confidence,
+                    justification=h.justification + (
+                        " [DEMOTED: physics validation INVALID]"
+                        if h.fault_id in invalidated else ""
                     ),
-                    offending_value=rh.fault_id,
-                    corrective_action=(
-                        "Hypothesis demoted; physics verdict preserved"
-                    ),
-                ))
-                # Demote: reduce confidence and move to lower rank
-                corrected_hypotheses = [
-                    RankedHypothesis(
-                        fault_id=h.fault_id,
-                        rank=h.rank,
-                        confidence=min(h.confidence, 0.3)
-                        if h.fault_id == rh.fault_id else h.confidence,
-                        justification=h.justification + (
-                            " [DEMOTED: physics validation INVALID]"
-                            if h.fault_id == rh.fault_id else ""
-                        ),
-                        affected_component=h.affected_component,
-                        causal_chain=h.causal_chain,
-                    )
-                    for h in corrected_hypotheses
-                ]
+                    affected_component=h.affected_component,
+                    causal_chain=h.causal_chain,
+                )
+                for index, h in enumerate(reordered, start=1)
+            ]
+
+    # --- 5. Command injection check ---
+    if raw_parsed is not None:
+        for forbidden_key, path in _find_command_keys(raw_parsed):
+            violations.append(GuardrailViolation(
+                violation_type=ViolationType.UNKNOWN_COMMAND,
+                detail=(
+                    f"LLM output contains forbidden key '{forbidden_key}' at "
+                    f"'{path}'. The LLM may NOT generate spacecraft commands."
+                ),
+                offending_value=forbidden_key,
+                corrective_action="Key rejected; LLM output is command-free only",
+            ))
+
+    # --- 6. Unsupported certainty check ---
+    texts_to_scan = [output.reasoning_summary]
+    for rh in output.ranked_hypotheses:
+        texts_to_scan.append(rh.justification)
+    combined_text = " ".join(texts_to_scan).lower()
+    for word in _UNSUPPORTED_CERTAINTY_WORDS:
+        if word in combined_text:
+            violations.append(GuardrailViolation(
+                violation_type=ViolationType.UNSUPPORTED_CERTAINTY,
+                detail=(
+                    f"LLM used unsupported certainty language: '{word}'. "
+                    f"Deterministic evidence does not justify absolute certainty."
+                ),
+                offending_value=word,
+                corrective_action="Certainty claim flagged; requires_human_review set",
+            ))
+            break  # One violation is enough to flag the issue
+
+    # --- Filter invalid evidence IDs from corrected output ---
+    corrected_supporting = output.supporting_evidence_ids
+    corrected_contradicting = output.contradicting_evidence_ids
+    if valid_evidence:
+        corrected_supporting = tuple(
+            eid for eid in output.supporting_evidence_ids
+            if eid in valid_evidence
+        )
+        corrected_contradicting = tuple(
+            eid for eid in output.contradicting_evidence_ids
+            if eid in valid_evidence
+        )
 
     # --- Build corrected output ---
     corrected = LLMRankingOutput(
         ranked_hypotheses=tuple(corrected_hypotheses),
         reasoning_summary=output.reasoning_summary,
-        supporting_evidence_ids=output.supporting_evidence_ids,
-        contradicting_evidence_ids=output.contradicting_evidence_ids,
+        supporting_evidence_ids=corrected_supporting,
+        contradicting_evidence_ids=corrected_contradicting,
         selected_procedure_ids=tuple(corrected_procedure_ids),
         uncertainty=output.uncertainty,
         requires_human_review=output.requires_human_review or bool(violations),
@@ -525,15 +623,23 @@ def convert_to_sentinel_output(
     ranked = sorted(ranking_output.ranked_hypotheses, key=lambda h: h.rank)
 
     for i, rh in enumerate(ranked[:3]):
+        causal_chain = list(rh.causal_chain)
+        if not causal_chain:
+            causal_chain = [
+                "See reasoning_summary for causal analysis",
+                "Deterministic engine provided supporting evidence",
+            ]
+        elif len(causal_chain) == 1:
+            causal_chain.append(
+                "Deterministic engine provided supporting evidence"
+            )
+
         hypotheses.append({
             "rank": i + 1,
             "root_cause": rh.fault_id,
             "affected_component": rh.affected_component or rh.fault_id,
             "confidence": rh.confidence,
-            "causal_chain": list(rh.causal_chain) or [
-                "See reasoning_summary for causal analysis",
-                "Deterministic engine provided supporting evidence",
-            ],
+            "causal_chain": causal_chain,
         })
 
     # Pad to 3 if needed
@@ -570,6 +676,7 @@ def convert_to_sentinel_output(
                         ),
                         "risk": ps.risk.value,
                         "wait_seconds": ps.wait_seconds,
+                        "verify": ps.verification,
                     })
                     step_num += 1
         except ImportError:
@@ -584,6 +691,7 @@ def convert_to_sentinel_output(
             "rationale": "No specific procedure selected; start with diagnostics",
             "risk": RiskLevel.LOW.value,
             "wait_seconds": 10,
+            "verify": "Health summary is received from all subsystems",
         })
 
     top_confidence = hypotheses[0]["confidence"] if hypotheses else 0.5
@@ -653,6 +761,7 @@ def run_constrained_ranking(
             # Validate guardrails
             guardrail_result = validate_ranking_output(
                 output, ranking_input, physics_report,
+                raw_parsed=parsed,
             )
 
             # Use corrected output if violations were found

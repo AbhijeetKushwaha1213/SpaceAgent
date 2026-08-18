@@ -33,22 +33,22 @@ logger = logging.getLogger("sentinel.llm.provider")
 # PROVIDER CONFIG
 # ═══════════════════════════════════════════════════════════════════════════
 
-@dataclass(frozen=True)
+@dataclass
 class ProviderConfig:
     """Provider-agnostic LLM configuration.
 
-    Maps 1:1 to the relevant fields of ``AgentConfig`` from ``agent.py``,
-    but decoupled so the LLM package has no dependency on the agent module.
+    Phase 11: Decoupled configuration with environment variable defaults
+    (LLM_MODE, LLM_BASE_URL, LLM_MODEL, GEMINI_API_KEY).
     """
-    # Gemini
-    model: str = "gemini-2.5-flash"
-    gemini_api_key: str = ""
+    # Gemini / Cloud
+    model: str = field(default_factory=lambda: os.environ.get("LLM_MODEL", "gemini-2.5-flash"))
+    gemini_api_key: str = field(default_factory=lambda: os.environ.get("GEMINI_API_KEY", ""))
     tuned_model_id: str = ""
 
-    # Local / fallback
-    fallback_model: str = "phi-3-mini"
-    fallback_base_url: str = "http://localhost:11434/v1"
-    fallback_api_key: str = "ollama"
+    # Local / Sovereign (OpenAI-compatible)
+    fallback_model: str = field(default_factory=lambda: os.environ.get("LLM_MODEL", "phi-3-mini"))
+    fallback_base_url: str = field(default_factory=lambda: os.environ.get("LLM_BASE_URL", "http://localhost:11434/v1"))
+    fallback_api_key: str = field(default_factory=lambda: os.environ.get("LLM_API_KEY", "local"))
 
     # Stub
     stub_response: str = ""
@@ -229,16 +229,20 @@ class GeminiProvider(LLMProvider):
 # LOCAL / FALLBACK PROVIDER
 # ═══════════════════════════════════════════════════════════════════════════
 
-class LocalProvider(LLMProvider):
-    """Local/open model via OpenAI-compatible API.
+import json
+import urllib.request
+import urllib.error
 
-    Works with Ollama, vLLM, LM Studio, or any server exposing
-    /v1/chat/completions.
+
+class LocalProvider(LLMProvider):
+    """Local / sovereign open model via OpenAI-compatible API.
+
+    Works with any server exposing /v1/chat/completions (vLLM, LM Studio, Ollama,
+    LocalAI, Jan, etc.). Does not hardcode vendor-specific software.
     """
 
     def __init__(self, config: ProviderConfig | None = None):
         self.config = config or ProviderConfig()
-        self._client: Any = None
 
     @property
     def provider_name(self) -> str:
@@ -246,46 +250,64 @@ class LocalProvider(LLMProvider):
 
     @property
     def model_name(self) -> str:
-        return self.config.fallback_model
-
-    @property
-    def _openai_client(self) -> Any:
-        if self._client is None:
-            try:
-                from openai import OpenAI
-            except ImportError:
-                raise ProviderError(
-                    "openai package not installed (needed for local mode). "
-                    "Run: pip install openai"
-                )
-            self._client = OpenAI(
-                base_url=self.config.fallback_base_url,
-                api_key=self.config.fallback_api_key,
-                timeout=self.config.timeout_seconds,
-            )
-        return self._client
+        return self.config.fallback_model or "local-model"
 
     def call(self, messages: list[dict[str, str]]) -> str:
+        base_url = self.config.fallback_base_url.rstrip("/")
+        if not base_url.endswith("/chat/completions"):
+            endpoint = f"{base_url}/chat/completions"
+        else:
+            endpoint = base_url
+
+        # Attempt call via openai package first if installed
         try:
-            response = self._openai_client.chat.completions.create(
-                model=self.config.fallback_model,
+            from openai import OpenAI
+            client = OpenAI(
+                base_url=self.config.fallback_base_url,
+                api_key=self.config.fallback_api_key or "local",
+                timeout=self.config.timeout_seconds,
+            )
+            response = client.chat.completions.create(
+                model=self.model_name,
                 messages=messages,
                 temperature=self.config.temperature,
                 max_tokens=self.config.max_tokens,
             )
             content = response.choices[0].message.content
             if not content:
-                raise ProviderError(
-                    "Local LLM returned empty response content"
-                )
+                raise ProviderError("Local LLM returned empty response content")
             return content
-
+        except ImportError:
+            # Zero-dependency HTTP fallback using urllib
+            headers = {
+                "Content-Type": "application/json",
+                "Authorization": f"Bearer {self.config.fallback_api_key or 'local'}",
+            }
+            payload = {
+                "model": self.model_name,
+                "messages": messages,
+                "temperature": self.config.temperature,
+                "max_tokens": self.config.max_tokens,
+            }
+            req = urllib.request.Request(
+                endpoint,
+                data=json.dumps(payload).encode("utf-8"),
+                headers=headers,
+                method="POST",
+            )
+            try:
+                with urllib.request.urlopen(req, timeout=self.config.timeout_seconds) as resp:
+                    resp_data = json.loads(resp.read().decode("utf-8"))
+                    content = resp_data["choices"][0]["message"]["content"]
+                    if not content:
+                        raise ProviderError("Local LLM returned empty response content")
+                    return content
+            except Exception as e:
+                raise ProviderError(f"Local LLM call failed ({type(e).__name__}): {e}")
         except ProviderError:
             raise
         except Exception as e:
-            raise ProviderError(
-                f"Local LLM call failed ({type(e).__name__}): {e}"
-            )
+            raise ProviderError(f"Local LLM call failed ({type(e).__name__}): {e}")
 
 
 # ═══════════════════════════════════════════════════════════════════════════
@@ -338,7 +360,7 @@ class StubProvider(LLMProvider):
 # ═══════════════════════════════════════════════════════════════════════════
 
 def create_provider(
-    mode: str = "base",
+    mode: str = "cloud",
     config: ProviderConfig | None = None,
     stub_response: str = "",
     stub_label: str = "inline",
@@ -346,8 +368,7 @@ def create_provider(
     """Create an LLM provider from a mode string.
 
     Args:
-        mode: One of "base", "tuned", "fallback", "stub".
-              Maps to the ``ModelMode`` enum from ``agent.py``.
+        mode: One of "cloud", "local", "base", "tuned", "fallback", "stub".
         config: Optional provider configuration.
         stub_response: Response for stub mode.
         stub_label: Label for stub mode.
@@ -358,19 +379,19 @@ def create_provider(
     Raises:
         ValueError: If mode is unrecognised.
     """
-    mode_lower = mode.lower()
+    mode_lower = (mode or "").lower().strip()
 
     if mode_lower == "stub":
         return StubProvider(
             response=stub_response or (config.stub_response if config else ""),
             label=stub_label or (config.stub_label if config else "inline"),
         )
-    elif mode_lower in ("base", "tuned"):
+    elif mode_lower in ("cloud", "base", "tuned"):
         return GeminiProvider(config=config)
-    elif mode_lower == "fallback":
+    elif mode_lower in ("local", "fallback"):
         return LocalProvider(config=config)
     else:
         raise ValueError(
             f"Unknown LLM provider mode: '{mode}'. "
-            f"Expected one of: base, tuned, fallback, stub"
+            f"Expected one of: cloud, local, base, tuned, fallback, stub"
         )

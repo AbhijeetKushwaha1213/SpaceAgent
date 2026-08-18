@@ -1,37 +1,29 @@
 # ─────────────────────────────────────────────────────────────────────────────
-# SENTINEL backend — Python dependencies
-# Steps 1–6 complete (models, prompts, agent, rag, anomaly detection, main API)
+# SENTINEL backend — Pinned Python dependencies (Phase 14 Security Requirement)
 # ─────────────────────────────────────────────────────────────────────────────
 
-# API framework
-fastapi>=0.110.0
-uvicorn[standard]>=0.23.0
+# API framework & ASGI server
+fastapi==0.115.6
+uvicorn[standard]==0.34.0
 
-# Data validation (schema enforcement for SentinelOutput)
-pydantic>=2.8.0
+# Data validation
+pydantic==2.10.4
 
 # Environment / config
-python-dotenv>=1.0.0
+python-dotenv==1.0.1
 
-# LLM — Gemini Flash (primary hosted path, Step 5 / Step 6)
-google-genai>=1.0.0
+# LLM — Gemini Flash
+google-genai==1.1.0
 
-# LLM — Fallback/local models via OpenAI-compatible API (Ollama, vLLM, LM Studio)
-# Uncomment when using ModelMode.FALLBACK:
-# openai>=1.0.0
+# Local / OpenAI compatible API client
+openai==1.58.1
 
-# Embeddings — local, free, no API key needed (Step 6 PDF RAG)
-sentence-transformers>=2.2.0
+# Embeddings & Vector RAG
+sentence-transformers==3.3.1
+chromadb==0.6.3
+llama-index-core==0.12.8
 
-# Vector store (Step 6 PDF RAG)
-chromadb>=0.4.0
-
-# PDF loading and chunking (Step 6)
-# Both package names install the same thing; llama-index is the meta-package
-llama-index>=0.10.0
-# llama-index-core>=0.10.0  # alternative direct install
-
-# Utilities
-numpy>=1.24.0
-scipy>=1.10.0
-httpx>=0.24.0
+# Scientific & Utilities
+numpy==2.2.1
+scipy==1.15.1
+httpx==0.28.1

@@ -37,7 +37,11 @@ from app.api.models import (
     CONTRACT_VERSION,
     ContractInfo,
     CrashDumpRequest,
+    EvaluationRunRequest,
+    EvaluationResultsResponse,
     ScenarioListResponse,
+    SovereigntyInfo,
+    SystemStatusResponse,
     SSEEvent,
     SSEEventType,
 )
@@ -66,13 +70,23 @@ app = FastAPI(
     version="1.0.0",
 )
 
-# Enable CORS so the React frontend (port 3000) can reach this server (port 8000)
+from app.security.config import SecurityConfig
+from app.security.middleware import SecurityMiddleware
+from app.security.sanitization import sanitize_telemetry_payload_data
+
+sec_config = SecurityConfig.from_env()
+
+# Register Security Middleware (Correlation ID, Rate Limiter, Payload Size Limit, Auth)
+app.add_middleware(SecurityMiddleware, config=sec_config)
+
+# Enable CORS with explicit allowlist (Phase 14 security requirement)
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
+    allow_origins=list(sec_config.cors_origins),
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
+    expose_headers=["X-Correlation-ID"],
 )
 
 # Instantiate agent once at startup (lazy-loads Gemini client on first call)
@@ -134,6 +148,88 @@ def health_check_v1():
         "contract_version": CONTRACT_VERSION,
         "api_version": API_VERSION,
     }
+
+
+@app.get("/system/status", response_model=SystemStatusResponse)
+@app.get("/api/system/status", response_model=SystemStatusResponse)
+@app.get(f"{_V1}/system/status", response_model=SystemStatusResponse)
+def get_system_status():
+    """Return comprehensive system status, LLM operational mode, and sovereignty details.
+
+    Phase 11: Serves system status, detector status, physics status, RAG status,
+    LLM mode (CLOUD | LOCAL | STUB), LLM provider, active model, API version,
+    simulation status, and factual sovereignty/privacy information.
+    """
+    cfg = agent.config
+    mode_obj = getattr(cfg, "mode", "cloud")
+    mode_val = getattr(mode_obj, "value", str(mode_obj)).lower()
+
+    if mode_val in ("local", "fallback"):
+        llm_mode = "LOCAL"
+        llm_provider = "local"
+        model_name = getattr(cfg, "fallback_model", "phi-3-mini")
+        is_local = True
+    elif mode_val == "stub":
+        llm_mode = "STUB"
+        llm_provider = "stub"
+        model_name = getattr(cfg, "active_model_name", "stub")
+        is_local = True
+    else:
+        llm_mode = "CLOUD"
+        llm_provider = "gemini"
+        model_name = getattr(cfg, "active_model_name", "gemini-2.5-flash")
+        is_local = False
+
+    return SystemStatusResponse(
+        backend_status="ok",
+        detector_status="ok",
+        physics_model_status="ok",
+        rag_status="ok",
+        llm_mode=llm_mode,
+        llm_provider=llm_provider,
+        model=model_name,
+        version=CONTRACT_VERSION,
+        simulation_live_status="live",
+        sovereignty=SovereigntyInfo(
+            local_execution=is_local,
+            cloud_telemetry_disabled=is_local,
+            disclaimer="Factual operational mode indicator. No security or compliance certifications (e.g. FedRAMP/HIPAA) claimed.",
+        ),
+    )
+
+
+@app.post("/evaluation/run", response_model=EvaluationResultsResponse)
+@app.post(f"{_V1}/evaluation/run", response_model=EvaluationResultsResponse)
+def run_evaluation_endpoint(req: EvaluationRunRequest | None = None):
+    """Execute reproducible evaluation runner across baseline configurations and dataset splits."""
+    from app.evaluation.runner import EvaluationRunner, save_json_results
+
+    split = req.split if req else "HELD_OUT_TEST"
+    seed = req.seed if req else 42
+    mode = req.mode if req else "stub"
+
+    runner = EvaluationRunner(seed=seed, model_mode=mode)
+    results = runner.run_evaluation(split=split)
+    save_json_results(results)
+    return results
+
+
+@app.get("/evaluation/results", response_model=EvaluationResultsResponse)
+@app.get(f"{_V1}/evaluation/results", response_model=EvaluationResultsResponse)
+def get_evaluation_results_endpoint(split: str = "HELD_OUT_TEST"):
+    """Return latest machine-readable evaluation results."""
+    from app.evaluation.runner import EvaluationRunner, save_json_results
+    from pathlib import Path
+
+    results_file = Path(__file__).resolve().parent / "evaluation" / "results" / "evaluation_results.json"
+    if results_file.is_file():
+        with open(results_file, "r", encoding="utf-8") as f:
+            return json.load(f)
+
+    runner = EvaluationRunner(seed=42, model_mode="stub")
+    results = runner.run_evaluation(split=split)
+    save_json_results(results)
+    return results
 
 
 @app.get(f"{_V1}/scenarios", response_model=ScenarioListResponse)
@@ -466,7 +562,9 @@ async def analyze_get_endpoint(preset: str = None, payload: str = None):
                 elif event.event_type == SSEEventType.ERROR:
                     trace_type = "alert"
                 elif event.event_type == SSEEventType.STATUS:
-                    trace_type = "thought"
+                    # Pipeline stage events get the 'stage' type so the
+                    # frontend renders them distinctly from generic thoughts.
+                    trace_type = "stage"
 
                 trace_data = {
                     "type": trace_type,

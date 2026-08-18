@@ -449,6 +449,62 @@ class SentinelOutput(BaseModel):
 
 
 # ---------------------------------------------------------------------------
+# System Status & Sovereignty Response (Phase 11)
+# ---------------------------------------------------------------------------
+
+class SovereigntyInfo(BaseModel):
+    """Factual sovereignty and data privacy indicators.
+
+    Does NOT claim security or compliance certifications (e.g. FedRAMP/HIPAA).
+    """
+    local_execution: bool = Field(
+        ...,
+        description="True if LLM reasoning is executed on a local sovereign endpoint",
+    )
+    cloud_telemetry_disabled: bool = Field(
+        ...,
+        description="True if cloud telemetry transmission is blocked",
+    )
+    disclaimer: str = Field(
+        default="Factual operational mode indicator. No security or compliance certifications (e.g. FedRAMP/HIPAA) claimed.",
+        description="Factual disclaimer regarding compliance claims",
+    )
+
+
+class SystemStatusResponse(BaseModel):
+    """Comprehensive system status including local/cloud LLM mode."""
+    backend_status: str = Field(default="ok", description="FastAPI service status")
+    detector_status: str = Field(default="ok", description="Telemetry detector status")
+    physics_model_status: str = Field(default="ok", description="Physics validation model status")
+    rag_status: str = Field(default="ok", description="RAG procedure retrieval status")
+    llm_mode: str = Field(..., description="LLM operational mode: CLOUD | LOCAL | STUB")
+    llm_provider: str = Field(..., description="Active provider: gemini | local | stub")
+    model: str = Field(..., description="Active LLM model identifier")
+    version: str = Field(default=CONTRACT_VERSION, description="Contract version")
+    simulation_live_status: str = Field(default="live", description="Pipeline data source status")
+    sovereignty: SovereigntyInfo = Field(..., description="Sovereignty & privacy status")
+
+
+# ---------------------------------------------------------------------------
+# Evaluation Models (Phase 12)
+# ---------------------------------------------------------------------------
+
+class EvaluationRunRequest(BaseModel):
+    """Request payload to trigger an evaluation run."""
+    split: str = Field(default="HELD_OUT_TEST", description="Dataset split: HELD_OUT_TEST or DEV")
+    seed: int = Field(default=42, description="Random seed for reproducibility")
+    mode: str = Field(default="stub", description="LLM mode: stub | cloud | local")
+
+
+class EvaluationResultsResponse(BaseModel):
+    """Machine-readable evaluation results response."""
+    provenance: dict = Field(..., description="Evaluation provenance metadata")
+    summary: dict = Field(..., description="Evaluation summary statistics")
+    pipelines: dict = Field(..., description="Per-pipeline evaluation metrics")
+    charts: dict = Field(..., description="Evaluation charts data derived from real metrics")
+
+
+# ---------------------------------------------------------------------------
 # SSE event wrapper (used by Person 4's streaming endpoint)
 # ---------------------------------------------------------------------------
 

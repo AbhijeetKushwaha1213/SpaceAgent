@@ -72,7 +72,7 @@ class ProcedureContext:
 @dataclass(frozen=True)
 class PhysicsContext:
     """Physics validation summary, as presented to the LLM."""
-    hypotheses_examined: int
+    hypotheses_examined: int = 0
     invalidated: tuple[str, ...] = ()
     validated: tuple[str, ...] = ()
     uncertain: tuple[str, ...] = ()

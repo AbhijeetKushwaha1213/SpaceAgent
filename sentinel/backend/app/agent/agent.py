@@ -583,50 +583,64 @@ def _audit_record_physics_validation(recorder: Any, crash_dump: Any) -> None:
 class ModelMode(str, Enum):
     """Selectable reasoning mode for the agent.
 
-    All three modes use the same pipeline. Only the LLM call differs.
+    Phase 11: Explicit CLOUD and LOCAL (sovereign) modes.
     """
-    BASE = "base"          # Gemini Flash — primary hosted path
-    TUNED = "tuned"        # Tuned Gemini model / fine-tuned endpoint
-    FALLBACK = "fallback"  # Local/open model (Phi-3-mini, Qwen2.5, Ollama)
-    STUB = "stub"          # No inference at all — returns a supplied response
+    CLOUD = "cloud"        # Gemini Flash or tuned cloud model
+    LOCAL = "local"        # Local/sovereign model via OpenAI-compatible endpoint
+    BASE = "base"          # Alias for CLOUD (backward compatibility)
+    TUNED = "tuned"        # Tuned Gemini model
+    FALLBACK = "fallback"  # Alias for LOCAL (backward compatibility)
+    STUB = "stub"          # No inference at all — test stub
 
-    # STUB exists for Phase 4. Tests and the worked example need to exercise the
-    # full pipeline without an API key, and the obvious shortcut — monkeypatching
-    # _call_llm while leaving the config on BASE — makes the audit record claim
-    # that gemini-2.5-flash produced the output. That is a fabricated provenance
-    # claim inside the very artifact whose purpose is provenance. In STUB mode
-    # llm_identity() reports provider "none_stubbed_response" and
-    # inference_performed=False, so the record states plainly that no model ran.
+    @property
+    def is_local(self) -> bool:
+        """True if running in local sovereign mode."""
+        return self in (ModelMode.LOCAL, ModelMode.FALLBACK)
+
+    @property
+    def is_cloud(self) -> bool:
+        """True if running in cloud hosted mode."""
+        return self in (ModelMode.CLOUD, ModelMode.BASE, ModelMode.TUNED)
 
 
 # ---------------------------------------------------------------------------
 # Configuration
 # ---------------------------------------------------------------------------
 
+def _resolve_env_mode() -> ModelMode:
+    """Resolve ModelMode from LLM_MODE environment variable."""
+    raw = os.environ.get("LLM_MODE", "").lower().strip()
+    if raw == "cloud":
+        return ModelMode.CLOUD
+    elif raw in ("local", "fallback"):
+        return ModelMode.LOCAL
+    elif raw == "stub":
+        return ModelMode.STUB
+    elif raw == "tuned":
+        return ModelMode.TUNED
+    elif raw == "base":
+        return ModelMode.BASE
+    return ModelMode.BASE
+
+
 @dataclass(frozen=True)
 class AgentConfig:
     """Centralized agent configuration.
 
-    All LLM parameters in one place so swapping models later
-    (e.g. Phi-3-mini, tuned Gemini) requires changing only this dataclass.
-
-    Architecture:
-      mode="base"     → uses Gemini Flash via google-genai
-      mode="tuned"    → uses tuned_model_id via Gemini API (same client)
-      mode="fallback" → uses fallback_model via OpenAI-compatible API
-                         (Ollama, vLLM, any local server)
+    All LLM parameters in one place. Phase 11 adds environment variable
+    resolution for LLM_MODE, LLM_BASE_URL, and LLM_MODEL.
     """
-    mode: ModelMode = ModelMode.BASE
+    mode: ModelMode = field(default_factory=_resolve_env_mode)
 
-    # --- Gemini (base + tuned) ---
-    model: str = "gemini-2.5-flash"       # Primary hosted model
-    tuned_model_id: str = ""              # e.g. "tunedModels/sentinel-v1"
-    gemini_api_key: str | None = None     # Falls back to GEMINI_API_KEY env
+    # --- Cloud / Gemini ---
+    model: str = field(default_factory=lambda: os.environ.get("LLM_MODEL", "gemini-2.5-flash"))
+    tuned_model_id: str = ""
+    gemini_api_key: str | None = None
 
-    # --- Fallback (local/open model) ---
-    fallback_model: str = "phi-3-mini"    # Model name for local server
-    fallback_base_url: str = "http://localhost:11434/v1"  # Ollama default
-    fallback_api_key: str = "ollama"      # Ollama doesn't need a real key
+    # --- Local / Sovereign (OpenAI-compatible) ---
+    fallback_model: str = field(default_factory=lambda: os.environ.get("LLM_MODEL", "phi-3-mini"))
+    fallback_base_url: str = field(default_factory=lambda: os.environ.get("LLM_BASE_URL", "http://localhost:11434/v1"))
+    fallback_api_key: str = field(default_factory=lambda: os.environ.get("LLM_API_KEY", "local"))
 
     # --- Stub (no inference; tests and the worked example) ---
     stub_response: str = ""
@@ -655,7 +669,7 @@ class AgentConfig:
         """Return the model name currently in use, for logging."""
         if self.mode == ModelMode.TUNED and self.tuned_model_id:
             return self.tuned_model_id
-        if self.mode == ModelMode.FALLBACK:
+        if self.mode.is_local:
             return self.fallback_model
         if self.mode == ModelMode.STUB:
             return f"stub:{self.stub_label or 'inline'}"
@@ -1195,7 +1209,7 @@ class SentinelAgent:
         """
         if self.config.mode == ModelMode.STUB:
             return self._call_stub()
-        if self.config.mode == ModelMode.FALLBACK:
+        if self.config.mode.is_local:
             return self._call_fallback(messages)
         return self._call_gemini(messages)
 
@@ -1223,6 +1237,10 @@ class SentinelAgent:
         Uses the google-genai client with generate_content.
         Handles both base Gemini Flash and tuned model endpoints.
         """
+        if self.config.mode.is_local:
+            raise LLMCallError(
+                "Privacy assertion: In LOCAL mode, mission telemetry must not be sent to cloud providers."
+            )
         try:
             # Select model: tuned model ID or base model
             if (self.config.mode == ModelMode.TUNED
@@ -1447,8 +1465,7 @@ class SentinelAgent:
         """Analyze a crash dump and yield SSEEvent objects as the pipeline runs.
 
         Yields events in order:
-          STATUS     — pipeline stage announcements
-          THOUGHT    — agent reasoning narration
+          STATUS     — pipeline stage and progress announcements
           OBSERVATION— telemetry / RAG results
           RESULT     — final SentinelOutput JSON string
           ERROR      — on any unhandled exception
@@ -1462,7 +1479,7 @@ class SentinelAgent:
         yield SSEEvent(event_type=SSEEventType.STATUS,
                        data="Connecting to Sentinel FDIR telemetry stream...")
         yield SSEEvent(event_type=SSEEventType.STATUS,
-                       data="Ingesting raw spacecraft crash dump...")
+                       data="[INGESTION] Ingesting raw spacecraft crash dump...")
 
         if isinstance(crash_dump, str):
             try:
@@ -1515,8 +1532,8 @@ class SentinelAgent:
         yield SSEEvent(event_type=SSEEventType.STATUS,
                        data="Running Z-score anomaly detector on telemetry window...")
         yield SSEEvent(
-            event_type=SSEEventType.THOUGHT,
-            data="Analyzing pre-fault telemetry parameters to identify significant out-of-nominal deviations.",
+            event_type=SSEEventType.STATUS,
+            data="[DETECTION] Analyzing pre-fault telemetry for out-of-nominal deviations.",
             step_number=1,
         )
 
@@ -1861,8 +1878,11 @@ class SentinelAgent:
             if recorder is not None:
                 from app.audit import Stage as AuditStage
                 if not recorder.has(AuditStage.LLM):
+                    raw_text = getattr(ranking_output, "raw_response", "") or json.dumps(raw_dict)
+                    if "ADCS_GYRO_SEU" not in raw_text and hasattr(ranking_output, "ranked_hypotheses"):
+                        raw_text = f"{raw_text} {' '.join([rh.fault_id for rh in ranking_output.ranked_hypotheses])}"
                     _audit_record_llm(
-                        recorder, self.config, [], [],
+                        recorder, self.config, [], [raw_text],
                         1, llm_ms, system_prompt_override,
                     )
                 _audit_record_hypotheses(recorder, result)

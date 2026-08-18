@@ -1108,24 +1108,20 @@ class AuditRecorder:
 # ═══════════════════════════════════════════════════════════════════════════
 
 def llm_identity(config: Any) -> dict[str, Any]:
-    """Describe the LLM configuration without touching the credential.
+    """Describe the LLM configuration without touching credentials.
 
-    Records whether a key was configured and where it came from, which is what
-    an auditor needs in order to reproduce the run. It does not record the key,
-    and does not record a hash of the key either: a hash would still let someone
-    holding a candidate key confirm it, which is the whole risk.
+    Phase 11 & 12: Records mode_str (base, tuned, cloud, fallback, local, stub)
+    and llm_mode (CLOUD | LOCAL | STUB).
     """
-    mode = getattr(getattr(config, "mode", None), "value", str(
-        getattr(config, "mode", "unknown")))
+    mode_obj = getattr(config, "mode", "cloud")
+    mode_str = getattr(mode_obj, "value", str(mode_obj)).lower()
 
-    if mode == "stub":
-        # No inference happened. Say so, rather than naming a model that was
-        # never contacted — a record that misattributes its own output is worse
-        # than no record.
+    if mode_str == "stub":
         return {
             "provider": "none_stubbed_response",
             "model": getattr(config, "active_model_name", "stub"),
-            "mode": mode,
+            "mode": mode_str,
+            "llm_mode": "STUB",
             "endpoint": "",
             "local_inference": False,
             "inference_performed": False,
@@ -1144,17 +1140,20 @@ def llm_identity(config: Any) -> dict[str, Any]:
             ),
         }
 
-    if mode == "fallback":
+    is_local = mode_str in ("local", "fallback")
+    if is_local:
         provider = "openai_compatible_local"
-        model = getattr(config, "fallback_model", "")
+        model = getattr(config, "fallback_model", "") or getattr(config, "model", "")
         endpoint = getattr(config, "fallback_base_url", "")
         key_source = "config.fallback_api_key" if getattr(
             config, "fallback_api_key", "") else "none"
+        llm_mode_label = "LOCAL"
     else:
         provider = "google_gemini"
         model = getattr(config, "active_model_name", "") or getattr(
             config, "model", "")
         endpoint = "https://generativelanguage.googleapis.com"
+        llm_mode_label = "CLOUD"
         if getattr(config, "gemini_api_key", None):
             key_source = "config.gemini_api_key"
         elif os.environ.get("GEMINI_API_KEY"):
@@ -1165,9 +1164,10 @@ def llm_identity(config: Any) -> dict[str, Any]:
     return {
         "provider": provider,
         "model": model,
-        "mode": mode,
+        "mode": mode_str,
+        "llm_mode": llm_mode_label,
         "endpoint": endpoint,
-        "local_inference": mode == "fallback",
+        "local_inference": is_local,
         "inference_performed": True,
         "api_key_present": key_source != "none",
         "api_key_source": key_source,

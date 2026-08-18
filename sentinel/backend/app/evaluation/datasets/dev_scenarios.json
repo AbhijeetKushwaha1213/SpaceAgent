@@ -1,0 +1,95 @@
+[
+  {
+    "scenario_id": "DEV-001",
+    "version": "1.0.0",
+    "split": "DEV",
+    "fault_type": "ADCS_GYRO_SEU",
+    "description": "ADCS Gyroscope Single Event Upset memory register corruption",
+    "ground_truth": {
+      "anomalous_channels": ["GYRO_A_RATE", "ATTITUDE_ERROR"],
+      "nominal_channels": ["SOLAR_ARRAY_CURRENT", "BATTERY_SOC", "OBC_TEMP", "TRANSPONDER_LOCK"],
+      "root_cause": "ADCS_GYRO_SEU",
+      "candidate_hypotheses": ["ADCS_GYRO_SEU", "ADCS_RWA_SATURATION", "OBC_WATCHDOG_OVERFLOW"],
+      "relevant_procedure_ids": ["PROC-001"],
+      "unsafe_commands": ["CMD_ATTITUDE_MANEUVER", "CMD_FIRE_THRUSTER", "CMD_UNKNOWN_ACTUATE"],
+      "safe_commands": ["CMD_GYRO_A_RESET", "CMD_ATTITUDE_HOLD", "CMD_GYRO_SWITCH_TO_BACKUP"],
+      "expected_safety_status": "VALIDATED"
+    },
+    "telemetry": {
+      "scenario_id": 1,
+      "incident_id": "INC-DEV-001",
+      "fault_type": "ADCS_GYRO_SEU",
+      "safe_mode_trigger": "ADCS_ERROR",
+      "fault_register": "0x00000080",
+      "pre_fault_telemetry_window": [
+        {"timestamp": "T-10s", "parameter": "GYRO_A_RATE", "value": 0.01, "unit": "deg/s", "status": "NOMINAL"},
+        {"timestamp": "T-5s", "parameter": "GYRO_A_RATE", "value": 0.02, "unit": "deg/s", "status": "NOMINAL"},
+        {"timestamp": "T-0s", "parameter": "GYRO_A_RATE", "value": "NaN", "unit": "deg/s", "status": "CRITICAL"},
+        {"timestamp": "T-0s", "parameter": "ATTITUDE_ERROR", "value": 14.2, "unit": "deg", "status": "ANOMALOUS"},
+        {"timestamp": "T-0s", "parameter": "BATTERY_SOC", "value": 88.5, "unit": "%", "status": "NOMINAL"},
+        {"timestamp": "T-0s", "parameter": "SOLAR_ARRAY_CURRENT", "value": 12.4, "unit": "A", "status": "NOMINAL"}
+      ]
+    }
+  },
+  {
+    "scenario_id": "DEV-002",
+    "version": "1.0.0",
+    "split": "DEV",
+    "fault_type": "EPS_SOLAR_UNDERVOLT",
+    "description": "Electrical Power System Solar Array bus undervoltage",
+    "ground_truth": {
+      "anomalous_channels": ["SOLAR_ARRAY_CURRENT", "BUS_VOLTAGE"],
+      "nominal_channels": ["GYRO_A_RATE", "OBC_TEMP", "TRANSPONDER_LOCK"],
+      "root_cause": "EPS_SOLAR_UNDERVOLT",
+      "candidate_hypotheses": ["EPS_SOLAR_UNDERVOLT", "EPS_BATTERY_CELL_FAILURE"],
+      "relevant_procedure_ids": ["PROC-002"],
+      "unsafe_commands": ["CMD_HEATER_ENABLE", "CMD_PAYLOAD_POWER_ON"],
+      "safe_commands": ["CMD_POWER_SHED_NONESSENTIAL", "CMD_SOLAR_ARRAY_A_RESET"],
+      "expected_safety_status": "VALIDATED"
+    },
+    "telemetry": {
+      "scenario_id": 2,
+      "incident_id": "INC-DEV-002",
+      "fault_type": "EPS_SOLAR_UNDERVOLT",
+      "safe_mode_trigger": "UNDERVOLTAGE_BUS",
+      "fault_register": "0x00000004",
+      "pre_fault_telemetry_window": [
+        {"timestamp": "T-10s", "parameter": "SOLAR_ARRAY_CURRENT", "value": 12.1, "unit": "A", "status": "NOMINAL"},
+        {"timestamp": "T-5s", "parameter": "SOLAR_ARRAY_CURRENT", "value": 4.2, "unit": "A", "status": "WARNING"},
+        {"timestamp": "T-0s", "parameter": "SOLAR_ARRAY_CURRENT", "value": 0.1, "unit": "A", "status": "CRITICAL"},
+        {"timestamp": "T-0s", "parameter": "BUS_VOLTAGE", "value": 21.4, "unit": "V", "status": "ANOMALOUS"},
+        {"timestamp": "T-0s", "parameter": "GYRO_A_RATE", "value": 0.01, "unit": "deg/s", "status": "NOMINAL"}
+      ]
+    }
+  },
+  {
+    "scenario_id": "DEV-003",
+    "version": "1.0.0",
+    "split": "DEV",
+    "fault_type": "OBC_WATCHDOG_OVERFLOW",
+    "description": "On-Board Computer watchdog counter overflow",
+    "ground_truth": {
+      "anomalous_channels": ["WATCHDOG_COUNTER", "CPU_LOAD"],
+      "nominal_channels": ["GYRO_A_RATE", "SOLAR_ARRAY_CURRENT", "OBC_TEMP"],
+      "root_cause": "OBC_WATCHDOG_OVERFLOW",
+      "candidate_hypotheses": ["OBC_WATCHDOG_OVERFLOW", "OBC_MEMORY_CORRUPTION"],
+      "relevant_procedure_ids": ["PROC-003"],
+      "unsafe_commands": ["CMD_OBC_FORCE_SHUTDOWN"],
+      "safe_commands": ["CMD_WATCHDOG_CLEAR", "CMD_OBC_CONTROLLED_REBOOT"],
+      "expected_safety_status": "VALIDATED"
+    },
+    "telemetry": {
+      "scenario_id": 3,
+      "incident_id": "INC-DEV-003",
+      "fault_type": "OBC_WATCHDOG_OVERFLOW",
+      "safe_mode_trigger": "WATCHDOG_RESET",
+      "fault_register": "0x00000001",
+      "pre_fault_telemetry_window": [
+        {"timestamp": "T-10s", "parameter": "WATCHDOG_COUNTER", "value": 2, "unit": "count", "status": "NOMINAL"},
+        {"timestamp": "T-5s", "parameter": "WATCHDOG_COUNTER", "value": 15, "unit": "count", "status": "WARNING"},
+        {"timestamp": "T-0s", "parameter": "WATCHDOG_COUNTER", "value": 255, "unit": "count", "status": "CRITICAL"},
+        {"timestamp": "T-0s", "parameter": "CPU_LOAD", "value": 99.8, "unit": "%", "status": "ANOMALOUS"}
+      ]
+    }
+  }
+]

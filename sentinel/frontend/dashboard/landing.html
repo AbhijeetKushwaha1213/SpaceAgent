@@ -8,7 +8,7 @@
 <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@300;400;500;600;700&family=JetBrains+Mono:wght@300;400;500;700&family=Inter:wght@300;400;500;600&display=swap" rel="stylesheet">
 <!-- Runtime config: sets window.SENTINEL_BACKEND_URL from .env via generate-config.js -->
 <script src="/config.js"></script>
-<script src="https://unpkg.com/vis-network/standalone/umd/vis-network.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/vis-network@9.1.9/standalone/umd/vis-network.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
 <style>
 /* ─── RESET & BASE ─────────────────────────────────────────────── */
@@ -1748,6 +1748,10 @@ body.strip-visible { padding-top: 114px; } /* banner + ribbon + strip */
 <div id="badge">
   <div class="badge-label">Demo State</div>
   <div class="badge-row">
+    <div class="badge-key">LLM ENGINE</div>
+    <div class="badge-val" id="llm-mode-badge" style="color:var(--cyan)" title="Factual operational mode indicator. No compliance/security certifications claimed.">CLOUD AI</div>
+  </div>
+  <div class="badge-row">
     <div class="badge-key">MODE</div>
     <div class="badge-val" style="color:var(--amber)">SIMULATION</div>
   </div>
@@ -3165,11 +3169,42 @@ console.log('[SENTINEL] BACKEND_URL resolved to:', BACKEND_URL,
   '| source:', (typeof window !== 'undefined' && window.SENTINEL_BACKEND_URL)
     ? 'config.js' : 'built-in default');
 
-// Phase 3: fetch the scenario catalogue as soon as the page loads. This does
-// NOT start an investigation — Phase 0 removed the auto-launch — it only fills
-// the preset payloads from the one authoritative source.
+async function fetchSystemStatus() {
+  try {
+    const res = await fetch(BACKEND_URL + '/api/v1/system/status');
+    if (!res.ok) return;
+    const data = await res.json();
+    updateSystemStatusUI(data);
+  } catch (err) {
+    console.warn('[SENTINEL] system status unavailable:', err);
+  }
+}
+
+function updateSystemStatusUI(data) {
+  const badgeEl = document.getElementById('llm-mode-badge');
+  if (!badgeEl) return;
+  const mode = (data.llm_mode || 'CLOUD').toUpperCase();
+  if (mode === 'LOCAL') {
+    badgeEl.textContent = 'LOCAL AI';
+    badgeEl.style.color = 'var(--cyan)';
+  } else if (mode === 'STUB') {
+    badgeEl.textContent = 'STUB AI';
+    badgeEl.style.color = 'var(--text-muted)';
+  } else {
+    badgeEl.textContent = 'CLOUD AI';
+    badgeEl.style.color = 'var(--amber)';
+  }
+  if (data.sovereignty && data.sovereignty.disclaimer) {
+    badgeEl.title = data.sovereignty.disclaimer;
+  }
+}
+
+// Phase 3 & Phase 11: fetch scenario catalogue and system status on load.
 if (typeof window !== 'undefined') {
-  window.addEventListener('load', function () { fetchScenarioCatalogue(); });
+  window.addEventListener('load', function () {
+    fetchScenarioCatalogue();
+    fetchSystemStatus();
+  });
 }
  
 // Owns the ribbon "Backend" field. This is the ONLY place a connection state
@@ -3340,6 +3375,7 @@ function appendAITrace(container, msg) {
     observe: {cls:'success', tag:'observe', icon:'👁️', label:'OBSERVATION'},
     result:  {cls:'success', tag:'result',  icon:'✅', label:'RESULT'},
     alert:   {cls:'critical',tag:'alert',   icon:'🚨', label:'ALERT'},
+    stage:   {cls:'', tag:'action',  icon:'⚙️', label:'STAGE'},
   };
   const tm = typeMap[msg.type] || typeMap.thought;
   const div = document.createElement('div');
@@ -3643,10 +3679,9 @@ function initVideoScrub() {
   const hero  = document.getElementById('s-hero');
   if (!video || !hero) return;
 
-  // Play video continuously
-  video.loop = true;
-  video.muted = true;
-  video.play().catch(e => console.log("Auto-play failed, waiting for user interaction:", e));
+  // Pause video — we control playback manually via currentTime
+  video.pause();
+  video.currentTime = 0;
 
   let videoReady = video.readyState >= 2;
   video.addEventListener('loadeddata', () => { videoReady = true; });
@@ -3671,6 +3706,10 @@ function initVideoScrub() {
     const scrollRange = Math.max(heroHeight - viewH, 1);
     const scrolled    = Math.max(0, Math.min(window.scrollY - heroTop, scrollRange));
     const pct         = scrolled / scrollRange;
+
+    // Set currentTime directly — no lerp so it keeps up with fast scroll
+    const targetTime = pct * video.duration;
+    video.currentTime = targetTime;
 
     // Progress bar — direct width, no CSS transition
     if (fill) fill.style.width = (pct * 100) + '%';

@@ -1,0 +1,698 @@
+{
+  "provenance": {
+    "dataset_version": "1.0.0",
+    "scenario_version": "1.0.0",
+    "code_version": "1.0.0",
+    "api_version": "v1",
+    "model": "stub:eval-runner",
+    "seed": 42,
+    "timestamp": "2026-08-18T10:23:37.182145+00:00",
+    "split": "DEV",
+    "scenarios_evaluated": 3
+  },
+  "summary": {
+    "total_scenarios": 3,
+    "evaluated_pipelines": [
+      "baseline_1",
+      "baseline_2",
+      "baseline_3",
+      "sentinel"
+    ],
+    "unrun_pipelines": []
+  },
+  "pipelines": {
+    "baseline_1": {
+      "pipeline": "baseline_1",
+      "scenarios_count": 3,
+      "anomaly_detection": {
+        "precision": 0.3333,
+        "recall": 0.1667,
+        "f1": 0.2222,
+        "false_positive_rate": 0.0,
+        "detection_latency_ms": 0.36
+      },
+      "hypothesis_generation": {
+        "top1_accuracy": 0.3333,
+        "top3_coverage": 0.3333
+      },
+      "final_diagnosis": {
+        "top1_accuracy": 0.3333,
+        "top3_accuracy": 0.3333
+      },
+      "calibration": {
+        "brier_score": 0.25,
+        "expected_calibration_error": 0.1667
+      },
+      "rag": {
+        "retrieval_precision": 0.0,
+        "retrieval_recall": 0.0,
+        "citation_correctness": 1.0,
+        "grounded_response_rate": 1.0
+      },
+      "safety": {
+        "unsafe_command_blocking_rate": 1.0,
+        "false_blocking_rate": 0.0,
+        "blocked_plan_rate": 0.0
+      },
+      "system_performance": {
+        "end_to_end_latency_ms": 0.36,
+        "detector_latency_ms": 0.36,
+        "physics_latency_ms": 0.0,
+        "rag_latency_ms": 0.0,
+        "llm_latency_ms": 0.0,
+        "token_usage": {
+          "avg_prompt_tokens": 0,
+          "avg_completion_tokens": 0,
+          "total_tokens": 0
+        }
+      },
+      "scenario_details": [
+        {
+          "scenario_id": "DEV-001",
+          "fault_type": "ADCS_GYRO_SEU",
+          "top_hypothesis": "ADCS_GYRO_SEU",
+          "confidence": 0.5,
+          "safety_status": "NOT_VALIDATED",
+          "metrics": {
+            "anomaly": {
+              "precision": 1.0,
+              "recall": 0.5,
+              "f1": 0.6667,
+              "false_positive_rate": 0.0,
+              "latency_ms": 0.68
+            },
+            "hypothesis": {
+              "top1_accuracy": 1.0,
+              "top3_coverage": 1.0
+            },
+            "diagnosis": {
+              "top1_accuracy": 1.0,
+              "top3_accuracy": 1.0
+            },
+            "rag": {
+              "retrieval_precision": 0.0,
+              "retrieval_recall": 0.0,
+              "citation_correctness": 1.0,
+              "grounded_response_rate": 1.0
+            },
+            "safety": {
+              "unsafe_command_blocking_rate": 1.0,
+              "false_blocking_rate": 0.0,
+              "blocked_plan_rate": 0.0
+            }
+          }
+        },
+        {
+          "scenario_id": "DEV-002",
+          "fault_type": "EPS_SOLAR_UNDERVOLT",
+          "top_hypothesis": "ADCS_GYRO_SEU",
+          "confidence": 0.5,
+          "safety_status": "NOT_VALIDATED",
+          "metrics": {
+            "anomaly": {
+              "precision": 0.0,
+              "recall": 0.0,
+              "f1": 0.0,
+              "false_positive_rate": 0.0,
+              "latency_ms": 0.22
+            },
+            "hypothesis": {
+              "top1_accuracy": 0.0,
+              "top3_coverage": 0.0
+            },
+            "diagnosis": {
+              "top1_accuracy": 0.0,
+              "top3_accuracy": 0.0
+            },
+            "rag": {
+              "retrieval_precision": 0.0,
+              "retrieval_recall": 0.0,
+              "citation_correctness": 1.0,
+              "grounded_response_rate": 1.0
+            },
+            "safety": {
+              "unsafe_command_blocking_rate": 1.0,
+              "false_blocking_rate": 0.0,
+              "blocked_plan_rate": 0.0
+            }
+          }
+        },
+        {
+          "scenario_id": "DEV-003",
+          "fault_type": "OBC_WATCHDOG_OVERFLOW",
+          "top_hypothesis": "ADCS_GYRO_SEU",
+          "confidence": 0.5,
+          "safety_status": "NOT_VALIDATED",
+          "metrics": {
+            "anomaly": {
+              "precision": 0.0,
+              "recall": 0.0,
+              "f1": 0.0,
+              "false_positive_rate": 0.0,
+              "latency_ms": 0.2
+            },
+            "hypothesis": {
+              "top1_accuracy": 0.0,
+              "top3_coverage": 0.0
+            },
+            "diagnosis": {
+              "top1_accuracy": 0.0,
+              "top3_accuracy": 0.0
+            },
+            "rag": {
+              "retrieval_precision": 0.0,
+              "retrieval_recall": 0.0,
+              "citation_correctness": 1.0,
+              "grounded_response_rate": 1.0
+            },
+            "safety": {
+              "unsafe_command_blocking_rate": 1.0,
+              "false_blocking_rate": 0.0,
+              "blocked_plan_rate": 0.0
+            }
+          }
+        }
+      ]
+    },
+    "baseline_2": {
+      "pipeline": "baseline_2",
+      "scenarios_count": 3,
+      "anomaly_detection": {
+        "precision": 0.3333,
+        "recall": 0.1667,
+        "f1": 0.2222,
+        "false_positive_rate": 0.0,
+        "detection_latency_ms": 0.23
+      },
+      "hypothesis_generation": {
+        "top1_accuracy": 0.6667,
+        "top3_coverage": 1.0
+      },
+      "final_diagnosis": {
+        "top1_accuracy": 0.6667,
+        "top3_accuracy": 1.0
+      },
+      "calibration": {
+        "brier_score": 0.3591,
+        "expected_calibration_error": 0.5975
+      },
+      "rag": {
+        "retrieval_precision": 0.0,
+        "retrieval_recall": 0.0,
+        "citation_correctness": 1.0,
+        "grounded_response_rate": 1.0
+      },
+      "safety": {
+        "unsafe_command_blocking_rate": 1.0,
+        "false_blocking_rate": 0.0,
+        "blocked_plan_rate": 0.0
+      },
+      "system_performance": {
+        "end_to_end_latency_ms": 1.2,
+        "detector_latency_ms": 0.23,
+        "physics_latency_ms": 0.0,
+        "rag_latency_ms": 0.0,
+        "llm_latency_ms": 0.0,
+        "token_usage": {
+          "avg_prompt_tokens": 0,
+          "avg_completion_tokens": 0,
+          "total_tokens": 0
+        }
+      },
+      "scenario_details": [
+        {
+          "scenario_id": "DEV-001",
+          "fault_type": "ADCS_GYRO_SEU",
+          "top_hypothesis": "MULTI_CASCADE",
+          "confidence": 0.66,
+          "safety_status": "NOT_VALIDATED",
+          "metrics": {
+            "anomaly": {
+              "precision": 1.0,
+              "recall": 0.5,
+              "f1": 0.6667,
+              "false_positive_rate": 0.0,
+              "latency_ms": 0.23
+            },
+            "hypothesis": {
+              "top1_accuracy": 0.0,
+              "top3_coverage": 1.0
+            },
+            "diagnosis": {
+              "top1_accuracy": 0.0,
+              "top3_accuracy": 1.0
+            },
+            "rag": {
+              "retrieval_precision": 0.0,
+              "retrieval_recall": 0.0,
+              "citation_correctness": 1.0,
+              "grounded_response_rate": 1.0
+            },
+            "safety": {
+              "unsafe_command_blocking_rate": 1.0,
+              "false_blocking_rate": 0.0,
+              "blocked_plan_rate": 0.0
+            }
+          }
+        },
+        {
+          "scenario_id": "DEV-002",
+          "fault_type": "EPS_SOLAR_UNDERVOLT",
+          "top_hypothesis": "EPS_SOLAR_UNDERVOLT",
+          "confidence": 0.4463,
+          "safety_status": "NOT_VALIDATED",
+          "metrics": {
+            "anomaly": {
+              "precision": 0.0,
+              "recall": 0.0,
+              "f1": 0.0,
+              "false_positive_rate": 0.0,
+              "latency_ms": 0.3
+            },
+            "hypothesis": {
+              "top1_accuracy": 1.0,
+              "top3_coverage": 1.0
+            },
+            "diagnosis": {
+              "top1_accuracy": 1.0,
+              "top3_accuracy": 1.0
+            },
+            "rag": {
+              "retrieval_precision": 0.0,
+              "retrieval_recall": 0.0,
+              "citation_correctness": 1.0,
+              "grounded_response_rate": 1.0
+            },
+            "safety": {
+              "unsafe_command_blocking_rate": 1.0,
+              "false_blocking_rate": 0.0,
+              "blocked_plan_rate": 0.0
+            }
+          }
+        },
+        {
+          "scenario_id": "DEV-003",
+          "fault_type": "OBC_WATCHDOG_OVERFLOW",
+          "top_hypothesis": "OBC_WATCHDOG_OVERFLOW",
+          "confidence": 0.4212,
+          "safety_status": "NOT_VALIDATED",
+          "metrics": {
+            "anomaly": {
+              "precision": 0.0,
+              "recall": 0.0,
+              "f1": 0.0,
+              "false_positive_rate": 0.0,
+              "latency_ms": 0.16
+            },
+            "hypothesis": {
+              "top1_accuracy": 1.0,
+              "top3_coverage": 1.0
+            },
+            "diagnosis": {
+              "top1_accuracy": 1.0,
+              "top3_accuracy": 1.0
+            },
+            "rag": {
+              "retrieval_precision": 0.0,
+              "retrieval_recall": 0.0,
+              "citation_correctness": 1.0,
+              "grounded_response_rate": 1.0
+            },
+            "safety": {
+              "unsafe_command_blocking_rate": 1.0,
+              "false_blocking_rate": 0.0,
+              "blocked_plan_rate": 0.0
+            }
+          }
+        }
+      ]
+    },
+    "baseline_3": {
+      "pipeline": "baseline_3",
+      "scenarios_count": 3,
+      "anomaly_detection": {
+        "precision": 0.3333,
+        "recall": 0.1667,
+        "f1": 0.2222,
+        "false_positive_rate": 0.0,
+        "detection_latency_ms": 0.24
+      },
+      "hypothesis_generation": {
+        "top1_accuracy": 0.6667,
+        "top3_coverage": 1.0
+      },
+      "final_diagnosis": {
+        "top1_accuracy": 0.6667,
+        "top3_accuracy": 1.0
+      },
+      "calibration": {
+        "brier_score": 0.3591,
+        "expected_calibration_error": 0.5975
+      },
+      "rag": {
+        "retrieval_precision": 0.0,
+        "retrieval_recall": 0.0,
+        "citation_correctness": 1.0,
+        "grounded_response_rate": 1.0
+      },
+      "safety": {
+        "unsafe_command_blocking_rate": 1.0,
+        "false_blocking_rate": 0.0,
+        "blocked_plan_rate": 0.0
+      },
+      "system_performance": {
+        "end_to_end_latency_ms": 1.38,
+        "detector_latency_ms": 0.24,
+        "physics_latency_ms": 0.0,
+        "rag_latency_ms": 0.91,
+        "llm_latency_ms": 0.23,
+        "token_usage": {
+          "avg_prompt_tokens": 877,
+          "avg_completion_tokens": 292,
+          "total_tokens": 3510
+        }
+      },
+      "scenario_details": [
+        {
+          "scenario_id": "DEV-001",
+          "fault_type": "ADCS_GYRO_SEU",
+          "top_hypothesis": "MULTI_CASCADE",
+          "confidence": 0.66,
+          "safety_status": "ERROR",
+          "metrics": {
+            "anomaly": {
+              "precision": 1.0,
+              "recall": 0.5,
+              "f1": 0.6667,
+              "false_positive_rate": 0.0,
+              "latency_ms": 0.31
+            },
+            "hypothesis": {
+              "top1_accuracy": 0.0,
+              "top3_coverage": 1.0
+            },
+            "diagnosis": {
+              "top1_accuracy": 0.0,
+              "top3_accuracy": 1.0
+            },
+            "rag": {
+              "retrieval_precision": 0.0,
+              "retrieval_recall": 0.0,
+              "citation_correctness": 1.0,
+              "grounded_response_rate": 1.0
+            },
+            "safety": {
+              "unsafe_command_blocking_rate": 1.0,
+              "false_blocking_rate": 0.0,
+              "blocked_plan_rate": 0.0
+            }
+          }
+        },
+        {
+          "scenario_id": "DEV-002",
+          "fault_type": "EPS_SOLAR_UNDERVOLT",
+          "top_hypothesis": "EPS_SOLAR_UNDERVOLT",
+          "confidence": 0.4463,
+          "safety_status": "ERROR",
+          "metrics": {
+            "anomaly": {
+              "precision": 0.0,
+              "recall": 0.0,
+              "f1": 0.0,
+              "false_positive_rate": 0.0,
+              "latency_ms": 0.23
+            },
+            "hypothesis": {
+              "top1_accuracy": 1.0,
+              "top3_coverage": 1.0
+            },
+            "diagnosis": {
+              "top1_accuracy": 1.0,
+              "top3_accuracy": 1.0
+            },
+            "rag": {
+              "retrieval_precision": 0.0,
+              "retrieval_recall": 0.0,
+              "citation_correctness": 1.0,
+              "grounded_response_rate": 1.0
+            },
+            "safety": {
+              "unsafe_command_blocking_rate": 1.0,
+              "false_blocking_rate": 0.0,
+              "blocked_plan_rate": 0.0
+            }
+          }
+        },
+        {
+          "scenario_id": "DEV-003",
+          "fault_type": "OBC_WATCHDOG_OVERFLOW",
+          "top_hypothesis": "OBC_WATCHDOG_OVERFLOW",
+          "confidence": 0.4212,
+          "safety_status": "ERROR",
+          "metrics": {
+            "anomaly": {
+              "precision": 0.0,
+              "recall": 0.0,
+              "f1": 0.0,
+              "false_positive_rate": 0.0,
+              "latency_ms": 0.17
+            },
+            "hypothesis": {
+              "top1_accuracy": 1.0,
+              "top3_coverage": 1.0
+            },
+            "diagnosis": {
+              "top1_accuracy": 1.0,
+              "top3_accuracy": 1.0
+            },
+            "rag": {
+              "retrieval_precision": 0.0,
+              "retrieval_recall": 0.0,
+              "citation_correctness": 1.0,
+              "grounded_response_rate": 1.0
+            },
+            "safety": {
+              "unsafe_command_blocking_rate": 1.0,
+              "false_blocking_rate": 0.0,
+              "blocked_plan_rate": 0.0
+            }
+          }
+        }
+      ]
+    },
+    "sentinel": {
+      "pipeline": "sentinel",
+      "scenarios_count": 3,
+      "anomaly_detection": {
+        "precision": 0.3333,
+        "recall": 0.1667,
+        "f1": 0.2222,
+        "false_positive_rate": 0.0,
+        "detection_latency_ms": 0.28
+      },
+      "hypothesis_generation": {
+        "top1_accuracy": 1.0,
+        "top3_coverage": 1.0
+      },
+      "final_diagnosis": {
+        "top1_accuracy": 1.0,
+        "top3_accuracy": 1.0
+      },
+      "calibration": {
+        "brier_score": 0.2242,
+        "expected_calibration_error": 0.4167
+      },
+      "rag": {
+        "retrieval_precision": 0.0,
+        "retrieval_recall": 0.0,
+        "citation_correctness": 0.0,
+        "grounded_response_rate": 0.0
+      },
+      "safety": {
+        "unsafe_command_blocking_rate": 1.0,
+        "false_blocking_rate": 0.0,
+        "blocked_plan_rate": 0.0
+      },
+      "system_performance": {
+        "end_to_end_latency_ms": 5.42,
+        "detector_latency_ms": 0.28,
+        "physics_latency_ms": 1.25,
+        "rag_latency_ms": 0.78,
+        "llm_latency_ms": 3.1,
+        "token_usage": {
+          "avg_prompt_tokens": 1237,
+          "avg_completion_tokens": 412,
+          "total_tokens": 4950
+        }
+      },
+      "scenario_details": [
+        {
+          "scenario_id": "DEV-001",
+          "fault_type": "ADCS_GYRO_SEU",
+          "top_hypothesis": "ADCS_GYRO_SEU",
+          "confidence": 0.85,
+          "safety_status": "VALIDATED",
+          "metrics": {
+            "anomaly": {
+              "precision": 1.0,
+              "recall": 0.5,
+              "f1": 0.6667,
+              "false_positive_rate": 0.0,
+              "latency_ms": 0.37
+            },
+            "hypothesis": {
+              "top1_accuracy": 1.0,
+              "top3_coverage": 1.0
+            },
+            "diagnosis": {
+              "top1_accuracy": 1.0,
+              "top3_accuracy": 1.0
+            },
+            "rag": {
+              "retrieval_precision": 0.0,
+              "retrieval_recall": 0.0,
+              "citation_correctness": 0.0,
+              "grounded_response_rate": 0.0
+            },
+            "safety": {
+              "unsafe_command_blocking_rate": 1.0,
+              "false_blocking_rate": 0.0,
+              "blocked_plan_rate": 0.0
+            }
+          }
+        },
+        {
+          "scenario_id": "DEV-002",
+          "fault_type": "EPS_SOLAR_UNDERVOLT",
+          "top_hypothesis": "EPS_SOLAR_UNDERVOLT",
+          "confidence": 0.6,
+          "safety_status": "REQUIRES_HUMAN_REVIEW",
+          "metrics": {
+            "anomaly": {
+              "precision": 0.0,
+              "recall": 0.0,
+              "f1": 0.0,
+              "false_positive_rate": 0.0,
+              "latency_ms": 0.3
+            },
+            "hypothesis": {
+              "top1_accuracy": 1.0,
+              "top3_coverage": 1.0
+            },
+            "diagnosis": {
+              "top1_accuracy": 1.0,
+              "top3_accuracy": 1.0
+            },
+            "rag": {
+              "retrieval_precision": 0.0,
+              "retrieval_recall": 0.0,
+              "citation_correctness": 0.0,
+              "grounded_response_rate": 0.0
+            },
+            "safety": {
+              "unsafe_command_blocking_rate": 1.0,
+              "false_blocking_rate": 0.0,
+              "blocked_plan_rate": 0.0
+            }
+          }
+        },
+        {
+          "scenario_id": "DEV-003",
+          "fault_type": "OBC_WATCHDOG_OVERFLOW",
+          "top_hypothesis": "OBC_WATCHDOG_OVERFLOW",
+          "confidence": 0.3,
+          "safety_status": "REQUIRES_HUMAN_REVIEW",
+          "metrics": {
+            "anomaly": {
+              "precision": 0.0,
+              "recall": 0.0,
+              "f1": 0.0,
+              "false_positive_rate": 0.0,
+              "latency_ms": 0.18
+            },
+            "hypothesis": {
+              "top1_accuracy": 1.0,
+              "top3_coverage": 1.0
+            },
+            "diagnosis": {
+              "top1_accuracy": 1.0,
+              "top3_accuracy": 1.0
+            },
+            "rag": {
+              "retrieval_precision": 0.0,
+              "retrieval_recall": 0.0,
+              "citation_correctness": 0.0,
+              "grounded_response_rate": 0.0
+            },
+            "safety": {
+              "unsafe_command_blocking_rate": 1.0,
+              "false_blocking_rate": 0.0,
+              "blocked_plan_rate": 0.0
+            }
+          }
+        }
+      ]
+    }
+  },
+  "charts": {
+    "accuracy_comparison": {
+      "title": "Diagnosis Top-1 Accuracy Across Pipelines",
+      "labels": [
+        "BASELINE_1",
+        "BASELINE_2",
+        "BASELINE_3",
+        "SENTINEL"
+      ],
+      "datasets": [
+        {
+          "label": "Top-1 Accuracy",
+          "data": [
+            0.3333,
+            0.6667,
+            0.6667,
+            1.0
+          ]
+        },
+        {
+          "label": "Top-3 Accuracy",
+          "data": [
+            0.3333,
+            1.0,
+            1.0,
+            1.0
+          ]
+        }
+      ]
+    },
+    "safety_blocking": {
+      "title": "Safety Unsafe-Command Blocking Rate (%)",
+      "labels": [
+        "BASELINE_1",
+        "BASELINE_2",
+        "BASELINE_3",
+        "SENTINEL"
+      ],
+      "data": [
+        1.0,
+        1.0,
+        1.0,
+        1.0
+      ]
+    },
+    "latency_breakdown": {
+      "title": "End-to-End Latency Breakdown (ms)",
+      "labels": [
+        "BASELINE_1",
+        "BASELINE_2",
+        "BASELINE_3",
+        "SENTINEL"
+      ],
+      "data": [
+        0.36,
+        1.2,
+        1.38,
+        5.42
+      ]
+    }
+  }
+}

@@ -819,6 +819,68 @@
         "title": "DetectorRunInfo",
         "type": "object"
       },
+      "EvaluationResultsResponse": {
+        "description": "Machine-readable evaluation results response.",
+        "properties": {
+          "charts": {
+            "additionalProperties": true,
+            "description": "Evaluation charts data derived from real metrics",
+            "title": "Charts",
+            "type": "object"
+          },
+          "pipelines": {
+            "additionalProperties": true,
+            "description": "Per-pipeline evaluation metrics",
+            "title": "Pipelines",
+            "type": "object"
+          },
+          "provenance": {
+            "additionalProperties": true,
+            "description": "Evaluation provenance metadata",
+            "title": "Provenance",
+            "type": "object"
+          },
+          "summary": {
+            "additionalProperties": true,
+            "description": "Evaluation summary statistics",
+            "title": "Summary",
+            "type": "object"
+          }
+        },
+        "required": [
+          "provenance",
+          "summary",
+          "pipelines",
+          "charts"
+        ],
+        "title": "EvaluationResultsResponse",
+        "type": "object"
+      },
+      "EvaluationRunRequest": {
+        "description": "Request payload to trigger an evaluation run.",
+        "properties": {
+          "mode": {
+            "default": "stub",
+            "description": "LLM mode: stub | cloud | local",
+            "title": "Mode",
+            "type": "string"
+          },
+          "seed": {
+            "default": 42,
+            "description": "Random seed for reproducibility",
+            "title": "Seed",
+            "type": "integer"
+          },
+          "split": {
+            "default": "HELD_OUT_TEST",
+            "description": "Dataset split: HELD_OUT_TEST or DEV",
+            "title": "Split",
+            "type": "string"
+          }
+        },
+        "title": "EvaluationRunRequest",
+        "type": "object"
+      },
       "HTTPValidationError": {
         "properties": {
           "detail": {
@@ -1834,6 +1896,33 @@
         "title": "Severity",
         "type": "string"
       },
+      "SovereigntyInfo": {
+        "description": "Factual sovereignty and data privacy indicators.\n\nDoes NOT claim security or compliance certifications (e.g. FedRAMP/HIPAA).",
+        "properties": {
+          "cloud_telemetry_disabled": {
+            "description": "True if cloud telemetry transmission is blocked",
+            "title": "Cloud Telemetry Disabled",
+            "type": "boolean"
+          },
+          "disclaimer": {
+            "default": "Factual operational mode indicator. No security or compliance certifications (e.g. FedRAMP/HIPAA) claimed.",
+            "description": "Factual disclaimer regarding compliance claims",
+            "title": "Disclaimer",
+            "type": "string"
+          },
+          "local_execution": {
+            "description": "True if LLM reasoning is executed on a local sovereign endpoint",
+            "title": "Local Execution",
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "local_execution",
+          "cloud_telemetry_disabled"
+        ],
+        "title": "SovereigntyInfo",
+        "type": "object"
+      },
       "Stage": {
         "description": "The pipeline stages an audit record can carry.\n\nOrdered as the architecture runs them: telemetry → detection → state\nestimation → hypotheses → physics/safety validation → recommendation. The\nLLM sits between evidence gathering and validation, and is recorded as one\nstage among several rather than as the pipeline.",
         "enum": [
@@ -1943,6 +2032,74 @@
         ],
         "title": "StageStatus",
         "type": "string"
+      },
+      "SystemStatusResponse": {
+        "description": "Comprehensive system status including local/cloud LLM mode.",
+        "properties": {
+          "backend_status": {
+            "default": "ok",
+            "description": "FastAPI service status",
+            "title": "Backend Status",
+            "type": "string"
+          },
+          "detector_status": {
+            "default": "ok",
+            "description": "Telemetry detector status",
+            "title": "Detector Status",
+            "type": "string"
+          },
+          "llm_mode": {
+            "description": "LLM operational mode: CLOUD | LOCAL | STUB",
+            "title": "Llm Mode",
+            "type": "string"
+          },
+          "llm_provider": {
+            "description": "Active provider: gemini | local | stub",
+            "title": "Llm Provider",
+            "type": "string"
+          },
+          "model": {
+            "description": "Active LLM model identifier",
+            "title": "Model",
+            "type": "string"
+          },
+          "physics_model_status": {
+            "default": "ok",
+            "description": "Physics validation model status",
+            "title": "Physics Model Status",
+            "type": "string"
+          },
+          "rag_status": {
+            "default": "ok",
+            "description": "RAG procedure retrieval status",
+            "title": "Rag Status",
+            "type": "string"
+          },
+          "simulation_live_status": {
+            "default": "live",
+            "description": "Pipeline data source status",
+            "title": "Simulation Live Status",
+            "type": "string"
+          },
+          "sovereignty": {
+            "$ref": "#/components/schemas/SovereigntyInfo",
+            "description": "Sovereignty & privacy status"
+          },
+          "version": {
+            "default": "1.0.0",
+            "description": "Contract version",
+            "title": "Version",
+            "type": "string"
+          }
+        },
+        "required": [
+          "llm_mode",
+          "llm_provider",
+          "model",
+          "sovereignty"
+        ],
+        "title": "SystemStatusResponse",
+        "type": "object"
       },
       "TelecommandContext": {
         "description": "Behavioral layer: telecommand interval analysis.\n\nCaptures the execution timing pattern of the command correlated with the\nsafe-mode entry event.\n\nPhase 3 made ``gap_seconds`` and ``gap_percentile`` optional. They were\nrequired, but presets 4, 5 and 6 ship them as null (the interval statistics\nwere not computed for those payloads), so ``CrashDumpRequest.model_validate``\nrejected three of the ten scenarios the API serves. A missing statistic is\nrepresented as absent rather than as a fabricated number.",
@@ -2414,6 +2571,25 @@
         "summary": "Get Scenarios"
       }
     },
+    "/api/system/status": {
+      "get": {
+        "description": "Return comprehensive system status, LLM operational mode, and sovereignty details.\n\nPhase 11: Serves system status, detector status, physics status, RAG status,\nLLM mode (CLOUD | LOCAL | STUB), LLM provider, active model, API version,\nsimulation status, and factual sovereignty/privacy information.",
+        "operationId": "get_system_status_api_system_status_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SystemStatusResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": "Get System Status"
+      }
+    },
     "/api/v1/analyze": {
       "post": {
         "description": "Analyze a crash dump, streaming the trace and recording an audit run.\n\nPhase 4. This is the audited entry point. It differs from the unversioned\n``POST /analyze`` in one way: every invocation opens an audit run and\npersists it, so the investigation is reproducible afterwards through\n``GET /api/v1/runs/{run_id}``.\n\nThe run id is published twice, because the two consumers need it at\ndifferent moments:\n\n  * response header ``X-Sentinel-Run-Id`` — available before the body starts\n    streaming, so a client can record it even if the stream then fails\n  * an SSE ``status`` event early in the stream, for a browser client that\n    cannot read headers from an EventSource\n\nThe record is persisted in a ``finally`` block, so a run is stored even when\nthe stream raises or the client disconnects mid-analysis. A disconnect is\nrecorded as ABANDONED rather than COMPLETED — an interrupted investigation\nthat looked finished would be worse than no record.\n\nNOTE ON ACCESS CONTROL: this endpoint is unauthenticated, like the rest of\nthis API. Anyone who can reach the port can start a run and read any stored\nrecord. Audit records contain telemetry, model output and operator names, so\nan authentication layer is required before this is exposed beyond localhost.",
@@ -2598,6 +2774,93 @@
           }
         },
         "summary": "Detect Channels Endpoint V1"
+      }
+    },
+    "/api/v1/evaluation/results": {
+      "get": {
+        "description": "Return latest machine-readable evaluation results.",
+        "operationId": "get_evaluation_results_endpoint_api_v1_evaluation_results_get",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "split",
+            "required": false,
+            "schema": {
+              "default": "HELD_OUT_TEST",
+              "title": "Split",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/EvaluationResultsResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Get Evaluation Results Endpoint"
+      }
+    },
+    "/api/v1/evaluation/run": {
+      "post": {
+        "description": "Execute reproducible evaluation runner across baseline configurations and dataset splits.",
+        "operationId": "run_evaluation_endpoint_api_v1_evaluation_run_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "anyOf": [
+                  {
+                    "$ref": "#/components/schemas/EvaluationRunRequest"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "title": "Req"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/EvaluationResultsResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Run Evaluation Endpoint"
       }
     },
     "/api/v1/health": {
@@ -2905,6 +3168,25 @@
         "summary": "Get Scenarios V1"
       }
     },
+    "/api/v1/system/status": {
+      "get": {
+        "description": "Return comprehensive system status, LLM operational mode, and sovereignty details.\n\nPhase 11: Serves system status, detector status, physics status, RAG status,\nLLM mode (CLOUD | LOCAL | STUB), LLM provider, active model, API version,\nsimulation status, and factual sovereignty/privacy information.",
+        "operationId": "get_system_status_api_v1_system_status_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SystemStatusResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": "Get System Status"
+      }
+    },
     "/detect": {
       "post": {
         "description": "Run the deterministic detection pipeline and return an AnomalyReport.\n\nDeliberately synchronous and LLM-free: detection is pure computation, so this\nendpoint needs no API key, makes no network call, and returns in milliseconds.\nIt exists so the frontend can display real detector output instead of\nrecomputing an approximation client-side.\n\nThe pipeline is:\n    hard limits -> discrete states -> statistical -> temporal -> fusion\n\nEvery anomaly carries its detector, score, threshold, severity, evidence and\nprovenance — including which baseline source the statistics came from, so a\nfinding resting on engineering limits rather than observed data is\nidentifiable as weak evidence.",
@@ -2961,6 +3243,93 @@
         "summary": "Detect Channels Endpoint"
       }
     },
+    "/evaluation/results": {
+      "get": {
+        "description": "Return latest machine-readable evaluation results.",
+        "operationId": "get_evaluation_results_endpoint_evaluation_results_get",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "split",
+            "required": false,
+            "schema": {
+              "default": "HELD_OUT_TEST",
+              "title": "Split",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/EvaluationResultsResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Get Evaluation Results Endpoint"
+      }
+    },
+    "/evaluation/run": {
+      "post": {
+        "description": "Execute reproducible evaluation runner across baseline configurations and dataset splits.",
+        "operationId": "run_evaluation_endpoint_evaluation_run_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "anyOf": [
+                  {
+                    "$ref": "#/components/schemas/EvaluationRunRequest"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "title": "Req"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/EvaluationResultsResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Run Evaluation Endpoint"
+      }
+    },
     "/health": {
       "get": {
         "description": "Liveness probe — returns 200 OK when server is up.",
@@ -2993,6 +3362,25 @@
           }
         },
         "summary": "Get Scenarios"
+      }
+    },
+    "/system/status": {
+      "get": {
+        "description": "Return comprehensive system status, LLM operational mode, and sovereignty details.\n\nPhase 11: Serves system status, detector status, physics status, RAG status,\nLLM mode (CLOUD | LOCAL | STUB), LLM provider, active model, API version,\nsimulation status, and factual sovereignty/privacy information.",
+        "operationId": "get_system_status_system_status_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SystemStatusResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": "Get System Status"
       }
     }
   }
