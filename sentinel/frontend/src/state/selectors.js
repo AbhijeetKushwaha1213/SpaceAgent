@@ -1,0 +1,144 @@
+/*
+ * Pure selector helpers over backend payloads.
+ *
+ * These functions only read fields the backend emits. When a field is absent
+ * they return null / "N/A" rather than a fabricated value.
+ */
+
+// ── channel dictionary ───────────────────────────────────────────────────
+
+export function channelById(channelDictionary, channelId) {
+  const list = channelDictionary?.data?.channels || [];
+  if (!channelId) return null;
+  const exact = list.find((c) => c.channel_id === channelId);
+  if (exact) return exact;
+  return (
+    list.find((c) => (c.aliases || []).includes(channelId)) || null
+  );
+}
+
+export function subsystemForChannel(channelDictionary, channelId) {
+  const ch = channelById(channelDictionary, channelId);
+  return ch ? ch.subsystem : "UNKNOWN";
+}
+
+// ── canonical telemetry window ───────────────────────────────────────────
+
+export function canonicalWindow(scenario) {
+  return scenario?.pre_fault_telemetry_window || [];
+}
+
+/*
+ * Normalize a window into a flat list of samples with a numeric x position:
+ *   relative_time_s when present, otherwise the sample index (negative,
+ *   counting back from the last sample) so ordering is still meaningful.
+ */
+export function windowSamples(scenario) {
+  const window = canonicalWindow(scenario);
+  const last = window.length - 1;
+  return window.map((entry, index) => {
+    const t =
+      typeof entry.relative_time_s === "number"
+        ? entry.relative_time_s
+        : index - last;
+    return {
+      ...entry,
+      t,
+      xIndex: index,
+      numericValue:
+        typeof entry.value === "number" ? entry.value : null,
+      displayValue:
+        entry.value_text || (entry.value === null ? "MISSING" : String(entry.value)),
+    };
+  });
+}
+
+export function channelsInWindow(scenario) {
+  const seen = new Map();
+  for (const sample of windowSamples(scenario)) {
+    if (!seen.has(sample.parameter)) {
+      seen.set(sample.parameter, sample);
+    }
+  }
+  return Array.from(seen.values());
+}
+
+// ── subsystem grouping (only for known channels; unknown stays UNKNOWN) ──
+
+export function subsystemCounts(window, channelDictionary) {
+  const counts = {};
+  for (const entry of window) {
+    const sub = subsystemForChannel(channelDictionary, entry.parameter);
+    counts[sub] = (counts[sub] || 0) + 1;
+  }
+  return counts;
+}
+
+// ── detection report helpers ─────────────────────────────────────────────
+
+export function anomaliesForChannel(detection, channelId) {
+  const list = detection?.data?.anomalies || [];
+  return list.filter((a) => a.channel === channelId);
+}
+
+export function maxAnomalySeverity(detection) {
+  const report = detection?.data;
+  return report?.max_severity || null;
+}
+
+// ── physics helpers ──────────────────────────────────────────────────────
+
+export function residualsForChannel(physicsReport, channelId) {
+  const verdicts = physicsReport?.data?.verdicts || [];
+  const out = [];
+  for (const verdict of verdicts) {
+    for (const residual of verdict.supporting_residuals || []) {
+      if (residual.channel === channelId) {
+        out.push({ ...residual, hypothesis_id: verdict.hypothesis_id });
+      }
+    }
+  }
+  return out;
+}
+
+// ── analysis output (SentinelOutput from SSE result) ─────────────────────
+
+export function hypotheses(analysis) {
+  return analysis?.output?.hypotheses || [];
+}
+
+export function recoveryPlan(analysis) {
+  return analysis?.output?.recovery_plan || [];
+}
+
+export function blockedCommands(analysis) {
+  return analysis?.output?.blocked_steps || [];
+}
+
+// ── audit helpers ────────────────────────────────────────────────────────
+
+export function stageEntries(record) {
+  return record?.entries || [];
+}
+
+export function stageSummary(record, stageName) {
+  const entries = stageEntries(record);
+  const matches = entries.filter((e) => e.stage === stageName);
+  return matches.length > 0 ? matches[matches.length - 1] : null;
+}
+
+// ── generic display helpers ──────────────────────────────────────────────
+
+export function fmt(value, digits = 2) {
+  if (value === null || value === undefined || value === "") return "N/A";
+  if (typeof value === "number") {
+    if (Number.isNaN(value) || !Number.isFinite(value)) return "N/A";
+    return Number(value.toFixed(digits)).toString();
+  }
+  return String(value);
+}
+
+export function fmtPct(value, digits = 1) {
+  if (typeof value !== "number" || Number.isNaN(value)) return "N/A";
+  return `${(value * 100).toFixed(digits)}%`;
+}

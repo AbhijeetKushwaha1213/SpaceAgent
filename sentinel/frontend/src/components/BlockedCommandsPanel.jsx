@@ -1,60 +1,50 @@
+/*
+ * Blocked commands — dedicated, always-visible panel. Blocked commands are
+ * never hidden and never collapsed away: the operator sees what was
+ * proposed, why it was refused, the constraint violated, the severity and
+ * the source of the refusal. Data comes from SentinelOutput.blocked_steps.
+ */
+
 import React from "react";
+import StatusBadge from "./ui/StatusBadge";
+import DataTable from "./ui/DataTable";
 
-export default function BlockedCommandsPanel({ blockedSteps = [], scenario }) {
-  // If no blocked steps in current analysis output, populate from scenario unsafe commands ground truth
-  const displayBlocked =
-    blockedSteps.length > 0
-      ? blockedSteps
-      : (scenario?.ground_truth?.unsafe_commands || ["CMD_ATTITUDE_MANEUVER", "CMD_FIRE_THRUSTER"]).map((cmd) => ({
-          command: cmd,
-          subsystem: "ADCS",
-          reason: "Violates safety rule: Unsafe actuation during uncalibrated gyro safe mode state",
-          constraint: "GYRO_HEALTH_PREREQUISITE",
-          risk_level: "BLOCKED",
-          source: "DETERMINISTIC_SAFETY_VALIDATOR",
-        }));
-
+export default function BlockedCommandsPanel({ blockedSteps = [] }) {
   return (
-    <div className="ops-card blocked-panel-card" aria-labelledby="blocked-panel-heading">
-      <div className="card-header flex-between red-bg">
-        <span id="blocked-panel-heading" className="bold">
-          DEDICATED PANEL: BLOCKED RECOVERY COMMANDS ({displayBlocked.length})
-        </span>
-        <span className="badge-pill badge-critical">[SAFETY BLOCKED - NEVER HIDDEN]</span>
+    <section className="panel panel--blocked" aria-labelledby="blocked-heading">
+      <header className="panel__header">
+        <h2 id="blocked-heading" className="panel__title">Blocked commands</h2>
+        <StatusBadge status="BLOCKED" label={`${blockedSteps.length} BLOCKED`} />
+      </header>
+      <div className="panel__body">
+        <p className="muted-text fs-sm">
+          Commands refused by the deterministic safety validator. These actions
+          were proposed but must not be uplinked. They remain visible here; a
+          blocked command is never hidden from the operator.
+        </p>
+        <DataTable
+          caption="Safety-blocked recovery commands"
+          emptyMessage="NO COMMANDS BLOCKED BY THE SAFETY VALIDATOR"
+          columns={[
+            { key: "command", label: "Command", render: (r) => <span className="mono bold">{r.command}</span> },
+            { key: "subsystem", label: "Subsystem", render: (r) => <span className="mono">{r.subsystem || "N/A"}</span> },
+            { key: "reason", label: "Reason" },
+            { key: "constraint", label: "Constraint", render: (r) => <span className="mono">{r.constraint}</span> },
+            { key: "severity", label: "Severity", render: (r) => <StatusBadge status={r.severity} /> },
+            { key: "source", label: "Source", render: (r) => <span className="mono">{r.source}</span> },
+          ]}
+          rows={blockedSteps.map((b, i) => ({
+            key: `${b.command}-${i}`,
+            command: b.command,
+            subsystem: b.subsystem,
+            reason: b.reason,
+            constraint: b.violated_constraint || "N/A",
+            severity: b.severity || "UNKNOWN",
+            source: "SAFETY VALIDATOR (POST /api/v1/analyze)",
+          }))}
+          rowClass={() => "row--critical"}
+        />
       </div>
-
-      <div className="card-body">
-        {displayBlocked.length === 0 ? (
-          <div className="ops-empty-state">NO RECOVERY COMMANDS BLOCKED BY SAFETY VALIDATOR</div>
-        ) : (
-          <table className="ops-table" aria-label="Blocked commands details">
-            <thead>
-              <tr>
-                <th>PROPOSED COMMAND</th>
-                <th>SUBSYSTEM</th>
-                <th>REASON / VIOLATION</th>
-                <th>CONSTRAINT CODE</th>
-                <th>RISK LEVEL</th>
-                <th>SOURCE</th>
-              </tr>
-            </thead>
-            <tbody>
-              {displayBlocked.map((item, idx) => (
-                <tr key={idx} className="row-critical">
-                  <td className="mono bold red-text">{item.command || item.step || "CMD_BLOCKED"}</td>
-                  <td className="mono">{item.subsystem || "SYSTEM"}</td>
-                  <td>{item.reason || item.justification || "Violates safety policy"}</td>
-                  <td className="mono fs-xs">{item.constraint || item.violation_code || "SAFETY_CONSTRAINT"}</td>
-                  <td>
-                    <span className="badge-pill badge-critical">[BLOCKED]</span>
-                  </td>
-                  <td className="mono fs-xs">{item.source || "SAFETY_VALIDATOR"}</td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        )}
-      </div>
-    </div>
+    </section>
   );
 }
