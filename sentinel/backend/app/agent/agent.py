@@ -1578,19 +1578,101 @@ class SentinelAgent:
                     step_number=1,
                 )
 
-        # ── Stage 3: RAG Retrieval ─────────────────────────────────────────
+        # ── Stage 3: State Estimation ──────────────────────────────────────
         yield SSEEvent(event_type=SSEEventType.STATUS,
-                       data="Querying ECSS procedures database...")
+                       data="[STATE_ESTIMATION] Running spacecraft state estimation...")
+
+        state_sequence = None
+        residual_report = None
+        try:
+            from app.estimation import compute_residuals, estimate_states
+
+            state_sequence = estimate_states(crash_dict)
+            residual_report = compute_residuals(crash_dict, state_sequence)
+            yield SSEEvent(
+                event_type=SSEEventType.OBSERVATION,
+                data=f"[STATE_ESTIMATION] {residual_report.summary}",
+                step_number=3,
+            )
+        except Exception as exc:
+            logger.warning("State estimation error (non-fatal): %s", exc)
+            yield SSEEvent(
+                event_type=SSEEventType.OBSERVATION,
+                data=f"[STATE_ESTIMATION] Unavailable: {exc}",
+                step_number=3,
+            )
+
+        if recorder is not None and not recorder.has(
+            __import__("app.audit", fromlist=["Stage"]).Stage.STATE_ESTIMATION
+        ):
+            _audit_record_state_estimation(recorder, crash_dict)
+
+        # ── Stage 4: Hypothesis Generation ─────────────────────────────────
+        yield SSEEvent(event_type=SSEEventType.STATUS,
+                       data="[HYPOTHESIS_GENERATION] Generating deterministic fault hypotheses...")
+
+        hypothesis_set = None
+        try:
+            from app.diagnosis import generate_hypotheses
+
+            hypothesis_set = generate_hypotheses(detection_report, crash_dict)
+            top_summary = (
+                f"{len(hypothesis_set.hypotheses)} candidate(s), "
+                f"top: {hypothesis_set.top.fault_id} "
+                f"(score {hypothesis_set.top.score:.2f})"
+                if hypothesis_set.top else "no candidates generated"
+            )
+            yield SSEEvent(
+                event_type=SSEEventType.OBSERVATION,
+                data=f"[HYPOTHESIS_GENERATION] {top_summary}",
+                step_number=4,
+            )
+        except Exception as exc:
+            logger.warning("Hypothesis generation error (non-fatal): %s", exc)
+            yield SSEEvent(
+                event_type=SSEEventType.OBSERVATION,
+                data=f"[HYPOTHESIS_GENERATION] Unavailable: {exc}",
+                step_number=4,
+            )
+
+        # ── Stage 5: Physics Validation ────────────────────────────────────
+        yield SSEEvent(event_type=SSEEventType.STATUS,
+                       data="[PHYSICS_VALIDATION] Validating hypotheses against physical models...")
+
+        physics_report = None
+        try:
+            from app.validation.physics import validate_crash_dump
+
+            physics_report, _phys_hyps, _phys_res, _phys_seq = (
+                validate_crash_dump(crash_dict)
+            )
+            yield SSEEvent(
+                event_type=SSEEventType.OBSERVATION,
+                data=f"[PHYSICS_VALIDATION] {physics_report.summary}",
+                step_number=5,
+            )
+        except Exception as exc:
+            logger.warning("Physics validation error (non-fatal): %s", exc)
+            yield SSEEvent(
+                event_type=SSEEventType.OBSERVATION,
+                data=f"[PHYSICS_VALIDATION] Unavailable: {exc}",
+                step_number=5,
+            )
+
+        if recorder is not None:
+            _audit_record_physics_validation(recorder, crash_dict)
+
+        # ── Stage 6: RAG / Procedure Retrieval ─────────────────────────────
+        yield SSEEvent(event_type=SSEEventType.STATUS,
+                       data="[RAG_RETRIEVAL] Retrieving engineering procedures...")
         fault_type = crash_dict.get("fault_type", "")
-        yield SSEEvent(
-            event_type=SSEEventType.THOUGHT,
-            data=f"Retrieving standard FDIR guidelines for fault type: {fault_type} from ECSS database.",
-            step_number=2,
-        )
 
         _rag_started = time.perf_counter()
         rag_trace: dict[str, Any] | None = None
         _rag_error: str | None = None
+        retrieved_procedures: list[str] | None = None
+        procedure_results = None
+
         try:
             from app.agent.rag import retrieve_procedures_traced
             query_parts = [
@@ -1599,77 +1681,242 @@ class SentinelAgent:
             ]
             query = " ".join(p for p in query_parts if p) or "spacecraft safe mode recovery"
             all_cues = list(anomalous_parameters or []) + list(fault_cues or [])
-            # Traced retrieval returns byte-identical snippets to
-            # retrieve_procedures() — verified by test — and additionally yields
-            # the per-snippet source metadata the audit record needs.
             retrieved_procedures, rag_trace = retrieve_procedures_traced(
                 query=query,
                 fault_cues=all_cues or None,
                 top_k=3,
                 use_pdf_rag=True,
             )
-            ecss_preview = retrieved_procedures[0] if retrieved_procedures else "No procedures found."
         except Exception as exc:
             logger.warning("RAG retrieval error (non-fatal): %s", exc)
             retrieved_procedures = None
             rag_trace = None
             _rag_error = str(exc)
-            ecss_preview = f"RAG unavailable: {exc}"
         _rag_ms = (time.perf_counter() - _rag_started) * 1000.0
+
+        # Also try Phase 9 structured procedure retrieval
+        try:
+            from app.procedures.retrieval import retrieve_procedures as retrieve_procs_p9
+
+            fault_filter = None
+            if hypothesis_set and hypothesis_set.top:
+                fault_filter = hypothesis_set.top.fault_id.upper()
+                # Map known fault_ids to procedure fault_classes
+                _fault_map = {
+                    "ADCS_GYRO_SEU": "ADCS_GYRO_SEU",
+                    "EPS_SOLAR_UNDERVOLT": "EPS_SOLAR_UNDERVOLT",
+                    "OBC_WATCHDOG_OVERFLOW": "OBC_WATCHDOG_OVERFLOW",
+                    "TCS_THERMAL_RUNAWAY": "TCS_THERMAL_RUNAWAY",
+                    "COMMS_TRANSPONDER_LOSS": "COMMS_TRANSPONDER_LOSS",
+                    "MULTI_SUBSYSTEM_CASCADE": "MULTI_CASCADE",
+                }
+                fault_filter = _fault_map.get(fault_filter, fault_filter)
+
+            procedure_results = retrieve_procs_p9(
+                query=query if 'query' in dir() else "",
+                fault_cues=all_cues if 'all_cues' in dir() else None,
+                fault_filter=fault_filter,
+                min_relevance=0.2,
+            )
+        except Exception as exc:
+            logger.warning("Phase 9 procedure retrieval (non-fatal): %s", exc)
+
+        rag_summary = (
+            f"{len(retrieved_procedures)} procedure(s) retrieved"
+            if retrieved_procedures
+            else "No procedures retrieved"
+        )
+        yield SSEEvent(
+            event_type=SSEEventType.OBSERVATION,
+            data=f"[RAG_RETRIEVAL] {rag_summary}",
+            step_number=6,
+        )
 
         if recorder is not None:
             _audit_record_rag(
                 recorder, retrieved_procedures, rag_trace, _rag_ms, _rag_error,
             )
 
-        yield SSEEvent(
-            event_type=SSEEventType.OBSERVATION,
-            data=f"ECSS Document Match:\n{ecss_preview}",
-            step_number=2,
-        )
-
-        # ── Stage 4: LLM Reasoning ─────────────────────────────────────────
+        # ── Stage 7: LLM Ranking ──────────────────────────────────────────
         yield SSEEvent(event_type=SSEEventType.STATUS,
-                       data="Invoking reasoning agent...")
-        yield SSEEvent(
-            event_type=SSEEventType.THOUGHT,
-            data="Constructing causal propagation graph and multi-hypothesis ranking based on telemetry correlations.",
-            step_number=3,
-        )
-        yield SSEEvent(
-            event_type=SSEEventType.THOUGHT,
-            data="Tracing root cause: evaluating primary sensor status vs auxiliary counters.",
-            step_number=4,
-        )
+                       data="[LLM_RANKING] Ranking hypotheses with constrained LLM...")
 
-        # ── Stage 5: Run full pipeline and emit result ─────────────────────
         try:
-            result = self.analyze_crash_dump(
-                crash_dump=crash_dict,
-                anomalous_parameters=anomalous_parameters or None,
-                retrieved_procedures=retrieved_procedures,
-                system_prompt_override=system_prompt_override,
-                recorder=recorder,
+            from app.llm.ranker import (
+                build_ranking_input,
+                run_constrained_ranking,
+                convert_to_sentinel_output,
+            )
+            from app.llm.provider import StubProvider, create_provider, ProviderConfig
+            from app.llm.explainer import (
+                explain_ranking,
+                explain_evidence,
+                explain_uncertainty,
+                identify_contradictions,
             )
 
-            # Phase 1: this used to emit the literal string
-            #     "Analysis complete. Safety validation passed."
-            # unconditionally — including when every recovery step had just been
-            # blocked. The status is now derived from the validation outcome.
+            # Build ranking input from all pipeline stages
+            ranking_input = build_ranking_input(
+                crash_dump=crash_dict,
+                anomaly_report=detection_report,
+                hypothesis_set=hypothesis_set,
+                physics_report=physics_report,
+                residual_report=residual_report,
+                state_sequence=state_sequence,
+                procedure_results=procedure_results,
+            )
+
+            # Create provider from agent config
+            provider_config = ProviderConfig(
+                model=self.config.model,
+                gemini_api_key=self.config.gemini_api_key or "",
+                tuned_model_id=self.config.tuned_model_id,
+                fallback_model=self.config.fallback_model,
+                fallback_base_url=self.config.fallback_base_url,
+                fallback_api_key=self.config.fallback_api_key,
+                stub_response=self.config.stub_response,
+                stub_label=self.config.stub_label,
+                temperature=self.config.temperature,
+                max_tokens=self.config.max_tokens,
+                timeout_seconds=self.config.timeout_seconds,
+            )
+            provider = create_provider(
+                mode=self.config.mode.value,
+                config=provider_config,
+            )
+
+            # Run constrained ranking
+            ranking_output, guardrail_result, llm_ms = run_constrained_ranking(
+                provider=provider,
+                ranking_input=ranking_input,
+                physics_report=physics_report,
+                max_retries=self.config.max_retries,
+            )
+
+            # Emit ranking explanation
+            ranking_explanation = explain_ranking(ranking_output, ranking_input)
+            yield SSEEvent(
+                event_type=SSEEventType.OBSERVATION,
+                data=f"[LLM_RANKING] {ranking_explanation}",
+                step_number=7,
+            )
+
+            # Emit evidence explanation
+            evidence_explanation = explain_evidence(ranking_output, ranking_input)
+            yield SSEEvent(
+                event_type=SSEEventType.OBSERVATION,
+                data=f"[LLM_RANKING] {evidence_explanation}",
+                step_number=7,
+            )
+
+            # Emit contradictions if any
+            contradictions = identify_contradictions(
+                ranking_output, ranking_input, guardrail_result,
+            )
+            for contradiction in contradictions[:3]:
+                yield SSEEvent(
+                    event_type=SSEEventType.OBSERVATION,
+                    data=f"[LLM_RANKING] Contradiction: {contradiction}",
+                    step_number=7,
+                )
+
+            # Emit uncertainty
+            uncertainty_explanation = explain_uncertainty(
+                ranking_output, ranking_input,
+            )
+            yield SSEEvent(
+                event_type=SSEEventType.OBSERVATION,
+                data=f"[LLM_RANKING] {uncertainty_explanation}",
+                step_number=7,
+            )
+
+            # Convert to SentinelOutput for backward compatibility
+            output_dict = convert_to_sentinel_output(
+                ranking_output, procedure_results,
+            )
+            result = _validate_output(output_dict)
+
+            # ── Stage 8: Safety Validation ─────────────────────────────────
+            yield SSEEvent(event_type=SSEEventType.STATUS,
+                           data="[SAFETY_VALIDATION] Running deterministic safety checks...")
+
+            from app.agent.safety import validate_recovery_plan, apply_validation_to_output
+
+            _safety_started = time.perf_counter()
+            validation = validate_recovery_plan(result, crash_dict)
+            result = apply_validation_to_output(result, validation)
+            _safety_ms = (time.perf_counter() - _safety_started) * 1000.0
+
+            safety_summary = (
+                f"{len(validation.validated_steps)} approved, "
+                f"{len(validation.blocked_steps)} blocked, "
+                f"status={validation.safety_status.value}"
+            )
+            yield SSEEvent(
+                event_type=SSEEventType.OBSERVATION,
+                data=f"[SAFETY_VALIDATION] {safety_summary}",
+                step_number=8,
+            )
+
+            if recorder is not None:
+                from app.audit import Stage as AuditStage
+                if not recorder.has(AuditStage.LLM):
+                    _audit_record_llm(
+                        recorder, self.config, [], [],
+                        1, llm_ms, system_prompt_override,
+                    )
+                _audit_record_hypotheses(recorder, result)
+                _audit_record_safety(recorder, validation, _safety_ms)
+                _audit_record_diagnosis(
+                    recorder, result,
+                    (time.time() - time.time()) * 1000.0,
+                )
+
+            # ── Stage 9: Final Result ──────────────────────────────────────
             yield SSEEvent(
                 event_type=SSEEventType.STATUS,
-                data=_format_safety_status(result),
+                data=f"[FINAL_RESULT] {_format_safety_status(result)}",
             )
             yield SSEEvent(
                 event_type=SSEEventType.RESULT,
                 data=result.model_dump_json(),
             )
+
         except Exception as exc:
-            logger.error("LLM Agent reasoning failed: %s", exc, exc_info=True)
-            yield SSEEvent(
-                event_type=SSEEventType.ERROR,
-                data=f"LLM Agent reasoning failed: {exc}",
+            logger.warning(
+                "Constrained LLM ranking failed, falling back to legacy pipeline: %s",
+                exc, exc_info=True,
             )
+            yield SSEEvent(
+                event_type=SSEEventType.OBSERVATION,
+                data=f"[LLM_RANKING] Constrained ranking unavailable ({exc}), using legacy pipeline.",
+                step_number=7,
+            )
+
+            # Fall back to legacy pipeline
+            try:
+                result = self.analyze_crash_dump(
+                    crash_dump=crash_dict,
+                    anomalous_parameters=anomalous_parameters or None,
+                    retrieved_procedures=retrieved_procedures,
+                    system_prompt_override=system_prompt_override,
+                    recorder=recorder,
+                )
+
+                yield SSEEvent(
+                    event_type=SSEEventType.STATUS,
+                    data=f"[FINAL_RESULT] {_format_safety_status(result)}",
+                )
+                yield SSEEvent(
+                    event_type=SSEEventType.RESULT,
+                    data=result.model_dump_json(),
+                )
+            except Exception as exc2:
+                logger.error("Legacy pipeline also failed: %s", exc2, exc_info=True)
+                yield SSEEvent(
+                    event_type=SSEEventType.ERROR,
+                    data=f"Analysis failed: {exc2}",
+                )
 
 # ---------------------------------------------------------------------------
 # Tool-node hooks (Step 9+ stubs — genuinely future work)

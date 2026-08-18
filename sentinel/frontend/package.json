@@ -1,3 +1,8 @@
+
+
+
+
+
 {
   "name": "sentinel-frontend",
   "version": "1.0.0",
@@ -11,7 +16,7 @@
   },
   "scripts": {
     "generate-config": "node scripts/generate-config.js",
-    "dev": "node scripts/generate-config.js && npx serve . -l 3000 --no-clipboard",
+    "dev": "node scripts/generate-config.js && npx serve . -l 3001 --no-clipboard",
     "start": "node scripts/generate-config.js && react-scripts start",
     "build": "node scripts/generate-config.js && DISABLE_ESLINT_PLUGIN=true react-scripts build",
     "test": "react-scripts test --env=jsdom",
