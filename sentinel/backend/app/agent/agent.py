@@ -50,7 +50,7 @@ import logging
 import os
 import re
 import time
-from dataclasses import dataclass, field
+from dataclasses import asdict, dataclass, field
 from enum import Enum
 from pathlib import Path
 from typing import Any, Optional
@@ -239,6 +239,7 @@ def _audit_record_llm(
     duration_ms: float,
     system_prompt_override: str | None,
     error: str | None = None,
+    guardrail_violations: list[str] | None = None,
 ) -> None:
     """Record provider, model, mode, prompt identity and the raw output.
 
@@ -249,6 +250,8 @@ def _audit_record_llm(
     adding anything the fingerprint does not already pin down.
 
     The raw LLM output IS stored, because it cannot be reconstructed.
+    Guardrail violations (Phase 10) are stored so the record shows what the
+    model asked for AND what the deterministic constraints refused.
     """
     from app.audit import Stage, StageStatus
     from app.audit.record import llm_identity, sha256_hex, truncate_text
@@ -274,6 +277,9 @@ def _audit_record_llm(
             "to be verified. Raw responses are stored verbatim."
         ),
     }
+
+    if guardrail_violations:
+        payload["guardrail_violations"] = guardrail_violations
 
     if error is not None:
         payload["error"] = error
@@ -1878,12 +1884,19 @@ class SentinelAgent:
             if recorder is not None:
                 from app.audit import Stage as AuditStage
                 if not recorder.has(AuditStage.LLM):
-                    raw_text = getattr(ranking_output, "raw_response", "") or json.dumps(raw_dict)
+                    raw_text = (
+                        getattr(guardrail_result, "raw_response", "")
+                        or getattr(ranking_output, "raw_response", "")
+                        or json.dumps(asdict(ranking_output))
+                    )
                     if "ADCS_GYRO_SEU" not in raw_text and hasattr(ranking_output, "ranked_hypotheses"):
                         raw_text = f"{raw_text} {' '.join([rh.fault_id for rh in ranking_output.ranked_hypotheses])}"
                     _audit_record_llm(
                         recorder, self.config, [], [raw_text],
                         1, llm_ms, system_prompt_override,
+                        guardrail_violations=[
+                            v.detail for v in guardrail_result.violations
+                        ],
                     )
                 _audit_record_hypotheses(recorder, result)
                 _audit_record_safety(recorder, validation, _safety_ms)

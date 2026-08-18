@@ -296,11 +296,16 @@ class GuardrailResult:
     When violations are found, the corrected output preserves the
     deterministic validation as authoritative and strips the offending
     claims.
+
+    ``raw_response`` (set by the ranker after validation) preserves the
+    verbatim model output for audit, so the record shows what the model
+    asked for AND what the guardrails refused.
     """
     is_valid: bool
     violations: tuple[GuardrailViolation, ...] = ()
     corrected_output: Optional[LLMRankingOutput] = None
     original_output: Optional[LLMRankingOutput] = None
+    raw_response: str = ""
 
     @property
     def violation_count(self) -> int:

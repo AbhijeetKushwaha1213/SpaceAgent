@@ -820,19 +820,33 @@ class TestAllRequiredFieldsArePersisted(unittest.TestCase):
         """The record must show what the model asked for AND what was refused.
 
         Storing only the post-validation output would hide the case this
-        architecture exists to expose.
+        architecture exists to expose. In the Phase 10 constrained pipeline
+        the invented command is refused at the guardrail layer (the LLM may
+        not generate spacecraft commands); the raw response with the invented
+        command AND the guardrail refusal must both be on record.
         """
-        proposed = json.loads(
-            self.payload(Stage.LLM)["raw_responses"][0]["text"]
-        )
+        llm_payload = self.payload(Stage.LLM)
+        proposed = json.loads(llm_payload["raw_responses"][0]["text"])
         proposed_commands = {s["command"] for s in proposed["recovery_plan"]}
         self.assertIn("CMD_TOTALLY_INVENTED_COMMAND", proposed_commands)
 
+        violations = llm_payload.get("guardrail_violations", [])
+        self.assertTrue(violations, "guardrail refusal must be on record")
+        self.assertTrue(
+            any("command" in v for v in violations),
+            "the invented command must be refused by the command guardrail",
+        )
+
         safety = self.payload(Stage.SAFETY_VALIDATION)
-        blocked = {b["command"] for b in safety["blocked_steps"]}
-        self.assertIn("CMD_TOTALLY_INVENTED_COMMAND", blocked)
-        self.assertNotIn("CMD_TOTALLY_INVENTED_COMMAND",
-                         safety["approved_commands"])
+        self.assertIn("blocked_steps", safety)
+        self.assertNotIn(
+            "CMD_TOTALLY_INVENTED_COMMAND",
+            {b["command"] for b in safety["blocked_steps"]},
+        )
+        self.assertNotIn(
+            "CMD_TOTALLY_INVENTED_COMMAND",
+            safety["approved_commands"],
+        )
 
         final = self.payload(Stage.DIAGNOSIS)["sentinel_output"]
         self.assertNotIn(

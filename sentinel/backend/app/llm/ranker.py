@@ -396,6 +396,7 @@ def validate_ranking_output(
     ranking_input: LLMRankingInput,
     physics_report: Any = None,
     raw_parsed: dict[str, Any] | None = None,
+    raw_response: str = "",
 ) -> GuardrailResult:
     """Validate the LLM's ranking output against guardrails.
 
@@ -596,6 +597,7 @@ def validate_ranking_output(
         violations=tuple(violations),
         corrected_output=corrected if violations else None,
         original_output=output if violations else None,
+        raw_response=raw_response,
     )
 
 
@@ -761,7 +763,7 @@ def run_constrained_ranking(
             # Validate guardrails
             guardrail_result = validate_ranking_output(
                 output, ranking_input, physics_report,
-                raw_parsed=parsed,
+                raw_parsed=parsed, raw_response=raw_response,
             )
 
             # Use corrected output if violations were found
