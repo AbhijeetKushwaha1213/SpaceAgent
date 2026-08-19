@@ -83,6 +83,7 @@ from app.estimation.state import (
     StateSequence,
     estimate_states,
 )
+from app.estimation.window_adequacy import WindowAdequacyReport, empty_window_adequacy
 
 RESIDUAL_SCHEMA_VERSION = "1.0.0"
 """Version of the residual contract. Bump when a field or a tolerance changes,
@@ -410,6 +411,11 @@ class ResidualReport:
     warnings: tuple[str, ...] = ()
     summary: str = ""
 
+    window_adequacy: "WindowAdequacyReport" = field(
+        default_factory=lambda: empty_window_adequacy(),
+        repr=False,
+    )
+
     uses_llm: bool = False
     flight_qualified: bool = False
     deterministic: bool = True
@@ -473,6 +479,7 @@ class ResidualReport:
             "limitations": list(self.limitations),
             "warnings": list(self.warnings),
             "summary": self.summary,
+            "window_adequacy": self.window_adequacy.as_dict(),
             "uses_llm": self.uses_llm,
             "flight_qualified": self.flight_qualified,
             "deterministic": self.deterministic,
@@ -873,12 +880,15 @@ def compute_residuals(
     """
     states = sequence if sequence is not None else estimate_states(crash_dump)
 
+    from app.estimation.window_adequacy import assess_window_adequacy
+
     report = ResidualReport(
         state_count=len(states.states),
         channels_modelled=states.channels_modelled,
         channels_not_modelled=states.channels_ignored,
         limitations=states.limitations,
     )
+    report.window_adequacy = assess_window_adequacy(crash_dump, states)
 
     warnings = list(states.warnings)
 
@@ -944,10 +954,11 @@ def compute_residuals(
             "residual could be computed. This is NOT a clean bill of physical "
             "health: nothing was checked."
         )
+        warnings.extend(report.window_adequacy.warnings)
         report.warnings = tuple(warnings)
         report.summary = (
-            f"No residuals from {len(states.states)} state snapshot(s): no "
-            f"modelled channel has two fresh samples to step between."
+            f"{report.window_adequacy.summary} {len(states.states)} state "
+            f"snapshot(s) were built, but no residual could be computed."
         )
         return report
 

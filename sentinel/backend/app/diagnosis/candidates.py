@@ -239,6 +239,13 @@ class HypothesisSet(BaseModel):
             "anonymized ESA-ADB channels. They cannot support any fault."
         ),
     )
+    esa_channel_mappings: list[dict[str, Any]] = Field(
+        default_factory=list,
+        description=(
+            "ESA-ADB channel mapping records with provenance. An UNMAPPED "
+            "channel supports no hypothesis."
+        ),
+    )
     onset_analysis: dict[str, Any] = Field(default_factory=dict)
     warnings: list[str] = Field(default_factory=list)
     summary: str = ""
@@ -514,6 +521,22 @@ def generate_hypotheses(
             f"{', '.join(index.unknown_channels[:6])}"
             + ("..." if len(index.unknown_channels) > 6 else "")
         )
+
+    esa_mappings: list[dict[str, Any]] = []
+    try:
+        from app.ingest.esa_mapping import esa_mapping_report
+
+        esa_mappings = [
+            m.as_dict() for m in esa_mapping_report(crash_dump)
+        ]
+    except Exception:  # pragma: no cover — mapping layer is in-tree
+        esa_mappings = []
+    if esa_mappings:
+        warnings.append(
+            f"{len(esa_mappings)} ESA-ADB channel(s) are UNMAPPED_CHANNEL: no "
+            f"repository evidence maps them onto the canonical vocabulary, so "
+            f"they cannot support or refute any hypothesis."
+        )
     if not ordering.get("determined"):
         warnings.append(
             f"Onset ordering undetermined ({ordering.get('reason')}), so root "
@@ -547,6 +570,7 @@ def generate_hypotheses(
         rejected=rejected,
         anomalous_subsystems=list(index.anomalous_subsystems),
         unknown_channels=list(index.unknown_channels),
+        esa_channel_mappings=esa_mappings,
         onset_analysis=ordering,
         warnings=warnings,
         summary=summary,

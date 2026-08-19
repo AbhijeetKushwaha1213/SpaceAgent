@@ -732,6 +732,14 @@ class PhysicsValidationReport(BaseModel):
     model_limitations: list[str] = Field(default_factory=list)
     warnings: list[str] = Field(default_factory=list)
     summary: str = ""
+    window_adequacy: dict[str, Any] = Field(
+        default_factory=dict,
+        description=(
+            "The telemetry-window adequacy verdict from the residual stage. "
+            "Empty when no residual report was supplied. A non-adequate window "
+            "means no physical consistency claim is made on this dump."
+        ),
+    )
     claim: str = Field(
         default=(
             "Physics validation compares each hypothesis against the SIMPLIFIED "
@@ -1610,6 +1618,20 @@ def validate_hypotheses(
                  if v.validation_status is PhysicsStatus.UNCERTAIN]
 
     warnings: list[str] = []
+    adequacy = getattr(residual_report, "window_adequacy", None)
+    adequacy_dict = {}
+    if adequacy is not None:
+        try:
+            adequacy_dict = adequacy.as_dict()
+        except Exception:  # pragma: no cover — adequacy is in-tree
+            adequacy_dict = {}
+    if adequacy_dict and not adequacy_dict.get("adequate_for_physics", False):
+        warnings.append(
+            "The telemetry window is not adequate for physics "
+            f"({adequacy_dict.get('window_adequacy_status')}); "
+            "UNDER_SAMPLED_FOR_PHYSICS — no residual supports or refutes any "
+            "hypothesis on this dump."
+        )
     no_coverage = [v.fault_id for v in verdicts if not v.has_physics_coverage]
     if no_coverage:
         warnings.append(
@@ -1667,6 +1689,7 @@ def validate_hypotheses(
         model_limitations=limitations,
         warnings=warnings,
         summary=summary,
+        window_adequacy=adequacy_dict,
     )
 
 

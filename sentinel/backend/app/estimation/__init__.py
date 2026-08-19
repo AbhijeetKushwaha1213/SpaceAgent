@@ -97,14 +97,24 @@ from app.estimation.residuals import (  # noqa: F401
     estimation_status,
     validate_estimation,
 )
+from app.estimation.window_adequacy import (  # noqa: F401
+    WINDOW_ADEQUACY_VERSION,
+    ChannelAdequacy,
+    WindowAdequacyReport,
+    WindowAdequacyStatus,
+    assess_window_adequacy,
+    window_adequacy_status,
+)
 
 __all__ = [
     "ALL_PARAMETERS",
     "PARAMETER_SET_VERSION",
     "RESIDUAL_SCHEMA_VERSION",
     "STATE_SCHEMA_VERSION",
+    "WINDOW_ADEQUACY_VERSION",
     "AttitudeState",
     "BatteryState",
+    "ChannelAdequacy",
     "CommunicationState",
     "Estimate",
     "ModelParameter",
@@ -118,6 +128,9 @@ __all__ = [
     "SpacecraftState",
     "StateSequence",
     "ThermalState",
+    "WindowAdequacyReport",
+    "WindowAdequacyStatus",
+    "assess_window_adequacy",
     "assumed_parameters",
     "compute_residuals",
     "estimate_states",
@@ -127,4 +140,5 @@ __all__ = [
     "state_status",
     "validate_estimation",
     "validate_parameters",
+    "window_adequacy_status",
 ]

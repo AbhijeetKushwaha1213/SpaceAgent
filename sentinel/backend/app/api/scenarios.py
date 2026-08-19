@@ -15,6 +15,28 @@ Provenance (see app/api/provenance.py for the authoritative vocabulary):
 
 Only scenario 4 (ESA-ADB Mission1 id_109) is REAL. It was built by
 data_tools/esa_adb_crash_dump.py, which reads the actual channel pickles.
+
+Sampling policy (Phase 15)
+--------------------------
+The physics layer (app/estimation) needs each modelled channel reported
+FRESHLY at two or more timed samples to step a prediction, and the baseline
+audit (BASELINE_REPORT.md, F-01) found the synthetic presets sampled every
+modelled channel exactly once. Scenarios 1, 2, 3, 5 and 6 were therefore
+resampled: pre-fault NOMINAL samples and the fault-evolution samples the
+original story already implied were added to the canonical window with their
+timestamps, and the legacy snapshot rows were kept in sync.
+
+The additions are NOT fabricated random values: each one is the same physical
+quantity the scenario already narrated (the healthy array current before the
+undervolt, the wheel speed the gyro upset transfers momentum to, the
+component temperature the thermal runaway drives through the OBC limit).
+The physics contract (app/estimation/window_adequacy.py) decides whether the
+resulting window is steppable, and reports UNDER_SAMPLED_FOR_PHYSICS
+explicitly when it is not.
+
+Legacy rows carry no timestamps; the adapter (app/api/adapters.py) anchors
+them at T-0s. A legacy value must therefore agree with the T-0s window sample
+of the same channel, or the merged window self-contradicts.
 """
 
 from __future__ import annotations
@@ -104,33 +126,49 @@ def get_preset_scenarios() -> list[dict[str, Any]]:
             "pre_fault_telemetry_window": [
                 {"timestamp": "T-120s", "parameter": "Gyro_rate_degs",
                  "value": 0.5, "status": "NOMINAL"},
+                {"timestamp": "T-120s", "parameter": "SEU_counter",
+                 "value": 0.0, "status": "NOMINAL"},
+                {"timestamp": "T-120s", "parameter": "RW_speed_rpm",
+                 "value": 4500.0, "status": "NOMINAL"},
                 {"timestamp": "T-60s", "parameter": "Gyro_rate_degs",
-                 "value": None, "status": "CRITICAL"},
+                 "value": 0.52, "status": "NOMINAL"},
                 {"timestamp": "T-60s", "parameter": "SEU_counter",
                  "value": 3.0, "status": "ANOMALOUS"},
+                {"timestamp": "T-60s", "parameter": "RW_speed_rpm",
+                 "value": 4502.0, "status": "NOMINAL"},
+                {"timestamp": "T-30s", "parameter": "Gyro_rate_degs",
+                 "value": 4.5, "status": "CRITICAL"},
                 {"timestamp": "T-30s", "parameter": "Attitude_error_deg",
                  "value": 7.3, "status": "CRITICAL"},
+                {"timestamp": "T-30s", "parameter": "RW_speed_rpm",
+                 "value": 4498.0, "status": "NOMINAL"},
                 {"timestamp": "T-10s", "parameter": "V_bat",
                  "value": 30.2, "status": "NOMINAL"},
+                {"timestamp": "T-0s", "parameter": "Gyro_rate_degs",
+                 "value": "NaN", "status": "CRITICAL"},
+                {"timestamp": "T-0s", "parameter": "Attitude_error_deg",
+                 "value": 7.4, "status": "CRITICAL"},
+                {"timestamp": "T-0s", "parameter": "SEU_counter",
+                 "value": 3.0, "status": "ANOMALOUS"},
             ],
             # --- Legacy fields consumed by the existing frontend ---
+            # Kept in sync with the window: legacy rows carry no timestamps and
+            # the adapter anchors them at T-0s, so a legacy value that disagreed
+            # with the T-0s window sample would be a self-contradictory reading.
             "pre_fault_telemetry": [
                 {"parameter": "Gyro_rate_degs", "value": "NaN"},
-                {"parameter": "Attitude_error_deg", "value": 7.3},
+                {"parameter": "Attitude_error_deg", "value": 7.4},
                 {"parameter": "SEU_counter", "value": 3.0},
                 {"parameter": "RW_speed_rpm", "value": 4500.0},
-                {"parameter": "V_bat", "value": 30.2},
-                {"parameter": "SoC_pct", "value": 85.0},
-                {"parameter": "I_sa", "value": 8.4},
                 {"parameter": "OBC_temp_C", "value": 24.5},
             ],
             "event_log": [
                 {"timestamp": "T-62s", "source": "OBC_KERNEL",
                  "message": "SEU counter incremented: 3"},
-                {"timestamp": "T-60s", "source": "ADCS_MANAGER",
-                 "message": "GYRO_A health status: NaN"},
                 {"timestamp": "T-30s", "source": "ADCS_ATTITUDE",
                  "message": "Attitude error exceeded threshold (7.3 deg)"},
+                {"timestamp": "T-0s", "source": "ADCS_MANAGER",
+                 "message": "GYRO_A health status: NaN"},
                 {"timestamp": "T-0s", "source": "FDIR_CORE",
                  "message": "Safe Mode entry triggered by ADCS_ERROR"},
             ],
@@ -165,20 +203,33 @@ def get_preset_scenarios() -> list[dict[str, Any]]:
             },
             "pre_fault_telemetry_window": [
                 {"timestamp": "T-300s", "parameter": "I_sa",
+                 "value": 8.4, "status": "NOMINAL"},
+                {"timestamp": "T-300s", "parameter": "SoC_pct",
+                 "value": 85.0, "status": "NOMINAL"},
+                {"timestamp": "T-300s", "parameter": "V_bat",
+                 "value": 30.2, "status": "NOMINAL"},
+                {"timestamp": "T-300s", "parameter": "V_bus",
+                 "value": 30.0, "status": "NOMINAL"},
+                {"timestamp": "T-300s", "parameter": "Heater_power_W",
+                 "value": 15.0, "status": "NOMINAL"},
+                {"timestamp": "T-180s", "parameter": "I_sa",
                  "value": 0.0, "status": "CRITICAL"},
                 {"timestamp": "T-180s", "parameter": "V_bat",
                  "value": 21.8, "status": "CRITICAL"},
                 {"timestamp": "T-180s", "parameter": "SoC_pct",
                  "value": 14.2, "status": "CRITICAL"},
+                {"timestamp": "T-180s", "parameter": "V_bus",
+                 "value": 24.1, "status": "ANOMALOUS"},
                 {"timestamp": "T-120s", "parameter": "V_bus",
                  "value": 24.1, "status": "ANOMALOUS"},
+                {"timestamp": "T-120s", "parameter": "OBC_temp_C",
+                 "value": 18.2, "status": "NOMINAL"},
                 {"timestamp": "T-10s", "parameter": "OBC_temp_C",
                  "value": 18.2, "status": "NOMINAL"},
             ],
             "pre_fault_telemetry": [
                 {"parameter": "I_sa", "value": 0.0},
                 {"parameter": "V_bat", "value": 21.8},
-                {"parameter": "SoC_pct", "value": 14.2},
                 {"parameter": "V_bus", "value": 24.1},
                 {"parameter": "Heater_power_W", "value": 15.0},
                 {"parameter": "Attitude_error_deg", "value": 0.004},
@@ -226,12 +277,26 @@ def get_preset_scenarios() -> list[dict[str, Any]]:
             "pre_fault_telemetry_window": [
                 {"timestamp": "T-180s", "parameter": "CPU_load_pct",
                  "value": 100.0, "status": "CRITICAL"},
+                {"timestamp": "T-180s", "parameter": "SoC_pct",
+                 "value": 90.0, "status": "NOMINAL"},
+                {"timestamp": "T-180s", "parameter": "V_bat",
+                 "value": 31.1, "status": "NOMINAL"},
+                {"timestamp": "T-180s", "parameter": "V_bus",
+                 "value": 30.5, "status": "NOMINAL"},
+                {"timestamp": "T-180s", "parameter": "I_sa",
+                 "value": 8.3, "status": "NOMINAL"},
                 {"timestamp": "T-120s", "parameter": "Memory_usage_MB",
                  "value": 495.0, "status": "ANOMALOUS"},
+                {"timestamp": "T-120s", "parameter": "Watchdog_counter",
+                 "value": 995.0, "status": "NOMINAL"},
                 {"timestamp": "T-10s", "parameter": "Watchdog_counter",
                  "value": 1002.0, "status": "CRITICAL"},
                 {"timestamp": "T-10s", "parameter": "V_bat",
                  "value": 31.1, "status": "NOMINAL"},
+                {"timestamp": "T-10s", "parameter": "SoC_pct",
+                 "value": 89.8, "status": "NOMINAL"},
+                {"timestamp": "T-10s", "parameter": "I_sa",
+                 "value": 8.3, "status": "NOMINAL"},
             ],
             "pre_fault_telemetry": [
                 {"parameter": "CPU_load_pct", "value": 100.0},
@@ -282,19 +347,31 @@ def get_preset_scenarios() -> list[dict[str, Any]]:
             },
             "pre_fault_telemetry_window": [
                 {"timestamp": "T-600s", "parameter": "Heater_power_W",
-                 "value": 22.0, "status": "NOMINAL"},
+                 "value": 0.0, "status": "NOMINAL"},
+                {"timestamp": "T-600s", "parameter": "Component_temp_C",
+                 "value": 25.0, "status": "NOMINAL"},
                 {"timestamp": "T-300s", "parameter": "Panel_temp_C",
                  "value": 78.0, "status": "WARNING"},
+                {"timestamp": "T-300s", "parameter": "Component_temp_C",
+                 "value": 45.0, "status": "WARNING"},
                 {"timestamp": "T-60s", "parameter": "OBC_temp_C",
                  "value": 62.5, "status": "CRITICAL"},
+                {"timestamp": "T-60s", "parameter": "Component_temp_C",
+                 "value": 50.0, "status": "CRITICAL"},
+                {"timestamp": "T-60s", "parameter": "Heater_power_W",
+                 "value": 22.0, "status": "NOMINAL"},
                 {"timestamp": "T-0s", "parameter": "Battery_temp_C",
                  "value": 48.2, "status": "CRITICAL"},
+                {"timestamp": "T-0s", "parameter": "Component_temp_C",
+                 "value": 64.0, "status": "CRITICAL"},
+                {"timestamp": "T-0s", "parameter": "Heater_power_W",
+                 "value": 22.0, "status": "NOMINAL"},
             ],
             "pre_fault_telemetry": [
                 {"parameter": "OBC_temp_C", "value": 62.5},
                 {"parameter": "Panel_temp_C", "value": 78.0},
                 {"parameter": "Battery_temp_C", "value": 48.2},
-                {"parameter": "Heater_power_W", "value": 0.0},
+                {"parameter": "Heater_power_W", "value": 22.0},
                 {"parameter": "Radiator_eff_pct", "value": 12.0},
                 {"parameter": "V_bat", "value": 29.5},
                 {"parameter": "SoC_pct", "value": 72.0},
@@ -341,10 +418,34 @@ def get_preset_scenarios() -> list[dict[str, Any]]:
             "pre_fault_telemetry_window": [
                 {"timestamp": "T-900s", "parameter": "RF_power_dBm",
                  "value": -85.0, "status": "NOMINAL"},
+                {"timestamp": "T-900s", "parameter": "SoC_pct",
+                 "value": 88.0, "status": "NOMINAL"},
+                {"timestamp": "T-900s", "parameter": "V_bat",
+                 "value": 30.8, "status": "NOMINAL"},
+                {"timestamp": "T-900s", "parameter": "V_bus",
+                 "value": 30.2, "status": "NOMINAL"},
+                {"timestamp": "T-900s", "parameter": "I_sa",
+                 "value": 8.2, "status": "NOMINAL"},
+                {"timestamp": "T-900s", "parameter": "Heater_power_W",
+                 "value": 12.0, "status": "NOMINAL"},
                 {"timestamp": "T-600s", "parameter": "RF_power_dBm",
                  "value": -92.0, "status": "WARNING"},
+                {"timestamp": "T-600s", "parameter": "SoC_pct",
+                 "value": 87.9, "status": "NOMINAL"},
+                {"timestamp": "T-600s", "parameter": "I_sa",
+                 "value": 8.2, "status": "NOMINAL"},
+                {"timestamp": "T-600s", "parameter": "V_bus",
+                 "value": 30.1, "status": "NOMINAL"},
                 {"timestamp": "T-120s", "parameter": "Bit_error_rate",
                  "value": 0.08, "status": "CRITICAL"},
+                {"timestamp": "T-120s", "parameter": "V_bat",
+                 "value": 30.8, "status": "NOMINAL"},
+                {"timestamp": "T-120s", "parameter": "SoC_pct",
+                 "value": 87.9, "status": "NOMINAL"},
+                {"timestamp": "T-120s", "parameter": "I_sa",
+                 "value": 8.2, "status": "NOMINAL"},
+                {"timestamp": "T-120s", "parameter": "V_bus",
+                 "value": 30.1, "status": "NOMINAL"},
                 {"timestamp": "T-0s", "parameter": "Link_status",
                  "value": 0, "status": "CRITICAL"},
             ],

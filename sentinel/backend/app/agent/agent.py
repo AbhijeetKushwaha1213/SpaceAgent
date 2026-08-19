@@ -1708,6 +1708,18 @@ class SentinelAgent:
                 data=f"[HYPOTHESIS_GENERATION] {top_summary}",
                 step_number=4,
             )
+            for mapping in (
+                getattr(hypothesis_set, "esa_channel_mappings", None) or []
+            )[:6]:
+                yield SSEEvent(
+                    event_type=SSEEventType.OBSERVATION,
+                    data=(
+                        f"[ESA_MAPPING] {mapping.get('esa_channel')} -> "
+                        f"{mapping.get('status')} "
+                        f"(confidence {mapping.get('confidence')})"
+                    ),
+                    step_number=4,
+                )
         except Exception as exc:
             logger.warning("Hypothesis generation error (non-fatal): %s", exc)
             yield SSEEvent(
