@@ -21,7 +21,7 @@ from datetime import datetime
 from enum import Enum
 from typing import Dict, List, Optional
 
-from pydantic import BaseModel, Field, field_validator, model_validator
+from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 
 # ---------------------------------------------------------------------------
 # Contract version
@@ -817,9 +817,9 @@ class CrashDumpRequest(BaseModel):
         description="Raw event log entries from the spacecraft",
     )
 
-    class Config:
-        extra = "allow"  # forward hardware_state, operating_context, etc.
-        json_schema_extra = {
+    model_config = ConfigDict(
+        extra="allow",  # forward hardware_state, operating_context, etc.
+        json_schema_extra={
             "example": {
                 "scenario_id": 1,
                 "fault_type": "ADCS_GYRO_SEU",
@@ -843,7 +843,8 @@ class CrashDumpRequest(BaseModel):
                      "value": 85.2, "status": "CRITICAL"},
                 ],
             }
-        }
+        },
+    )
 
     @field_validator("fault_type")
     @classmethod

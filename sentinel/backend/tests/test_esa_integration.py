@@ -23,6 +23,10 @@ from unittest.mock import patch
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
 
+# Standalone runs bypass pytest's conftest.py; keep the test server in
+# SECURE_DEV_MODE so no API key is required (auth is tested explicitly).
+os.environ.setdefault("SECURE_DEV_MODE", "1")
+
 from fastapi.testclient import TestClient
 
 from app.main import app

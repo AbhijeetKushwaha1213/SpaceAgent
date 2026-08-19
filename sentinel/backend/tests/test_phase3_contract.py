@@ -680,10 +680,24 @@ class TestFrontendHasNoDuplicatedData(unittest.TestCase):
         self.assertNotIn('"fault_type": "ADCS_GYRO_SEU"', self.app_jsx)
 
     def test_app_jsx_imports_the_generated_contract(self):
-        self.assertIn('from "./generated/contract"', self.app_jsx)
+        # The operator console (HeaderNav, API endpoints, state selectors)
+        # imports the generated contract; App.jsx itself is a thin shell.
+        src_files = [
+            _FRONTEND / "src" / "components" / "HeaderNav.jsx",
+            _FRONTEND / "src" / "api" / "endpoints.js",
+            _FRONTEND / "src" / "state" / "selectors.js",
+        ]
+        for path in src_files:
+            with self.subTest(file=path.name):
+                self.assertIn('from "../generated/contract"', _read(path))
 
     def test_app_jsx_fetches_the_versioned_catalogue(self):
-        self.assertIn("${BACKEND_URL}${API.scenarios}", self.app_jsx)
+        # The catalogue fetch lives in the shared data context; the endpoint
+        # path itself comes from the generated contract's API map.
+        context_src = _read(_FRONTEND / "src" / "state" / "SentinelContext.jsx")
+        self.assertIn("ENDPOINTS.scenarios", context_src)
+        endpoints_src = _read(_FRONTEND / "src" / "api" / "endpoints.js")
+        self.assertIn("scenarios: CONTRACT_API.scenarios", endpoints_src)
 
     def test_app_jsx_does_not_retype_provenance_literals(self):
         """The vocabulary must come from the generated contract."""
@@ -691,9 +705,11 @@ class TestFrontendHasNoDuplicatedData(unittest.TestCase):
         self.assertNotIn('REAL: "REAL"', self.app_jsx)
 
     def test_app_jsx_renders_the_canonical_field(self):
-        self.assertIn("CANONICAL_TELEMETRY_FIELD", self.app_jsx)
-        self.assertNotIn("activeScenario.pre_fault_telemetry.map",
-                         self.app_jsx)
+        # The selectors read the canonical field by its generated-contract
+        # name, never by a hand-typed literal.
+        selectors_src = _read(_FRONTEND / "src" / "state" / "selectors.js")
+        self.assertIn("CANONICAL_TELEMETRY_FIELD", selectors_src)
+        self.assertNotIn("activeScenario.pre_fault_telemetry.map", self.app_jsx)
 
     def test_landing_pages_do_not_embed_scenario_payloads(self):
         for name, text in self.landing_files.items():
@@ -728,6 +744,11 @@ class TestFrontendDoesNotComputeDiagnosisLocally(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
         cls.app_jsx = _read(_FRONTEND / "src" / "App.jsx")
+        cls.views_dir = _FRONTEND / "src" / "components" / "views"
+        cls.mission = _read(cls.views_dir / "MissionOverview.jsx")
+        cls.investigation = _read(cls.views_dir / "FaultInvestigationView.jsx")
+        cls.header_nav = _read(_FRONTEND / "src" / "components" / "HeaderNav.jsx")
+        cls.async_block = _read(_FRONTEND / "src" / "components" / "ui" / "AsyncBlock.jsx")
 
     def test_no_local_anomaly_calculation(self):
         for banned in ("function isAnomalous", "const isAnomalous",
@@ -737,26 +758,32 @@ class TestFrontendDoesNotComputeDiagnosisLocally(unittest.TestCase):
                 self.assertNotIn(banned, self.app_jsx)
 
     def test_severity_comes_from_the_detection_report(self):
-        self.assertIn("detectionReport", self.app_jsx)
-        self.assertIn("const channelSeverity", self.app_jsx)
-        # The severity lookup must read the backend report and nothing else.
-        match = re.search(
-            r"const channelSeverity = \(paramName\) => \{(.*?)\n  \};",
-            self.app_jsx, re.DOTALL,
-        )
-        self.assertIsNotNone(match)
-        body = match.group(1)
-        self.assertIn("detectionReport.channels", body)
-        self.assertNotIn("nominal_min", body,
-                         "severity is being recomputed from bounds in the browser")
+        # The views render the severity that the deterministic detection
+        # pipeline served; nothing recomputes it from bounds in the browser.
+        self.assertIn("detection", self.mission)
+        self.assertIn("a.severity", self.mission)
+        self.assertIn("detection", self.investigation)
+        self.assertIn("a.severity", self.investigation)
+        # TelemetryView marks anomalies straight from the detection payload.
+        telemetry_src = _read(self.views_dir / "TelemetryView.jsx")
+        self.assertIn("anomaliesForChannel(detection", telemetry_src)
+        # No severity recomputation from nominal bounds anywhere in the views.
+        for name, src in (("MissionOverview.jsx", self.mission),
+                          ("FaultInvestigationView.jsx", self.investigation)):
+            with self.subTest(file=name):
+                self.assertNotIn("nominal_min", src)
 
     def test_unavailable_detection_is_shown_as_unknown(self):
-        self.assertIn('detectionState === "unavailable"', self.app_jsx)
-        self.assertIn("UNKNOWN", self.app_jsx)
+        # A missing detection report renders as NOT AVAILABLE via AsyncBlock,
+        # and any status badge defaults to UNKNOWN — never a fabricated verdict.
+        self.assertIn("NOT AVAILABLE", self.async_block)
+        self.assertIn("AsyncBlock entity={detection}", self.mission)
+        self.assertIn("AsyncBlock entity={detection}", self.investigation)
+        status_badge = _read(_FRONTEND / "src" / "components" / "ui" / "StatusBadge.jsx")
+        self.assertIn("UNKNOWN", status_badge)
 
     def test_catalogue_unavailable_is_an_explicit_state(self):
-        self.assertIn('scenariosState === "unavailable"', self.app_jsx)
-        self.assertIn("Scenario catalogue unavailable", self.app_jsx)
+        self.assertIn("Scenarios unavailable", self.header_nav)
 
 
 class TestVisualStylingUnchanged(unittest.TestCase):

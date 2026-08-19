@@ -17,11 +17,17 @@ import logging
 import os
 import sys
 import unittest
+from unittest.mock import patch
 from fastapi import FastAPI
 from fastapi.testclient import TestClient
 
 # Ensure app is in Python path
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
+
+# Standalone runs bypass pytest's conftest.py; keep the shared `app` server
+# in SECURE_DEV_MODE so no API key is required (auth is tested explicitly
+# below with purpose-built middleware configs).
+os.environ.setdefault("SECURE_DEV_MODE", "1")
 
 from app.security.auth import verify_api_key
 from app.security.config import SecurityConfig
@@ -75,6 +81,57 @@ class TestPhase14SecurityAndDataHandling(unittest.TestCase):
         # Verify middleware configuration rejects missing auth header
         self.assertFalse(verify_api_key(None, custom_cfg))
         self.assertTrue(verify_api_key("REQUIRED_KEY_999", custom_cfg))
+
+    def test_auth_required_by_default_outside_dev_mode(self):
+        # Production default (no env overrides): authentication is mandatory
+        with patch.dict(os.environ, {}, clear=True):
+            cfg = SecurityConfig.from_env()
+        self.assertTrue(cfg.auth_required)
+        self.assertIsNone(cfg.api_key)
+        self.assertFalse(cfg.secure_dev_mode)
+
+    def test_secure_dev_mode_disables_auth_requirement(self):
+        with patch.dict(os.environ, {"SECURE_DEV_MODE": "1"}, clear=True):
+            cfg = SecurityConfig.from_env()
+        self.assertFalse(cfg.auth_required)
+        self.assertTrue(cfg.secure_dev_mode)
+
+    def test_middleware_fails_closed_when_key_unconfigured(self):
+        test_app = FastAPI()
+
+        @test_app.get("/api/health")
+        def health():
+            return {"status": "ok"}
+
+        test_app.add_middleware(
+            SecurityMiddleware, config=SecurityConfig(auth_required=True)
+        )
+        client = TestClient(test_app)
+        resp = client.get("/api/health")
+        self.assertEqual(resp.status_code, 401)
+        self.assertEqual(resp.json()["error_code"], "UNAUTHORIZED")
+
+    def test_middleware_requires_valid_key_when_configured(self):
+        test_app = FastAPI()
+
+        @test_app.get("/api/health")
+        def health():
+            return {"status": "ok"}
+
+        test_app.add_middleware(
+            SecurityMiddleware,
+            config=SecurityConfig(auth_required=True, api_key="FAIL_CLOSED_42"),
+        )
+        client = TestClient(test_app)
+        self.assertEqual(client.get("/api/health").status_code, 401)
+        self.assertEqual(
+            client.get("/api/health", headers={"X-API-Key": "WRONG"}).status_code,
+            401,
+        )
+        self.assertEqual(
+            client.get("/api/health", headers={"X-API-Key": "FAIL_CLOSED_42"}).status_code,
+            200,
+        )
 
     # 2. Correlation ID & Health Check Tests
     def test_correlation_id_generated_and_returned(self):

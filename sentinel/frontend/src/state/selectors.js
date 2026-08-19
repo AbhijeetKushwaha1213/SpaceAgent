@@ -5,6 +5,8 @@
  * they return null / "N/A" rather than a fabricated value.
  */
 
+import { CANONICAL_TELEMETRY_FIELD } from "../generated/contract";
+
 // ── channel dictionary ───────────────────────────────────────────────────
 
 export function channelById(channelDictionary, channelId) {
@@ -25,7 +27,7 @@ export function subsystemForChannel(channelDictionary, channelId) {
 // ── canonical telemetry window ───────────────────────────────────────────
 
 export function canonicalWindow(scenario) {
-  return scenario?.pre_fault_telemetry_window || [];
+  return scenario?.[CANONICAL_TELEMETRY_FIELD] || [];
 }
 
 /*

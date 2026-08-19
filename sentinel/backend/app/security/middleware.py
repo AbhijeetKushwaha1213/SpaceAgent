@@ -66,7 +66,22 @@ class SecurityMiddleware(BaseHTTPMiddleware):
         request.state.correlation_id = correlation_id
 
         # 2. Authentication Check
-        if self.config.api_key:
+        #    Auth is enforced whenever SENTINEL_API_KEY is configured OR auth
+        #    is required (the default; only SECURE_DEV_MODE=1 disables it).
+        #    When auth is required but no key is configured the server fails
+        #    closed: every request is rejected with 401 rather than served
+        #    unauthenticated.
+        if self.config.auth_required or self.config.api_key:
+            if not self.config.api_key:
+                return JSONResponse(
+                    status_code=401,
+                    content={
+                        "detail": "API key not configured; set SENTINEL_API_KEY",
+                        "error_code": "UNAUTHORIZED",
+                        "correlation_id": correlation_id,
+                    },
+                    headers={"X-Correlation-ID": correlation_id},
+                )
             auth_header = request.headers.get("Authorization") or request.headers.get("X-API-Key")
             if not verify_api_key(auth_header, self.config):
                 return JSONResponse(

@@ -21,6 +21,7 @@ class SecurityConfig:
         "http://127.0.0.1:3001",
     )
     secure_dev_mode: bool = False
+    auth_required: bool = False
     cloud_redact_parameters: tuple[str, ...] = ()
 
     @classmethod
@@ -65,5 +66,6 @@ class SecurityConfig:
             max_payload_bytes=max_bytes,
             cors_origins=origins,
             secure_dev_mode=secure_dev,
+            auth_required=not secure_dev,
             cloud_redact_parameters=redact_params,
         )

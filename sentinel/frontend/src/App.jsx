@@ -52,7 +52,7 @@ function Console() {
   if (!isDashboardPath(currentPath)) {
     return (
       <iframe
-        src="/landing.html"
+        src="/public/landing.html"
         title="SENTINEL landing page"
         style={{
           width: "100%",

@@ -38,7 +38,10 @@ _FRONTEND = os.path.abspath(os.path.join(_BACKEND_ROOT, "..", "frontend"))
 _REPO = os.path.abspath(os.path.join(_BACKEND_ROOT, "..", ".."))
 
 APP_JSX = os.path.join(_FRONTEND, "src", "App.jsx")
-# Phase 3: the generated data contract App.jsx imports its vocabulary from.
+HEADER_NAV = os.path.join(_FRONTEND, "src", "components", "HeaderNav.jsx")
+CLIENT_JS = os.path.join(_FRONTEND, "src", "api", "client.js")
+SELECTORS_JS = os.path.join(_FRONTEND, "src", "state", "selectors.js")
+# Phase 3: the generated data contract the frontend imports its vocabulary from.
 CONTRACT_JS = os.path.join(_REPO, "contracts", "frontend", "contract.js")
 INDEX_HTML = os.path.join(_FRONTEND, "index.html")
 PUBLIC_LANDING = os.path.join(_FRONTEND, "public", "landing.html")
@@ -164,27 +167,32 @@ class TestProvenanceLabelsInFrontend(unittest.TestCase):
 
     def setUp(self):
         self.app = read(APP_JSX)
+        self.contract = read(CONTRACT_JS)
+        self.header_nav = read(HEADER_NAV)
 
     def test_app_defines_the_provenance_vocabulary(self):
+        # The vocabulary moved into the generated contract in Phase 3; the
+        # operator console imports it rather than re-typing the codes.
         for code in ["REAL", "SYNTHETIC", "SYNTHETIC_FROM_REAL_METADATA", "UNKNOWN"]:
-            self.assertIn(code, self.app)
+            with self.subTest(code=code):
+                self.assertIn(code, self.contract)
+        self.assertIn("PROVENANCE_LABELS", self.header_nav)
 
     def test_required_display_wording_present(self):
         """The labels themselves moved into the generated contract in Phase 3.
 
-        App.jsx imports PROVENANCE_LABELS rather than re-typing the strings, so
-        the wording is asserted where it is now defined. Checking App.jsx for
-        these literals would now pass only if someone had re-introduced the
-        duplication Phase 3 removed.
+        HeaderNav.jsx imports PROVENANCE_LABELS rather than re-typing the
+        strings, so the wording is asserted where it is now defined. Checking
+        App.jsx for these literals would now pass only if someone had
+        re-introduced the duplication Phase 3 removed.
         """
-        contract = read(CONTRACT_JS)
         for wording in ("SYNTHETIC FROM REAL METADATA", "SYNTHETIC DATA",
                         "REAL ESA TELEMETRY", "PROVENANCE UNKNOWN"):
             with self.subTest(wording=wording):
-                self.assertIn(wording, contract)
-        # And App.jsx must actually consume them.
-        self.assertIn("PROVENANCE_LABELS", self.app)
-        self.assertIn('from "./generated/contract"', self.app)
+                self.assertIn(wording, self.contract)
+        # And the operator console must actually consume them.
+        self.assertIn("PROVENANCE_LABELS", self.header_nav)
+        self.assertIn('from "../generated/contract"', self.header_nav)
 
     def test_scenarios_declare_provenance_not_a_handwritten_source_type(self):
         """Phase 3 deleted App.jsx's LOCAL_PRESET_SCENARIOS copy.
@@ -231,26 +239,27 @@ class TestProvenanceLabelsInFrontend(unittest.TestCase):
         self.assertNotIn('.includes("ESA")', self.app)
 
     def test_simulation_indicator_present_for_non_real_data(self):
-        self.assertIn("SIMULATION", self.app)
-        self.assertIn("isRealTelemetry", self.app)
+        # The SOURCE pill in HeaderNav renders the backend-provided
+        # simulation_live_status — the indicator is served, not inferred.
+        self.assertIn("simulation_live_status", self.header_nav)
+        # And the generated contract still exposes the real-provenance gate.
+        self.assertIn("isRealProvenance", self.contract)
+        self.assertNotIn('.includes("ESA")', self.app)
 
     @unittest.skipIf(NODE is None, "node not available")
     def test_provenance_resolution_behaviour(self):
         """Execute the real resolver rather than pattern-matching it.
 
-        Phase 3 moved the vocabulary and normalizeProvenance() into the generated
-        contract, so the script under test is now the generated module plus
-        App.jsx's presentation helpers — i.e. exactly the code that runs in the
-        browser. contract.js only declares top-level `export const` and
-        `export function`, so stripping the keyword yields runnable script.
+        Phase 3 moved the vocabulary and normalizeProvenance() into the
+        generated contract; the operator console resolves labels through
+        HeaderNav.jsx's provenanceLabel(). contract.js only declares top-level
+        `export const`/`export function`, so stripping the keyword yields
+        runnable script; provenanceLabel is a plain function declaration.
         """
         parts = [
             read(CONTRACT_JS).replace("export const ", "const ")
                              .replace("export function ", "function "),
-            extract_block(self.app, "const PROVENANCE_COLOURS = {"),
-            extract_block(self.app, "export function resolveProvenance").replace("export ", "", 1),
-            extract_block(self.app, "export function provenanceDisplay").replace("export ", "", 1),
-            extract_block(self.app, "export function isRealTelemetry").replace("export ", "", 1),
+            extract_block(read(HEADER_NAV), "function provenanceLabel"),
         ]
         cases = [
             # (scenario, expected label, expected isRealTelemetry)
@@ -276,8 +285,13 @@ class TestProvenanceLabelsInFrontend(unittest.TestCase):
         ]
         script = "\n".join(parts) + "\nconsole.log(JSON.stringify(["
         script += ",".join(
-            "[provenanceDisplay(%s).label, isRealTelemetry(%s)]"
-            % (json.dumps(scenario), json.dumps(scenario))
+            "[provenanceLabel(%s), isRealProvenance(%s && (%s.provenance || %s.source_type))]"
+            % (
+                json.dumps(scenario),
+                json.dumps(scenario),
+                json.dumps(scenario),
+                json.dumps(scenario),
+            )
             for scenario, _, _ in cases
         )
         script += "]));"
@@ -465,9 +479,7 @@ class TestDashboardRoute(unittest.TestCase):
 
     @unittest.skipIf(NODE is None, "node not available")
     def test_is_dashboard_path_behaviour(self):
-        fn = extract_block(self.app, "export function isDashboardPath").replace(
-            "export ", "", 1
-        )
+        fn = extract_block(self.app, "function isDashboardPath")
         cases = {
             "/dashboard": True,
             "/dashboard/": True,      # the trailing-slash defect
@@ -490,9 +502,7 @@ class TestDashboardRoute(unittest.TestCase):
 
     @unittest.skipIf(NODE is None, "node not available")
     def test_is_dashboard_path_rejects_non_strings(self):
-        fn = extract_block(self.app, "export function isDashboardPath").replace(
-            "export ", "", 1
-        )
+        fn = extract_block(self.app, "function isDashboardPath")
         script = fn + "\nconsole.log(JSON.stringify([isDashboardPath(null), isDashboardPath(undefined), isDashboardPath(7)]));"
         self.assertEqual(json.loads(run_node(script)), [False, False, False])
 
@@ -507,7 +517,7 @@ class TestBackendUrlConfiguration(unittest.TestCase):
     def _defaults_found(self) -> dict[str, str]:
         found: dict[str, str] = {}
         for label, path, pattern in [
-            ("App.jsx", APP_JSX, r'DEFAULT_BACKEND_URL\s*=\s*"([^"]+)"'),
+            ("client.js", CLIENT_JS, r'DEFAULT_BACKEND_URL\s*=\s*"([^"]+)"'),
             ("index.html", INDEX_HTML, r"SENTINEL_DEFAULT_BACKEND_URL\s*=\s*'([^']+)'"),
             ("public/landing.html", PUBLIC_LANDING, r"SENTINEL_DEFAULT_BACKEND_URL\s*=\s*'([^']+)'"),
             ("dashboard/landing.html", DASHBOARD_LANDING, r"SENTINEL_DEFAULT_BACKEND_URL\s*=\s*'([^']+)'"),
@@ -549,7 +559,7 @@ class TestBackendUrlConfiguration(unittest.TestCase):
             src = read(path)
             with self.subTest(file=os.path.basename(path)):
                 self.assertIn("window.SENTINEL_BACKEND_URL", src)
-        self.assertIn("window.SENTINEL_BACKEND_URL", read(APP_JSX))
+        self.assertIn("window.SENTINEL_BACKEND_URL", read(CLIENT_JS))
 
     @unittest.skipIf(NODE is None, "node not available")
     def test_generate_config_emits_the_expected_default(self):

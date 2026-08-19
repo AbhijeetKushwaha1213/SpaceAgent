@@ -1,0 +1,56 @@
+# SENTINEL — docker-compose orchestration.
+#
+# Services:
+#   backend   FastAPI server (API key auth enforced by default)
+#   frontend  nginx serving the committed CRA build (dashboard/)
+#   ollama    OPTIONAL LOCAL-mode LLM sidecar (profile: local)
+#
+# Usage:
+#   export SENTINEL_API_KEY=$(openssl rand -hex 24)   # or put it in .env
+#   docker compose up -d                              # backend + frontend
+#   docker compose --profile local up -d              # + ollama sidecar
+#
+# Persistence:
+#   chroma-data   ChromaDB vector store (data/chroma_db) survives rebuilds
+
+services:
+  backend:
+    build: ./backend
+    ports:
+      - "8000:8000"
+    environment:
+      SENTINEL_API_KEY: ${SENTINEL_API_KEY:?set SENTINEL_API_KEY in your environment or .env}
+      LLM_MODE: ${LLM_MODE:-STUB}
+      LLM_BASE_URL: ${LLM_BASE_URL:-}
+      LLM_MODEL: ${LLM_MODEL:-}
+      SENTINEL_RATE_LIMIT: ${SENTINEL_RATE_LIMIT:-120}
+      SENTINEL_MAX_PAYLOAD_BYTES: ${SENTINEL_MAX_PAYLOAD_BYTES:-10485760}
+    volumes:
+      - chroma-data:/app/data/chroma_db
+    restart: unless-stopped
+
+  frontend:
+    image: nginx:1.27-alpine
+    ports:
+      - "3000:80"
+    volumes:
+      - ./frontend/dashboard:/usr/share/nginx/html:ro
+      - ./frontend/nginx.conf:/etc/nginx/conf.d/default.conf:ro
+    depends_on:
+      - backend
+    restart: unless-stopped
+
+  # Optional LOCAL-mode LLM. Enable with: docker compose --profile local up -d
+  # Then point the backend at it: LLM_MODE=LOCAL LLM_BASE_URL=http://ollama:11434
+  ollama:
+    image: ollama/ollama:latest
+    profiles: ["local"]
+    ports:
+      - "11434:11434"
+    volumes:
+      - ollama-data:/root/.ollama
+    restart: unless-stopped
+
+volumes:
+  chroma-data:
+  ollama-data:
