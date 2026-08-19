@@ -194,6 +194,7 @@
         "state_estimation",
         "rag",
         "llm",
+        "external_transmission",
         "hypotheses",
         "physics_validation",
         "safety_validation",

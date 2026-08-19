@@ -85,6 +85,15 @@ class Stage(str, Enum):
     LLM = "llm"
     """Provider, model, mode, prompt identity, and the raw output."""
 
+    EXTERNAL_TRANSMISSION = "external_transmission"
+    """Data leaving the host to an external LLM provider, recorded at send time.
+
+    Written by the cloud transmission guard BEFORE any external call: it carries
+    the payload classification, the redaction report, and the destination. In
+    LOCAL mode it is written as BLOCKED instead, so the record shows the guard
+    was engaged rather than merely absent.
+    """
+
     HYPOTHESES = "hypotheses"
     """Ranked fault hypotheses. LLM-generated; not a validated diagnosis."""
 

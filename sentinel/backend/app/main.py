@@ -72,9 +72,14 @@ app = FastAPI(
 
 from app.security.config import SecurityConfig
 from app.security.middleware import SecurityMiddleware
+from app.security.redaction import RedactionLogFilter
 from app.security.sanitization import sanitize_telemetry_payload_data
 
 sec_config = SecurityConfig.from_env()
+
+# Phase 14: redact every log record (API keys, full prompts, telemetry bodies,
+# full model responses) unless SECURE_DEV_MODE=1 is explicitly configured.
+logging.getLogger().addFilter(RedactionLogFilter(sec_config))
 
 # Register Security Middleware (Correlation ID, Rate Limiter, Payload Size Limit, Auth)
 app.add_middleware(SecurityMiddleware, config=sec_config)
@@ -381,9 +386,8 @@ def physics_validation_endpoint(crash_dump: CrashDumpRequest):
     """
     from app.validation.physics import validate_crash_dump
 
-    report, _hypotheses, _residuals, _sequence = validate_crash_dump(
-        crash_dump.model_dump()
-    )
+    dump = sanitize_telemetry_payload_data(crash_dump.model_dump(mode="json"))
+    report, _hypotheses, _residuals, _sequence = validate_crash_dump(dump)
     return report
 
 
@@ -467,6 +471,9 @@ def detect_endpoint(crash_dump: CrashDumpRequest):
     identifiable as weak evidence.
     """
     payload = crash_dump.model_dump(mode="json", exclude_none=True)
+    # Phase 14: strip unknown JSON keys and neutralize injection-shaped strings
+    # before any downstream stage touches the payload.
+    payload = sanitize_telemetry_payload_data(payload)
     report = run_detection_on_crash_dump(payload)
     logger.info(
         "POST /detect — scenario_id=%s: %d anomaly(ies) on %d/%d channel(s), "
@@ -505,6 +512,10 @@ async def analyze_get_endpoint(preset: str = None, payload: str = None):
     except Exception as exc:
         logger.error("Failed to parse GET payload: %s", exc)
         data = {}
+
+    # Phase 14: strip unknown keys and neutralize injection-shaped strings
+    # before anything reaches the agent or the LLM.
+    data = sanitize_telemetry_payload_data(data)
 
     logger.info(
         "GET /api/analyze — preset=%s, payload keys=%s",
@@ -615,8 +626,13 @@ async def analyze_get_endpoint(preset: str = None, payload: str = None):
             yield "event: done\ndata: {}\n\n"
 
         except Exception as exc:
-            logger.error("Streaming error in GET /api/analyze: %s", exc, exc_info=True)
-            err_data = {"type": "alert", "text": f"Error during analysis: {exc}"}
+            logger.error("Streaming error in GET /api/analyze: %s", exc)
+            # Generic client-facing message — exception internals never reach
+            # the client.
+            err_data = {
+                "type": "alert",
+                "text": "Analysis failed unexpectedly.",
+            }
             yield f"event: trace\ndata: {json.dumps(err_data)}\n\n"
             yield "event: done\ndata: {}\n\n"
 
@@ -638,6 +654,8 @@ async def analyze_endpoint(crash_dump: CrashDumpRequest):
       - ERROR      : any exception during streaming
     """
     payload = crash_dump.model_dump(mode="json", exclude_none=True)
+    # Phase 14: input sanitization before the agent (and any LLM) sees the data.
+    payload = sanitize_telemetry_payload_data(payload)
     logger.info(
         "POST /analyze — scenario_id=%s fault_type=%s",
         payload.get("scenario_id"),
@@ -660,10 +678,10 @@ async def analyze_endpoint(crash_dump: CrashDumpRequest):
                     await asyncio.sleep(0.15)
 
         except Exception as exc:
-            logger.error("Streaming error: %s", exc, exc_info=True)
+            logger.error("Streaming error: %s", exc)
             err = SSEEvent(
                 event_type=SSEEventType.ERROR,
-                data=f"Streaming analysis encountered an error: {exc}",
+                data="Streaming analysis encountered an error. Check the server logs.",
             )
             yield f"data: {err.model_dump_json()}\n\n"
 
@@ -700,6 +718,8 @@ async def analyze_endpoint_v1(crash_dump: CrashDumpRequest):
     from app.audit import AuditRecorder, RunStatus, get_store
 
     payload = crash_dump.model_dump(mode="json", exclude_none=True)
+    # Phase 14: input sanitization before the agent (and any LLM) sees the data.
+    payload = sanitize_telemetry_payload_data(payload)
     recorder = AuditRecorder.begin(
         payload, origin=f"POST {_V1}/analyze",
     )
@@ -747,12 +767,12 @@ async def analyze_endpoint_v1(crash_dump: CrashDumpRequest):
             )
             raise
         except Exception as exc:
-            logger.error("Streaming error: %s", exc, exc_info=True)
+            logger.error("Streaming error: %s", exc)
             status = RunStatus.FAILED
             error = str(exc)
             err = SSEEvent(
                 event_type=SSEEventType.ERROR,
-                data=f"Streaming analysis encountered an error: {exc}",
+                data="Streaming analysis encountered an error. Check the server logs.",
             )
             yield f"data: {err.model_dump_json()}\n\n"
         else:

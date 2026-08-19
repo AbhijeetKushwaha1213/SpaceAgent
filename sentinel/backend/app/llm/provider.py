@@ -169,6 +169,17 @@ class GeminiProvider(LLMProvider):
         return self._client
 
     def call(self, messages: list[dict[str, str]]) -> str:
+        # Phase 14: LOCAL mode must never transmit mission telemetry to a cloud
+        # provider. This guard sits at the provider boundary so no code path —
+        # the agent, the constrained ranker, or a future caller — can construct
+        # a GeminiProvider and bypass the agent-level assertion.
+        local_modes = {"local", "fallback"}
+        if os.environ.get("LLM_MODE", "").lower().strip() in local_modes:
+            raise ProviderError(
+                "Privacy assertion: In LOCAL mode, mission telemetry must not "
+                "be sent to cloud providers."
+            )
+
         try:
             from google.genai import types
 
@@ -211,9 +222,10 @@ class GeminiProvider(LLMProvider):
             if not content:
                 raise ProviderError("Gemini returned empty response content")
 
+            # Metadata only — the raw response body is never logged.
             logger.info(
-                "Gemini response (first 300 chars): %s",
-                content[:300].replace("\n", " "),
+                "Gemini response received: %d chars (model=%s)",
+                len(content), model_id,
             )
             return content
 

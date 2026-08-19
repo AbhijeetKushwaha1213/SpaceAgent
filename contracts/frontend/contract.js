@@ -98,6 +98,7 @@ export const AUDIT_STAGE = Object.freeze({
   state_estimation: "state_estimation",
   rag: "rag",
   llm: "llm",
+  external_transmission: "external_transmission",
   hypotheses: "hypotheses",
   physics_validation: "physics_validation",
   safety_validation: "safety_validation",

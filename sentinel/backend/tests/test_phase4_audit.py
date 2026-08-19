@@ -880,6 +880,9 @@ class TestAllRequiredFieldsArePersisted(unittest.TestCase):
             "hypotheses": "OK",
             "safety_validation": "OK", "diagnosis": "OK",
             "operator_decision": "OK",
+            # Phase 14: this run used the stub provider, so no data left the
+            # host and the transmission guard records NOT_RUN rather than OK.
+            "external_transmission": "NOT_RUN",
         }
         self.assertEqual(coverage, expected)
 

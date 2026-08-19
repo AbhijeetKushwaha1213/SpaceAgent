@@ -30,7 +30,12 @@ jobs:
 
       - name: Execute Full Python Test Suite Across All Phases
         run: |
-          python -c "import unittest; loader = unittest.TestLoader(); suite = loader.discover('sentinel/backend/tests', pattern='test_*.py'); runner = unittest.TextTestRunner(verbosity=2); runner.run(suite)"
+          python -c "import unittest; loader = unittest.TestLoader(); suite = loader.discover('sentinel/backend/tests', pattern='test_*.py'); runner = unittest.TextTestRunner(verbosity=2); result = runner.run(suite); raise SystemExit(0 if result.wasSuccessful() else 1)"
+
+      - name: Phase 14 Security & Data Handling Tests
+        run: |
+          cd sentinel/backend/tests
+          python -m unittest test_phase14_security -v
 
   build-frontend:
     name: Build Frontend Assets

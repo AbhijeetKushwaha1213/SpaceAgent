@@ -728,7 +728,7 @@ def _extract_json_from_response(raw: str) -> dict[str, Any]:
     _logger = logging.getLogger("sentinel.agent.extract")
     text = raw.strip()
 
-    _logger.debug("Raw LLM response (first 500 chars): %s", text[:500])
+    _logger.debug("Raw LLM response length=%d chars", len(text))
 
     # Attempt 0: strip <think>...</think> blocks (gemini-2.5-flash thinking model)
     think_stripped = re.sub(r"<think>.*?</think>", "", text, flags=re.DOTALL).strip()
@@ -762,7 +762,10 @@ def _extract_json_from_response(raw: str) -> dict[str, Any]:
         except json.JSONDecodeError:
             pass
 
-    _logger.error("Full unparseable LLM response:\n%s", text)
+    _logger.error(
+        "Unparseable LLM response: %d chars (first 80: %.80s)",
+        len(text), text[:80].replace("\n", " "),
+    )
     raise OutputParsingError(
         f"Could not extract valid JSON from LLM response "
         f"(length={len(text)} chars)",
@@ -1023,6 +1026,57 @@ class SentinelAgent:
             if not recorder.has(Stage.RAG):
                 _audit_record_rag(
                     recorder, retrieved_procedures, None, None,
+                )
+
+        # --- Phase 14: input sanitization + cloud transmission guard -----
+        # Sanitization applies to every mode: telemetry fields are DATA, so
+        # arbitrary keys are stripped and injection-shaped strings are
+        # neutralized before anything reaches an LLM — local or cloud.
+        #
+        # The cloud guard runs only in CLOUD modes. The payload is classified,
+        # CONFIDENTIAL fields and configured telemetry parameters are redacted
+        # from the transmitted copy, and the transmission is recorded in the
+        # audit trail BEFORE the external call. In LOCAL mode a BLOCKED
+        # transmission entry is recorded instead, and `_call_gemini` refuses
+        # outright as the provider boundary.
+        from app.security.exfiltration import (
+            apply_cloud_redaction,
+            classify_payload,
+            record_external_transmission,
+        )
+        from app.security.sanitization import sanitize_telemetry_payload_data
+
+        if self.config.mode.is_cloud:
+            redacted_dump, transmission_report = apply_cloud_redaction(
+                state.crash_dump
+            )
+            llm_dump = sanitize_telemetry_payload_data(redacted_dump)
+            crash_dump_json = json.dumps(llm_dump, indent=2)
+            if recorder is not None:
+                record_external_transmission(
+                    recorder,
+                    provider="gemini",
+                    model=self.config.active_model_name,
+                    mode=self.config.mode.value,
+                    classification=classify_payload(state.crash_dump),
+                    redaction_report=transmission_report,
+                )
+        else:
+            llm_dump = sanitize_telemetry_payload_data(state.crash_dump)
+            crash_dump_json = json.dumps(llm_dump, indent=2)
+            if recorder is not None and self.config.mode.is_local:
+                record_external_transmission(
+                    recorder,
+                    provider="local",
+                    model=self.config.active_model_name,
+                    mode=self.config.mode.value,
+                    classification=classify_payload(state.crash_dump),
+                    redaction_report={"redaction_applied": False},
+                    blocked=True,
+                    reason=(
+                        "LOCAL mode prevents any external LLM transmission; "
+                        "all inference stays on this host."
+                    ),
                 )
 
         # --- Build messages ---
@@ -1299,9 +1353,11 @@ class SentinelAgent:
             content = response.text
             if not content:
                 raise LLMCallError("Gemini returned empty response content")
+            # Metadata only — the raw response body is never logged. It belongs
+            # in the audit trail (redacted) if a recorder is attached.
             logger.info(
-                "Gemini raw response (first 300 chars): %s",
-                content[:300].replace("\n", " "),
+                "Gemini response received: %d chars (model=%s)",
+                len(content), model_id,
             )
             return content
 
@@ -1491,9 +1547,11 @@ class SentinelAgent:
             try:
                 crash_dict: dict[str, Any] = json.loads(crash_dump)
                 crash_dump_str = crash_dump
-            except json.JSONDecodeError as exc:
+            except json.JSONDecodeError:
+                # Generic client-facing message — parsing internals stay in
+                # the server logs.
                 yield SSEEvent(event_type=SSEEventType.ERROR,
-                               data=f"Invalid crash dump JSON: {exc}")
+                               data="Invalid crash dump JSON.")
                 return
         else:
             crash_dict = crash_dump
@@ -1621,7 +1679,7 @@ class SentinelAgent:
             logger.warning("State estimation error (non-fatal): %s", exc)
             yield SSEEvent(
                 event_type=SSEEventType.OBSERVATION,
-                data=f"[STATE_ESTIMATION] Unavailable: {exc}",
+                data="[STATE_ESTIMATION] Unavailable.",
                 step_number=3,
             )
 
@@ -1654,7 +1712,7 @@ class SentinelAgent:
             logger.warning("Hypothesis generation error (non-fatal): %s", exc)
             yield SSEEvent(
                 event_type=SSEEventType.OBSERVATION,
-                data=f"[HYPOTHESIS_GENERATION] Unavailable: {exc}",
+                data="[HYPOTHESIS_GENERATION] Unavailable.",
                 step_number=4,
             )
 
@@ -1678,7 +1736,7 @@ class SentinelAgent:
             logger.warning("Physics validation error (non-fatal): %s", exc)
             yield SSEEvent(
                 event_type=SSEEventType.OBSERVATION,
-                data=f"[PHYSICS_VALIDATION] Unavailable: {exc}",
+                data="[PHYSICS_VALIDATION] Unavailable.",
                 step_number=5,
             )
 
@@ -1918,11 +1976,11 @@ class SentinelAgent:
         except Exception as exc:
             logger.warning(
                 "Constrained LLM ranking failed, falling back to legacy pipeline: %s",
-                exc, exc_info=True,
+                exc,
             )
             yield SSEEvent(
                 event_type=SSEEventType.OBSERVATION,
-                data=f"[LLM_RANKING] Constrained ranking unavailable ({exc}), using legacy pipeline.",
+                data="[LLM_RANKING] Constrained ranking unavailable, using legacy pipeline.",
                 step_number=7,
             )
 
@@ -1945,10 +2003,10 @@ class SentinelAgent:
                     data=result.model_dump_json(),
                 )
             except Exception as exc2:
-                logger.error("Legacy pipeline also failed: %s", exc2, exc_info=True)
+                logger.error("Legacy pipeline also failed: %s", exc2)
                 yield SSEEvent(
                     event_type=SSEEventType.ERROR,
-                    data=f"Analysis failed: {exc2}",
+                    data="Analysis failed unexpectedly.",
                 )
 
 # ---------------------------------------------------------------------------

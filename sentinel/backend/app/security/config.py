@@ -21,6 +21,7 @@ class SecurityConfig:
         "http://127.0.0.1:3001",
     )
     secure_dev_mode: bool = False
+    cloud_redact_parameters: tuple[str, ...] = ()
 
     @classmethod
     def from_env(cls) -> SecurityConfig:
@@ -53,10 +54,16 @@ class SecurityConfig:
         raw_dev = os.environ.get("SECURE_DEV_MODE", "0").lower().strip()
         secure_dev = raw_dev in ("1", "true", "yes")
 
+        raw_redact = os.environ.get("SENTINEL_CLOUD_REDACT_PARAMETERS", "")
+        redact_params = tuple(
+            p.strip() for p in raw_redact.split(",") if p.strip()
+        ) if raw_redact else ()
+
         return cls(
             api_key=api_key,
             rate_limit_per_minute=rate_limit,
             max_payload_bytes=max_bytes,
             cors_origins=origins,
             secure_dev_mode=secure_dev,
+            cloud_redact_parameters=redact_params,
         )
