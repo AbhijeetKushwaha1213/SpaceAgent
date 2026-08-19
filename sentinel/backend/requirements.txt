@@ -22,6 +22,10 @@ openai==1.58.1
 sentence-transformers==3.3.1
 chromadb==0.6.3
 llama-index-core==0.12.8
+# Phase 17: PDF parsing for RAG ingestion. llama-index-core 0.14.x only reads
+# PDFs via the optional llama-index-readers-file package; without a PDF
+# reader it silently ingests raw bytes. pypdf is used directly in rag.py.
+pypdf>=3.17.4
 
 # Scientific & Utilities
 numpy==2.2.1

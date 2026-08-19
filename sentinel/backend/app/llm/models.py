@@ -35,6 +35,60 @@ from typing import Any, Optional
 # ═══════════════════════════════════════════════════════════════════════════
 
 @dataclass(frozen=True)
+class EvidenceContext:
+    """One deterministic evidence item, as presented to the LLM (Phase 17).
+
+    ``evidence_id`` is the stable id referenced by hypotheses and by the
+    LLM's supporting/contradicting evidence lists. Quantitative residual
+    detail lives in ``ResidualContext``; this context carries what the
+    deterministic detector layer actually recorded.
+    """
+    evidence_id: str
+    type: str                       # SUPPORTING | CONTRADICTING | UNDETERMINED
+    source: str                     # TELEMETRY | CONTEXT
+    description: str                # rationale/condition text
+    channel: str
+    condition: str
+    state: str
+    detectors: tuple[str, ...] = ()
+    severity: str = ""
+    timestamp: str = ""
+    weight: float = 0.0
+    provenance: str = ""            # observed_from or detector provenance
+
+
+@dataclass(frozen=True)
+class ResidualContext:
+    """One observed-vs-predicted residual, with its quantitative values."""
+    channel: str
+    unit: str
+    status: str                     # CONSISTENT | INCONSISTENT | UNDECIDABLE
+    observed: Optional[float] = None
+    predicted: Optional[float] = None
+    residual: Optional[float] = None
+    tolerance: Optional[float] = None
+    exceedance: Optional[float] = None
+    model: str = ""
+    equation: str = ""
+    comparison: str = ""
+
+
+@dataclass(frozen=True)
+class WindowAdequacyContext:
+    """Whether the telemetry window can support physics at all (Phase 17).
+
+    status is one of the WindowAdequacyStatus values: ADEQUATE_FOR_PHYSICS,
+    UNDER_SAMPLED, MISSING_REQUIRED_CHANNELS, INVALID_TIMESTAMPS,
+    CONTRADICTORY_DATA. The LLM must not override it.
+    """
+    status: str = "MISSING_REQUIRED_CHANNELS"
+    sample_count: int = 0           # fresh samples across modelled channels
+    required_sample_count: int = 0  # 2 per checkable channel (one step = two)
+    channels_checked: tuple[str, ...] = ()
+    reason: str = ""
+
+
+@dataclass(frozen=True)
 class HypothesisContext:
     """One deterministic hypothesis, as presented to the LLM.
 
@@ -88,6 +142,8 @@ class SpacecraftStateContext:
     anomalous_channels: tuple[str, ...] = ()
     residual_summary: str = ""
     channels_modelled: tuple[str, ...] = ()
+    residuals: tuple[ResidualContext, ...] = ()
+    window_adequacy: WindowAdequacyContext = WindowAdequacyContext()
 
 
 @dataclass(frozen=True)

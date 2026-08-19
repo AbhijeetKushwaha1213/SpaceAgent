@@ -68,7 +68,10 @@ _BACKEND_DIR = os.path.join(_THIS_DIR, "..", "..")
 
 ECSS_DATA_DIR = os.path.join(_BACKEND_DIR, "data", "ecss")
 CHROMA_DB_DIR = os.path.join(_BACKEND_DIR, "data", "chroma_db")
-CHROMA_COLLECTION_NAME = "ecss_procedures"
+# Phase 17: new collection name — the legacy "ecss_procedures" collection
+# (1,681 chunks of raw PDF bytes) is deleted on init, never reused.
+CHROMA_COLLECTION_NAME = "ecss_procedures_v2"
+LEGACY_CHROMA_COLLECTION_NAME = "ecss_procedures"
 
 DEFAULT_TOP_K = 3
 CHUNK_SIZE = 512        # Tokens per chunk — good for technical docs
@@ -531,8 +534,41 @@ def _get_embedding_fn() -> Any:
     return None
 
 
+def classify_chunk_text(text: str) -> str:
+    """Classify a chunk's legibility: READABLE | GARBLED | EMPTY.
+
+    Phase 17. The retrieval layer must be able to distinguish readable text
+    from garbage instead of relying on a single printable-ratio cutoff.
+    A chunk is:
+      - EMPTY    if it has no usable content (< 20 chars)
+      - GARBLED  if it contains PDF/binary syntax: control chars, NUL bytes,
+                 "%PDF-" headers, or printable ratio below 0.70
+      - READABLE otherwise
+    """
+    text = (text or "").strip()
+    if len(text) < 20:
+        return "EMPTY"
+    printable = sum(
+        1 for c in text if 32 <= ord(c) < 127 or c in ("\n", "\t", "\r")
+    )
+    printable_ratio = printable / max(len(text), 1)
+    control_chars = sum(1 for c in text if ord(c) < 32 and c not in ("\n", "\t", "\r"))
+    if printable_ratio < 0.70 or control_chars / max(len(text), 1) > 0.02:
+        return "GARBLED"
+    if text.startswith("%PDF-") or "obj" in text[:40] and "/Type" in text[:120]:
+        return "GARBLED"
+    return "READABLE"
+
+
 def _load_and_chunk_pdfs() -> list[dict[str, str]] | None:
     """Load PDFs from ECSS_DATA_DIR and chunk them.
+
+    Phase 17: PDFs are parsed as PDFs with pypdf directly, page by page.
+    This removes the silent raw-bytes fallback of llama-index's
+    SimpleDirectoryReader (which, in llama-index-core 0.14.x, only knows how
+    to read PDFs when the optional ``llama-index-readers-file`` package is
+    installed; otherwise it returns the raw file bytes as "text" and every
+    chunk is garbage).
 
     Returns a list of dicts with keys:
       - "text": chunk text
@@ -558,29 +594,60 @@ def _load_and_chunk_pdfs() -> list[dict[str, str]] | None:
                 pdf_files)
 
     try:
-        from llama_index.core import SimpleDirectoryReader
-        from llama_index.core.node_parser import SentenceSplitter
+        from pypdf import PdfReader as PyPdfReader
     except ImportError as e:
-        logger.warning("LlamaIndex not available for PDF loading: %s", e)
+        logger.warning("pypdf not available for PDF loading: %s", e)
         return None
 
-    # Load documents from all PDFs — skip individual failures
-    all_documents = []
+    try:
+        from llama_index.core.schema import Document
+        from llama_index.core.node_parser import SentenceSplitter
+    except ImportError as e:
+        logger.warning("LlamaIndex not available for PDF chunking: %s", e)
+        return None
+
+    # Parse every PDF with pypdf: one Document per page, carrying the real
+    # page label as metadata. Pages that extract to nothing are skipped.
+    documents: list[Document] = []
     loaded_count = 0
+    skipped_pages = 0
     for pdf_file in pdf_files:
         pdf_path = os.path.join(ECSS_DATA_DIR, pdf_file)
         try:
-            reader = SimpleDirectoryReader(input_files=[pdf_path])
-            docs = reader.load_data()
-            all_documents.extend(docs)
-            loaded_count += 1
-            logger.info("Loaded %s: %d pages/sections", pdf_file, len(docs))
+            reader = PyPdfReader(pdf_path)
         except Exception as e:
-            logger.warning("Failed to load %s (skipping): %s", pdf_file, e)
+            logger.warning("Failed to open %s (skipping): %s", pdf_file, e)
+            continue
+        page_count = len(reader.pages)
+        for page_no in range(page_count):
+            try:
+                text = reader.pages[page_no].extract_text() or ""
+            except Exception as e:
+                logger.debug("Page %d of %s failed to extract: %s",
+                             page_no + 1, pdf_file, e)
+                skipped_pages += 1
+                continue
+            if classify_chunk_text(text) != "READABLE":
+                skipped_pages += 1
+                continue
+            documents.append(Document(
+                text=text.strip(),
+                metadata={
+                    "file_name": pdf_file,
+                    "page_label": str(page_no + 1),
+                },
+            ))
+        loaded_count += 1
+        logger.info("Loaded %s: %d pages parsed as PDF", pdf_file, page_count)
 
-    if not all_documents:
-        logger.warning("No documents loaded from any PDF")
+    if not documents:
+        logger.warning("No readable pages extracted from any PDF")
         return None
+
+    logger.info(
+        "Parsed %d page(s) from %d PDF(s) (skipped %d unreadable/empty pages)",
+        len(documents), loaded_count, skipped_pages,
+    )
 
     # Chunk into manageable pieces
     try:
@@ -588,11 +655,11 @@ def _load_and_chunk_pdfs() -> list[dict[str, str]] | None:
             chunk_size=CHUNK_SIZE,
             chunk_overlap=CHUNK_OVERLAP,
         )
-        nodes = splitter.get_nodes_from_documents(all_documents)
+        nodes = splitter.get_nodes_from_documents(documents)
         logger.info(
             "Chunked %d documents into %d nodes "
             "(chunk_size=%d, overlap=%d)",
-            len(all_documents), len(nodes), CHUNK_SIZE, CHUNK_OVERLAP,
+            len(documents), len(nodes), CHUNK_SIZE, CHUNK_OVERLAP,
         )
     except Exception as e:
         logger.warning("Chunking failed: %s", e)
@@ -600,10 +667,12 @@ def _load_and_chunk_pdfs() -> list[dict[str, str]] | None:
 
     # Convert to simple dicts
     chunks: list[dict[str, str]] = []
+    skipped = 0
     for i, node in enumerate(nodes):
         text = node.get_content().strip()
-        if len(text) < 20:
-            continue  # Skip very short chunks (headers, page numbers)
+        if classify_chunk_text(text) != "READABLE":
+            skipped += 1
+            continue  # Skip empty/garbled chunks before they reach ChromaDB
 
         metadata = getattr(node, "metadata", {}) or {}
         source = metadata.get("file_name", "unknown")
@@ -618,8 +687,9 @@ def _load_and_chunk_pdfs() -> list[dict[str, str]] | None:
 
     _rag_status.pdf_count = loaded_count
     logger.info(
-        "Prepared %d chunks from %d PDF(s) (skipped %d tiny chunks)",
-        len(chunks), loaded_count, len(nodes) - len(chunks),
+        "Prepared %d readable chunks from %d PDF(s) "
+        "(skipped %d empty/garbled chunks)",
+        len(chunks), loaded_count, skipped,
     )
     return chunks if chunks else None
 
@@ -681,6 +751,21 @@ def initialize_pdf_rag(force_rebuild: bool = False) -> bool:
             except Exception:
                 pass  # Collection may not exist yet
 
+        # Phase 17: explicitly remove the legacy collection that holds the
+        # raw-bytes garbage chunks (1,681 chunks of PDF binary). Never reuse
+        # it, never leave it behind silently.
+        try:
+            legacy_names = {c.name for c in client.list_collections()}
+            if LEGACY_CHROMA_COLLECTION_NAME in legacy_names:
+                client.delete_collection(LEGACY_CHROMA_COLLECTION_NAME)
+                logger.warning(
+                    "Deleted legacy garbage collection %r "
+                    "(raw-bytes PDF chunks)",
+                    LEGACY_CHROMA_COLLECTION_NAME,
+                )
+        except Exception as e:
+            logger.warning("Legacy collection cleanup failed: %s", e)
+
         collection = client.get_or_create_collection(
             name=CHROMA_COLLECTION_NAME,
             embedding_function=_embedding_fn,
@@ -697,6 +782,7 @@ def initialize_pdf_rag(force_rebuild: bool = False) -> bool:
         _chroma_collection = collection
         _rag_status.available = True
         _rag_status.chunk_count = existing_count
+        _rag_status.pdf_count = _count_pdfs_in_dir()
         logger.info(
             "Reusing existing ChromaDB collection with %d chunks",
             existing_count,
@@ -738,6 +824,15 @@ def initialize_pdf_rag(force_rebuild: bool = False) -> bool:
         _rag_status.pdf_count, _rag_status.chunk_count,
     )
     return True
+
+
+def _count_pdfs_in_dir() -> int:
+    """Number of PDF files present in ECSS_DATA_DIR (for status reporting)."""
+    if not os.path.isdir(ECSS_DATA_DIR):
+        return 0
+    return sum(
+        1 for f in os.listdir(ECSS_DATA_DIR) if f.lower().endswith(".pdf")
+    )
 
 
 # ═══════════════════════════════════════════════════════════════════════════
@@ -790,18 +885,11 @@ def _try_pdf_rag(query: str, top_k: int = DEFAULT_TOP_K) -> list[str] | None:
 
     formatted: list[str] = []
     for i, doc_text in enumerate(documents):
-        if not doc_text or len(doc_text.strip()) < 20:
-            continue
-
-        # Filter garbled/binary text from scanned PDFs
-        # If >30% of chars are non-printable ASCII, skip this chunk
-        printable_ratio = sum(
-            1 for c in doc_text if 32 <= ord(c) < 127 or c in ('\n', '\t', '\r')
-        ) / max(len(doc_text), 1)
-        if printable_ratio < 0.70:
+        # Phase 17: classify instead of a single printable-ratio cutoff.
+        classification = classify_chunk_text(doc_text)
+        if classification != "READABLE":
             logger.debug(
-                "Skipping garbled chunk (printable_ratio=%.2f): %.40r",
-                printable_ratio, doc_text
+                "Skipping %s chunk: %.40r", classification, doc_text
             )
             continue
 
@@ -1022,13 +1110,9 @@ def _try_pdf_rag_traced(
     formatted: list[str] = []
     sources: list[dict[str, Any]] = []
     for i, doc_text in enumerate(documents):
-        if not doc_text or len(doc_text.strip()) < 20:
-            continue
-
-        printable_ratio = sum(
-            1 for c in doc_text if 32 <= ord(c) < 127 or c in ("\n", "\t", "\r")
-        ) / max(len(doc_text), 1)
-        if printable_ratio < 0.70:
+        # Phase 17: classify instead of a single printable-ratio cutoff.
+        classification = classify_chunk_text(doc_text)
+        if classification != "READABLE":
             continue
 
         meta = metadatas[i] if i < len(metadatas) else {}
@@ -1039,6 +1123,9 @@ def _try_pdf_rag_traced(
         dist_str = f" (distance: {dist:.3f})" if dist is not None else ""
         header = f"[ECSS Retrieved — {source}, page {page}{dist_str}]"
         formatted.append(f"{header}\n{doc_text.strip()}")
+        printable = sum(
+            1 for c in doc_text if 32 <= ord(c) < 127 or c in ("\n", "\t", "\r")
+        )
         sources.append({
             "source_kind": "pdf_rag",
             "identifier": str(source),
@@ -1046,6 +1133,8 @@ def _try_pdf_rag_traced(
             "page": page,
             "distance": dist,
             "chars": len(doc_text.strip()),
+            "classification": classification,
+            "printable_ratio": round(printable / max(len(doc_text), 1), 4),
             "content_sha256": _sha256_16(doc_text.strip()),
         })
 

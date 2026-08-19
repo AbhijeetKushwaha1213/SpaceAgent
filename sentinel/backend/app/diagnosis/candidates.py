@@ -117,6 +117,14 @@ class EvidenceItem(BaseModel):
 
     model_config = ConfigDict(frozen=True)
 
+    evidence_id: str = Field(
+        ...,
+        description=(
+            "Stable content-derived identifier, reproducible across runs. "
+            "Phase 17: the LLM contract references evidence by this id, and "
+            "the NONEXISTENT_EVIDENCE guardrail validates against it."
+        ),
+    )
     channel: str
     condition: str
     role: str
@@ -383,9 +391,35 @@ def _hypothesis_id(fault_id: str, match: SignatureMatch) -> str:
     return f"HYP-{digest}"
 
 
+def _evidence_id(
+    channel: str,
+    condition: str,
+    role: str,
+    state: str,
+    source: str = "TELEMETRY",
+    observed_from: Optional[str] = None,
+) -> str:
+    """Stable content-derived evidence id (Phase 17).
+
+    The same channel/condition/role/state observed the same way always yields
+    the same id, so evidence can be referenced across runs and audit records.
+    """
+    material = "|".join([
+        str(channel), str(condition), str(role), str(state),
+        str(source), str(observed_from or ""),
+    ])
+    digest = hashlib.sha256(material.encode("utf-8")).hexdigest()[:12]
+    return f"EVID-{digest}"
+
+
 def _to_items(records: tuple, ) -> list[EvidenceItem]:
     return [
         EvidenceItem(
+            evidence_id=_evidence_id(
+                channel=r.channel, condition=r.condition, role=r.role,
+                state=r.state, source=getattr(r, "source", "TELEMETRY"),
+                observed_from=getattr(r, "observed_from", None),
+            ),
             channel=r.channel, condition=r.condition, role=r.role,
             state=r.state, rationale=r.rationale, detectors=list(r.detectors),
             severity=r.severity, timestamp=r.timestamp,
