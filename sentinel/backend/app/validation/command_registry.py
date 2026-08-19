@@ -378,14 +378,12 @@ _SPECS: tuple[CommandSpec, ...] = (
           "Read OBC memory usage and integrity status.",
           _LOW, "Memory usage and checksum telemetry are returned.",
           prohibited=_T),
-    # Thermal only. The pre-Phase-1 validator did NOT apply a battery floor to
-    # safe-mode exit, and Phase 1 does not add constraints that were not there
-    # before. (Whether it should have one is a separate question — see the
-    # Phase 1 report.)
+    # Phase 17: Enforce battery floor on safe-mode exit (_TB = Thermal + Battery).
+    # If battery SoC is below the safe floor (15%), safe-mode exit is BLOCKED.
     _spec("CMD_SAFE_MODE_EXIT", SubsystemID.OBC,
           "Return the spacecraft from safe mode to nominal operations.",
           _MED, "normal_mode_flag is set; nominal operations resume.",
-          source=_KB, prohibited=_T),
+          source=_KB, prohibited=_TB),
     _spec("CMD_SAFE_MODE_ENTRY", SubsystemID.OBC,
           "Command a deliberate entry into safe mode.",
           _MED, "Spacecraft transitions to safe mode.",

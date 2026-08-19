@@ -38,9 +38,11 @@ from app.llm.models import (
     PhysicsContext,
     ProcedureContext,
     RankedHypothesis,
+    ResidualContext,
     SafetyContext,
     SpacecraftStateContext,
     ViolationType,
+    WindowAdequacyContext,
 )
 from app.llm.provider import LLMProvider, ProviderError
 
@@ -245,6 +247,38 @@ def build_ranking_input(
     # --- Spacecraft state context ---
     state_ctx = SpacecraftStateContext()
     if residual_report is not None:
+        residuals_list: list[ResidualContext] = []
+        for r in getattr(residual_report, "residuals", []):
+            st = getattr(r, "status", "")
+            status_str = st.value if hasattr(st, "value") else str(st)
+            residuals_list.append(ResidualContext(
+                channel=getattr(r, "channel", ""),
+                unit=getattr(r, "unit", ""),
+                status=status_str,
+                observed=getattr(r, "observed", None),
+                predicted=getattr(r, "predicted", None),
+                residual=getattr(r, "residual", None),
+                tolerance=getattr(r, "tolerance", None),
+                exceedance=getattr(r, "exceedance", None),
+                model=getattr(r, "model", ""),
+                equation=getattr(r, "equation", ""),
+                comparison=getattr(r, "comparison", ""),
+            ))
+
+        wa = getattr(residual_report, "window_adequacy", None)
+        if wa is not None:
+            wa_st = getattr(wa, "status", "")
+            wa_status_str = wa_st.value if hasattr(wa_st, "value") else str(wa_st)
+            wa_ctx = WindowAdequacyContext(
+                status=wa_status_str or "MISSING_REQUIRED_CHANNELS",
+                sample_count=getattr(wa, "sample_count", 0),
+                required_sample_count=getattr(wa, "required_sample_count", 0),
+                channels_checked=tuple(getattr(wa, "channels_checked", ())),
+                reason=getattr(wa, "reason", ""),
+            )
+        else:
+            wa_ctx = WindowAdequacyContext()
+
         state_ctx = SpacecraftStateContext(
             state_summary=getattr(residual_report, "summary", ""),
             anomalous_channels=tuple(anomalous_channels),
@@ -254,6 +288,8 @@ def build_ranking_input(
                     state_sequence, "channels_modelled", []
                 ) if state_sequence else []
             ),
+            residuals=tuple(residuals_list),
+            window_adequacy=wa_ctx,
         )
 
     # --- Procedure context ---
@@ -279,12 +315,9 @@ def build_ranking_input(
             ))
             valid_procedure_ids.append(proc.procedure_id)
 
-    # Also include ALL procedure IDs from the library as valid
-    try:
-        from app.procedures.library import PROCEDURE_LIBRARY
-        valid_procedure_ids = list(PROCEDURE_LIBRARY.keys())
-    except ImportError:
-        pass
+    # Restrict valid_procedure_ids to only retrieved procedures (or deterministic policy).
+    # Deduplicate while preserving order.
+    valid_procedure_ids = list(dict.fromkeys(valid_procedure_ids))
 
     # --- Safety context ---
     valid_cmd_ids: list[str] = []
@@ -362,11 +395,22 @@ _COMMAND_KEYS = frozenset({
     "raw_command", "actuator_command",
 })
 
-# Certainty words not justified by deterministic evidence
+# Certainty words not justified by deterministic evidence (Phase 17).
+# Note: "100%" alone is NOT included because telemetry values legitimately read
+# "CPU load at 100%" or "SoC at 100%". We target explicit certainty phrases.
 _UNSUPPORTED_CERTAINTY_WORDS = (
-    "definitely", "certainly", "confirmed", "100%",
-    "100 percent", "absolutely certain", "without doubt",
+    "definitely", "certainly", "confirmed",
+    "absolutely certain", "without doubt",
     "undoubtedly", "unquestionably",
+    "100% certain", "100% confidence", "100% sure", "100% guaranteed", "100% proven",
+    "100 percent certain", "100 percent confidence", "100 percent sure",
+)
+
+_CERTAINTY_PATTERN = re.compile(
+    r"\b(100\s*%\s*(?:certain|confidence|sure|guaranteed|proven|true|conclusive)|"
+    r"(?:certain|sure|conclusive|guaranteed|proven|confidence)\s*(?:is|of|=|:)?\s*100\s*%|"
+    r"100\s*percent\s*(?:certain|confidence|sure|guaranteed|proven|true))\b",
+    re.IGNORECASE,
 )
 
 
@@ -555,6 +599,7 @@ def validate_ranking_output(
     for rh in output.ranked_hypotheses:
         texts_to_scan.append(rh.justification)
     combined_text = " ".join(texts_to_scan).lower()
+    flagged = False
     for word in _UNSUPPORTED_CERTAINTY_WORDS:
         if word in combined_text:
             violations.append(GuardrailViolation(
@@ -566,7 +611,22 @@ def validate_ranking_output(
                 offending_value=word,
                 corrective_action="Certainty claim flagged; requires_human_review set",
             ))
+            flagged = True
             break  # One violation is enough to flag the issue
+
+    if not flagged:
+        m = _CERTAINTY_PATTERN.search(combined_text)
+        if m:
+            matched_word = m.group(0)
+            violations.append(GuardrailViolation(
+                violation_type=ViolationType.UNSUPPORTED_CERTAINTY,
+                detail=(
+                    f"LLM used unsupported certainty language: '{matched_word}'. "
+                    f"Deterministic evidence does not justify absolute certainty."
+                ),
+                offending_value=matched_word,
+                corrective_action="Certainty claim flagged; requires_human_review set",
+            ))
 
     # --- Filter invalid evidence IDs from corrected output ---
     corrected_supporting = output.supporting_evidence_ids

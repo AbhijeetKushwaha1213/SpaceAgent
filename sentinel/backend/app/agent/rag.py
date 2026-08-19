@@ -505,13 +505,12 @@ _FAULT_CLASS_QUERIES: dict[str, str] = {
 # ═══════════════════════════════════════════════════════════════════════════
 
 def _get_embedding_fn() -> Any:
-    """Create a sentence-transformers embedding function for ChromaDB.
+    """Create an embedding function for ChromaDB.
 
     Uses all-MiniLM-L6-v2 (free, local, no API key needed).
-    Returns None (triggering fallback KB) if sentence-transformers or
-    chromadb embedding utilities are not importable.
+    Falls back gracefully across SentenceTransformerEmbeddingFunction -> DefaultEmbeddingFunction.
     """
-    # Try the standard chromadb embedding function import path
+    # Try sentence-transformers embedding function
     try:
         from chromadb.utils.embedding_functions import (
             SentenceTransformerEmbeddingFunction,
@@ -520,16 +519,23 @@ def _get_embedding_fn() -> Any:
             model_name=EMBEDDING_MODEL,
         )
     except (ImportError, Exception) as e:
-        logger.warning("Could not create sentence-transformers embedding fn: %s", e)
+        logger.debug("SentenceTransformerEmbeddingFunction unavailable: %s", e)
 
-    # Fallback import path for older/newer chromadb versions
     try:
         from chromadb.utils import embedding_functions as ef_module
-        return ef_module.SentenceTransformerEmbeddingFunction(
-            model_name=EMBEDDING_MODEL,
-        )
+        if hasattr(ef_module, "SentenceTransformerEmbeddingFunction"):
+            return ef_module.SentenceTransformerEmbeddingFunction(
+                model_name=EMBEDDING_MODEL,
+            )
     except (ImportError, Exception) as e:
-        logger.warning("Fallback embedding import also failed: %s", e)
+        logger.debug("Fallback SentenceTransformerEmbeddingFunction failed: %s", e)
+
+    # Fallback to chromadb's built-in ONNX all-MiniLM-L6-v2 function
+    try:
+        from chromadb.utils.embedding_functions import DefaultEmbeddingFunction
+        return DefaultEmbeddingFunction()
+    except (ImportError, Exception) as e:
+        logger.warning("DefaultEmbeddingFunction also failed: %s", e)
 
     return None
 

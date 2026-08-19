@@ -91,31 +91,22 @@ def test_contract_pins_scenario1_content():
     assert "Gyro_rate_degs" in d["spacecraft_state"]["residual_summary"]
 
 
-def test_contract_gap_evidence_tuples_are_empty():
-    """Baseline pin: deterministic evidence IDs do not reach the LLM.
-
-    EvidenceItem has no evidence_id attribute, so build_ranking_input
-    produces empty tuples. The NONEXISTENT_EVIDENCE guardrail therefore has
-    nothing to validate against. See LLM_BASELINE_REPORT.md §D.
-    """
+def test_contract_evidence_ids_reach_llm():
+    """Phase 17: deterministic evidence IDs reach the LLM."""
     _, ri, _ = _pipeline("1")
-    for h in ri.hypotheses:
-        assert h.supporting_evidence == ()
-        assert h.contradicting_evidence == ()
-        assert h.undetermined_evidence == ()
+    assert len(ri.hypotheses[0].supporting_evidence) > 0
+    assert all(isinstance(eid, str) and eid.startswith("EVID-") for eid in ri.hypotheses[0].supporting_evidence)
 
 
-def test_contract_gap_no_residual_numbers():
-    """Baseline pin: per-residual observed/predicted/tolerance NUMBERS are
-    NOT in the contract as structured fields — only the textual summary
-    reaches the LLM (SoC observed 71.96 must not appear verbatim)."""
+def test_contract_quantitative_residuals_serialized():
+    """Phase 17: quantitative residuals and window adequacy reach the LLM."""
     _, ri, _ = _pipeline("2")
     d = ri.as_prompt_dict()
-    raw = json.dumps(d)
-    assert "71.96" not in raw
-    summary = d["spacecraft_state"]["residual_summary"]
-    assert "exceed tolerance" in summary
-    assert "residual" not in d  # no structured residual key at top level
+    assert "residuals" in d["spacecraft_state"]
+    assert "window_adequacy" in d["spacecraft_state"]
+    soc_res = next((r for r in d["spacecraft_state"]["residuals"] if r["channel"] == "SoC_pct"), None)
+    assert soc_res is not None
+    assert soc_res["observed"] is not None
 
 
 def test_contract_gap_no_rag_text_in_prompt():
@@ -129,9 +120,11 @@ def test_contract_gap_no_rag_text_in_prompt():
     assert ri.as_prompt_dict()["procedures"][0]["procedure_id"] == "PROC-ADCS-SEU-001"
 
 
-def test_contract_valid_procedure_ids_is_full_library():
+def test_contract_valid_procedure_ids_restricted_to_retrieved():
+    """Phase 17: valid_procedure_ids contains only retrieved procedures."""
     _, ri, _ = _pipeline("1")
-    assert len(ri.valid_procedure_ids) == 6
+    assert len(ri.valid_procedure_ids) == 1
+    assert ri.valid_procedure_ids[0] == "PROC-ADCS-SEU-001"
 
 
 def test_contract_safety_command_ids_not_in_prompt():

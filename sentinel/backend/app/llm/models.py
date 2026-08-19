@@ -231,6 +231,29 @@ class LLMRankingInput:
                     self.spacecraft_state.anomalous_channels
                 ),
                 "residual_summary": self.spacecraft_state.residual_summary,
+                "channels_modelled": list(
+                    self.spacecraft_state.channels_modelled
+                ),
+                "residuals": [
+                    {
+                        "channel": r.channel,
+                        "unit": r.unit,
+                        "status": r.status,
+                        "observed": r.observed,
+                        "predicted": r.predicted,
+                        "residual": r.residual,
+                        "tolerance": r.tolerance,
+                        "exceedance": r.exceedance,
+                    }
+                    for r in self.spacecraft_state.residuals
+                ],
+                "window_adequacy": {
+                    "status": self.spacecraft_state.window_adequacy.status,
+                    "sample_count": self.spacecraft_state.window_adequacy.sample_count,
+                    "required_sample_count": self.spacecraft_state.window_adequacy.required_sample_count,
+                    "channels_checked": list(self.spacecraft_state.window_adequacy.channels_checked),
+                    "reason": self.spacecraft_state.window_adequacy.reason,
+                },
             },
             "procedures": [
                 {

@@ -581,12 +581,11 @@ class TestConstraintGuardsStillFire(unittest.TestCase):
     def test_no_constraints_were_added_to_pre_existing_commands(self):
         """Phase 1 must not tighten commands it was not asked to tighten.
 
-        These two were briefly given a battery-floor prohibition during the
-        refactor. The pre-Phase-1 validator did not apply one, so it was
-        reverted — a stricter rule is still a behaviour change, and it belongs
-        in a phase that asks for it.
+        CMD_BATTERY_HEATER_ENABLE does not have a battery-floor prohibition
+        so that emergency battery warming remains possible at low SoC.
+        (Note: CMD_SAFE_MODE_EXIT was tightened with BATTERY_BELOW_FLOOR in Phase 17).
         """
-        for cmd in ("CMD_SAFE_MODE_EXIT", "CMD_BATTERY_HEATER_ENABLE"):
+        for cmd in ("CMD_BATTERY_HEATER_ENABLE",):
             with self.subTest(command=cmd):
                 r = validated([cmd], ctx={"SoC_pct": 5.0})
                 self.assertEqual(r.safety_status, SafetyStatus.VALIDATED)
