@@ -685,7 +685,7 @@ def convert_to_sentinel_output(
     ranked = sorted(ranking_output.ranked_hypotheses, key=lambda h: h.rank)
 
     for i, rh in enumerate(ranked[:3]):
-        causal_chain = list(rh.causal_chain)
+        causal_chain = [str(c) for c in rh.causal_chain]
         if not causal_chain:
             causal_chain = [
                 "See reasoning_summary for causal analysis",

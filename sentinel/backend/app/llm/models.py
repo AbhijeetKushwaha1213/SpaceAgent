@@ -317,29 +317,34 @@ class LLMRankingOutput:
         """
         ranked = []
         for h in data.get("ranked_hypotheses", []):
+            raw_chain = h.get("causal_chain", [])
+            clean_chain = tuple(str(x) for x in raw_chain) if isinstance(raw_chain, (list, tuple)) else ()
             ranked.append(RankedHypothesis(
-                fault_id=h.get("fault_id", ""),
-                rank=h.get("rank", 0),
+                fault_id=str(h.get("fault_id", "")),
+                rank=int(h.get("rank", 0)),
                 confidence=max(0.0, min(1.0, float(h.get("confidence", 0.0)))),
-                justification=h.get("justification", ""),
-                affected_component=h.get("affected_component", ""),
-                causal_chain=tuple(h.get("causal_chain", [])),
+                justification=str(h.get("justification", "")),
+                affected_component=str(h.get("affected_component", "")),
+                causal_chain=clean_chain,
             ))
+
+        supp_ev = data.get("supporting_evidence_ids", [])
+        clean_supp = tuple(str(x) for x in supp_ev) if isinstance(supp_ev, (list, tuple)) else ()
+
+        contra_ev = data.get("contradicting_evidence_ids", [])
+        clean_contra = tuple(str(x) for x in contra_ev) if isinstance(contra_ev, (list, tuple)) else ()
+
+        sel_proc = data.get("selected_procedure_ids", [])
+        clean_proc = tuple(str(x) for x in sel_proc) if isinstance(sel_proc, (list, tuple)) else ()
 
         return cls(
             ranked_hypotheses=tuple(ranked),
-            reasoning_summary=data.get("reasoning_summary", ""),
-            supporting_evidence_ids=tuple(
-                data.get("supporting_evidence_ids", [])
-            ),
-            contradicting_evidence_ids=tuple(
-                data.get("contradicting_evidence_ids", [])
-            ),
-            selected_procedure_ids=tuple(
-                data.get("selected_procedure_ids", [])
-            ),
-            uncertainty=data.get("uncertainty", ""),
-            requires_human_review=data.get("requires_human_review", True),
+            reasoning_summary=str(data.get("reasoning_summary", "")),
+            supporting_evidence_ids=clean_supp,
+            contradicting_evidence_ids=clean_contra,
+            selected_procedure_ids=clean_proc,
+            uncertainty=str(data.get("uncertainty", "")),
+            requires_human_review=bool(data.get("requires_human_review", True)),
         )
 
 

@@ -284,6 +284,7 @@ class LocalProvider(LLMProvider):
                 messages=messages,
                 temperature=self.config.temperature,
                 max_tokens=self.config.max_tokens,
+                response_format={"type": "json_object"},
             )
             content = response.choices[0].message.content
             if not content:
@@ -300,6 +301,7 @@ class LocalProvider(LLMProvider):
                 "messages": messages,
                 "temperature": self.config.temperature,
                 "max_tokens": self.config.max_tokens,
+                "response_format": {"type": "json_object"},
             }
             req = urllib.request.Request(
                 endpoint,
