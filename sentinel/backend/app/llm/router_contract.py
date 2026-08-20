@@ -141,8 +141,12 @@ class RoutingReason(str, Enum):
     PROCEDURE_INVALID = "procedure_invalid"
     SAFETY_BLOCK = "safety_block"
 
-    # Cloud branch availability
+    # Cloud branch availability / failures (Phase 23 Step 3)
     CLOUD_UNAVAILABLE = "cloud_unavailable"
+    CLOUD_TIMEOUT = "cloud_timeout"
+    # Fail-closed cloud redaction gate refused the transmission.  Raised
+    # only by deterministic gate code, never by a model.
+    REDACTION_GATE_FAILURE = "redaction_gate_failure"
 
     # Cross-branch arbitration inputs
     MODEL_DISAGREEMENT = "model_disagreement"
@@ -247,6 +251,12 @@ class BranchResult:
     # UNTRUSTED diagnostics: truncated head of the raw model text, kept
     # strictly separate from validated_output.  See trust note above.
     raw_text_head: str = ""
+
+    # 10. Deterministic audit metadata (Phase 23 Step 3): the cloud
+    #     redaction report for cloud branches (classification + what was
+    #     redacted and why); None for branches with no external
+    #     transmission.  Deterministic producer only — never model data.
+    redaction_report: Optional[dict] = None
 
     @property
     def succeeded(self) -> bool:

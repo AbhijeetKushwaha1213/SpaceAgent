@@ -63,6 +63,13 @@ from app.llm.branch_policy import (  # noqa: F401
 from app.llm.local_branch import (  # noqa: F401
     LocalBranchRunner,
 )
+# Phase 23 Step 3: dormant cloud branch adapter + redaction gate.
+from app.llm.cloud_branch import (  # noqa: F401
+    CloudBranchRunner,
+    CloudRedactionError,
+    CloudRedactionResult,
+    redact_ranking_input_for_cloud,
+)
 
 __all__ = [
     # models
@@ -105,4 +112,9 @@ __all__ = [
     "BranchPolicy",
     "PolicyInput",
     "LocalBranchRunner",
+    # cloud branch + redaction gate (Phase 23 Step 3 — dormant)
+    "CloudBranchRunner",
+    "CloudRedactionError",
+    "CloudRedactionResult",
+    "redact_ranking_input_for_cloud",
 ]
