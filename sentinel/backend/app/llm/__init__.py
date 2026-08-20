@@ -55,6 +55,14 @@ from app.llm.router_contract import (  # noqa: F401
     combine_human_review,
     router_enabled,
 )
+# Phase 23 Step 2: dormant branch policy + local branch adapter.
+from app.llm.branch_policy import (  # noqa: F401
+    BranchPolicy,
+    PolicyInput,
+)
+from app.llm.local_branch import (  # noqa: F401
+    LocalBranchRunner,
+)
 
 __all__ = [
     # models
@@ -93,4 +101,8 @@ __all__ = [
     "RoutingRecord",
     "combine_human_review",
     "router_enabled",
+    # branch policy + local runner (Phase 23 Step 2 — dormant)
+    "BranchPolicy",
+    "PolicyInput",
+    "LocalBranchRunner",
 ]
