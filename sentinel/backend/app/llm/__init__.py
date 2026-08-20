@@ -44,6 +44,17 @@ from app.llm.explainer import (  # noqa: F401
     explain_uncertainty,
     identify_contradictions,
 )
+# Phase 23 Step 1: dormant hybrid-router contracts (ROUTER_ENABLED=false).
+from app.llm.router_contract import (  # noqa: F401
+    Branch,
+    BranchOutcome,
+    BranchResult,
+    RoutingDecision,
+    RoutingReason,
+    RoutingRecord,
+    combine_human_review,
+    router_enabled,
+)
 
 __all__ = [
     # models
@@ -73,4 +84,13 @@ __all__ = [
     "explain_physics",
     "explain_uncertainty",
     "identify_contradictions",
+    # router contract (Phase 23 Step 1 — dormant, no routing behavior)
+    "Branch",
+    "BranchOutcome",
+    "BranchResult",
+    "RoutingDecision",
+    "RoutingReason",
+    "RoutingRecord",
+    "combine_human_review",
+    "router_enabled",
 ]
