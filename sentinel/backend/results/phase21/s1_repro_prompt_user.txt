@@ -1,0 +1,289 @@
+{
+  "anomaly_summary": "11 anomaly(ies) on 3 of 6 channel(s) across 15 reading(s). Highest severity: CRITICAL on Attitude_error_deg. By detector: COUNTER=2, DATA_QUALITY=1, HARD_LIMIT=4, RATE_OF_CHANGE=1, SUDDEN_CHANGE=1, ZSCORE=2. Corroborated by independent detectors: Attitude_error_deg, SEU_counter.",
+  "anomalous_channels": [
+    "Attitude_error_deg",
+    "Gyro_rate_degs",
+    "SEU_counter"
+  ],
+  "anomaly_count": 11,
+  "hypotheses": [
+    {
+      "hypothesis_id": "HYP-fe6c2896e2f5",
+      "fault_id": "ADCS_GYRO_SEU",
+      "fault_name": "Gyroscope single-event upset",
+      "subsystem": "AOCS",
+      "deterministic_rank": 1,
+      "deterministic_score": 0.965,
+      "supporting_evidence": [
+        "EVID-679e718dd1db",
+        "EVID-9cc212ba9fe9",
+        "EVID-5796888f538d",
+        "EVID-99ff1ea0ce7b",
+        "EVID-bf2e0090666e"
+      ],
+      "contradicting_evidence": [],
+      "causal_chain": [
+        "SEU strike registered on the gyro processor",
+        "Gyro rate output becomes invalid",
+        "ADCS loses attitude knowledge",
+        "Attitude error grows past its limit",
+        "FDIR commands safe-mode entry"
+      ],
+      "affected_channels": [
+        "Attitude_error_deg",
+        "Gyro_rate_degs",
+        "SEU_counter"
+      ],
+      "physics_status": "UNCERTAIN"
+    },
+    {
+      "hypothesis_id": "HYP-df940c8449a2",
+      "fault_id": "EPS_SOLAR_UNDERVOLT",
+      "fault_name": "Solar array power loss",
+      "subsystem": "EPS",
+      "deterministic_rank": 2,
+      "deterministic_score": 0.3983,
+      "supporting_evidence": [
+        "EVID-2b8fe0227409"
+      ],
+      "contradicting_evidence": [],
+      "causal_chain": [
+        "Array current drops while the spacecraft is sunlit",
+        "Battery supplies the whole load",
+        "Battery voltage and state of charge fall",
+        "Regulated bus voltage leaves its range",
+        "EPS FDIR commands safe-mode entry"
+      ],
+      "affected_channels": [],
+      "physics_status": "UNCERTAIN"
+    },
+    {
+      "hypothesis_id": "HYP-08604d0e9812",
+      "fault_id": "AOCS_CONTROL_COMMAND_ANOMALY",
+      "fault_name": "Control command anomaly",
+      "subsystem": "AOCS",
+      "deterministic_rank": 3,
+      "deterministic_score": 0.39,
+      "supporting_evidence": [
+        "EVID-429070d6c1d9",
+        "EVID-cc4f823e6a7b",
+        "EVID-5796888f538d",
+        "EVID-9aed9742543f"
+      ],
+      "contradicting_evidence": [
+        "EVID-86c977ea0756",
+        "EVID-23576a0d1f56"
+      ],
+      "causal_chain": [
+        "An erroneous attitude command is accepted",
+        "The wheels execute it faithfully",
+        "The vehicle departs the commanded attitude",
+        "Attitude error exceeds its limit and FDIR trips"
+      ],
+      "affected_channels": [
+        "Attitude_error_deg",
+        "Gyro_rate_degs",
+        "RW_speed_rpm"
+      ],
+      "physics_status": "UNCERTAIN"
+    },
+    {
+      "hypothesis_id": "HYP-64d5b286d2c1",
+      "fault_id": "MULTI_CASCADE",
+      "fault_name": "Cross-subsystem cascade",
+      "subsystem": "MULTI",
+      "deterministic_rank": 4,
+      "deterministic_score": 0.36,
+      "supporting_evidence": [
+        "EVID-99ff1ea0ce7b",
+        "EVID-5796888f538d"
+      ],
+      "contradicting_evidence": [],
+      "causal_chain": [
+        "An initiating fault occurs in one subsystem",
+        "Its effect crosses a subsystem boundary",
+        "Downstream subsystems report their own anomalies",
+        "Multiple FDIR monitors trip"
+      ],
+      "affected_channels": [
+        "Attitude_error_deg",
+        "Gyro_rate_degs"
+      ],
+      "physics_status": "UNCERTAIN"
+    },
+    {
+      "hypothesis_id": "HYP-1fefeeb8e572",
+      "fault_id": "AOCS_SENSOR_FAULT",
+      "fault_name": "Attitude sensor fault",
+      "subsystem": "AOCS",
+      "deterministic_rank": 5,
+      "deterministic_score": 0.3,
+      "supporting_evidence": [
+        "EVID-9cc212ba9fe9",
+        "EVID-99ff1ea0ce7b"
+      ],
+      "contradicting_evidence": [
+        "EVID-0961aacd8ea0",
+        "EVID-cc05e9d83bb3"
+      ],
+      "causal_chain": [
+        "An attitude sensor fails or is blinded",
+        "The attitude estimate degrades or becomes unavailable",
+        "Reported attitude error grows",
+        "ADCS FDIR trips"
+      ],
+      "affected_channels": [
+        "Attitude_error_deg",
+        "Gyro_rate_degs",
+        "SEU_counter"
+      ],
+      "physics_status": "UNCERTAIN"
+    },
+    {
+      "hypothesis_id": "HYP-88d4f15083c1",
+      "fault_id": "AOCS_EXTERNAL_DISTURBANCE",
+      "fault_name": "External disturbance torque",
+      "subsystem": "AOCS",
+      "deterministic_rank": 6,
+      "deterministic_score": 0.235,
+      "supporting_evidence": [
+        "EVID-429070d6c1d9",
+        "EVID-5796888f538d"
+      ],
+      "contradicting_evidence": [
+        "EVID-86c977ea0756",
+        "EVID-0961aacd8ea0",
+        "EVID-cc05e9d83bb3"
+      ],
+      "causal_chain": [
+        "An external torque acts on the vehicle",
+        "The control system absorbs it into the wheels",
+        "Wheel momentum accumulates",
+        "Pointing degrades once control authority is exhausted"
+      ],
+      "affected_channels": [
+        "Attitude_error_deg",
+        "Gyro_rate_degs",
+        "SEU_counter"
+      ],
+      "physics_status": "VALID"
+    },
+    {
+      "hypothesis_id": "HYP-c3edb6cc1fca",
+      "fault_id": "AOCS_GYRO_BIAS_DRIFT",
+      "fault_name": "Gyroscope bias drift",
+      "subsystem": "AOCS",
+      "deterministic_rank": 7,
+      "deterministic_score": 0.235,
+      "supporting_evidence": [
+        "EVID-6189b7b78f62",
+        "EVID-99ff1ea0ce7b"
+      ],
+      "contradicting_evidence": [
+        "EVID-86c977ea0756",
+        "EVID-0961aacd8ea0",
+        "EVID-cc05e9d83bb3"
+      ],
+      "causal_chain": [
+        "Gyro bias drifts away from its calibrated value",
+        "Integrated attitude estimate accumulates error",
+        "Attitude error grows steadily",
+        "ADCS FDIR trips once the error exceeds its limit"
+      ],
+      "affected_channels": [
+        "Attitude_error_deg",
+        "Gyro_rate_degs",
+        "SEU_counter"
+      ],
+      "physics_status": "UNCERTAIN"
+    }
+  ],
+  "valid_fault_ids": [
+    "ADCS_GYRO_SEU",
+    "EPS_SOLAR_UNDERVOLT",
+    "AOCS_GYRO_BIAS_DRIFT",
+    "AOCS_SENSOR_FAULT",
+    "AOCS_CONTROL_COMMAND_ANOMALY",
+    "MULTI_CASCADE",
+    "AOCS_EXTERNAL_DISTURBANCE"
+  ],
+  "physics": {
+    "hypotheses_examined": 7,
+    "invalidated": [],
+    "validated": [
+      "AOCS_EXTERNAL_DISTURBANCE"
+    ],
+    "uncertain": [
+      "ADCS_GYRO_SEU",
+      "EPS_SOLAR_UNDERVOLT",
+      "AOCS_CONTROL_COMMAND_ANOMALY",
+      "MULTI_CASCADE",
+      "AOCS_SENSOR_FAULT",
+      "AOCS_GYRO_BIAS_DRIFT"
+    ],
+    "summary": "1 of 7 hypothesis(es) corroborated by the state model (AOCS_EXTERNAL_DISTURBANCE); none contradicted, 6 undecided."
+  },
+  "spacecraft_state": {
+    "state_summary": "1 residual(s) exceed tolerance (Gyro_rate_degs); 0 consistent, 1 undecidable across 2 step(s). An exceedance indicates disagreement with the stated model assumptions, not a confirmed hardware fault.",
+    "anomalous_channels": [
+      "Attitude_error_deg",
+      "Gyro_rate_degs",
+      "SEU_counter"
+    ],
+    "residual_summary": "1 residual(s) exceed tolerance (Gyro_rate_degs); 0 consistent, 1 undecidable across 2 step(s). An exceedance indicates disagreement with the stated model assumptions, not a confirmed hardware fault.",
+    "channels_modelled": [
+      "Attitude_error_deg",
+      "Gyro_rate_degs",
+      "RW_speed_rpm",
+      "V_bat"
+    ],
+    "residuals": [
+      {
+        "channel": "Gyro_rate_degs",
+        "unit": "deg/s",
+        "status": "INCONSISTENT",
+        "observed": 4.5,
+        "predicted": 0.5246666666666667,
+        "residual": 3.9753333333333334,
+        "tolerance": 0.115,
+        "exceedance": 3.860333333333333
+      },
+      {
+        "channel": "Attitude_error_deg",
+        "unit": "deg",
+        "status": "UNDECIDABLE",
+        "observed": 7.4,
+        "predicted": null,
+        "residual": null,
+        "tolerance": null,
+        "exceedance": null
+      }
+    ],
+    "window_adequacy": {
+      "status": "ADEQUATE_FOR_PHYSICS",
+      "sample_count": 0,
+      "required_sample_count": 0,
+      "channels_checked": [],
+      "reason": ""
+    }
+  },
+  "procedures": [
+    {
+      "procedure_id": "PROC-ADCS-SEU-001",
+      "title": "ADCS Gyroscope Single-Event Upset (SEU) Recovery",
+      "subsystem": "ADCS",
+      "fault_class": "ADCS_GYRO_SEU",
+      "source_type": "FALLBACK_KB",
+      "citation_id": "CIT-PROC-ADCS-SEU-001"
+    }
+  ],
+  "valid_procedure_ids": [
+    "PROC-ADCS-SEU-001"
+  ],
+  "safety_constraints": {
+    "notes": "The LLM may select procedure IDs but may NOT invent new commands. All commands must exist in the COMMAND_REGISTRY."
+  },
+  "scenario_id": 1,
+  "fault_type": "ADCS_GYRO_SEU",
+  "safe_mode_trigger": "ADCS_ERROR"
+}

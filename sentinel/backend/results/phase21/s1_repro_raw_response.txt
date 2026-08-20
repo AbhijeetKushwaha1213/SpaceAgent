@@ -1,0 +1,86 @@
+{
+  "scenario_id": 1,
+  "fault_type": "ADCS_GYRO_SEU",
+  "safe_mode_trigger": "ADCS_ERROR",
+  "hypotheses": [
+    {
+      "hypothesis_id": "HYP-88d4f15083c1",
+      "fault_id": "AOCS_EXTERNAL_DISTURBANCE",
+      "fault_name": "External disturbance torque",
+      "subsystem": "AOCS",
+      "deterministic_rank": 6,
+      "deterministic_score": 0.235,
+      "supporting_evidence": [
+        "EVID-429070d6c1d9",
+        "EVID-5796888f538d"
+      ],
+      "contradicting_evidence": [
+        "EVID-86c977ea0756",
+        "EVID-0961aacd8ea0",
+        "EVID-cc05e9d83bb3"
+      ],
+      "causal_chain": [
+        "An external torque acts on the vehicle",
+        "The control system absorbs it into the wheels",
+        "Wheel momentum accumulates",
+        "Pointing degrades once control authority is exhausted"
+      ],
+      "affected_channels": [
+        "Attitude_error_deg",
+        "Gyro_rate_degs",
+        "SEU_counter"
+      ],
+      "physics_status": "VALID"
+    },
+    {
+      "hypothesis_id": "HYP-c3edb6cc1fca",
+      "fault_id": "AOCS_GYRO_BIAS_DRIFT",
+      "fault_name": "Gyroscope bias drift",
+      "subsystem": "AOCS",
+      "deterministic_rank": 7,
+      "deterministic_score": 0.235,
+      "supporting_evidence": [
+        "EVID-6189b7b78f62",
+        "EVID-99ff1ea0ce7b"
+      ],
+      "contradicting_evidence": [
+        "EVID-86c977ea0756",
+        "EVID-0961aacd8ea0",
+        "EVID-cc05e9d83bb3"
+      ],
+      "causal_chain": [
+        "Gyro bias drifts away from its calibrated value",
+        "Integrated attitude estimate accumulates error",
+        "Attitude error grows steadily",
+        "ADCS FDIR trips once the error exceeds its limit"
+      ],
+      "affected_channels": [
+        "Attitude_error_deg",
+        "Gyro_rate_degs",
+        "SEU_counter"
+      ],
+      "physics_status": "UNCERTAIN"
+    }
+  ],
+  "valid_fault_ids": [
+    "ADCS_GYRO_SEU",
+    "EPS_SOLAR_UNDERVOLT",
+    "AOCS_GYRO_BIAS_DRIFT",
+    "AOCS_CONTROL_COMMAND_ANOMALY",
+    "MULTI_CASCADE",
+    "AOCS_EXTERNAL_DISTURBANCE"
+  ],
+  "physics": {
+    "hypotheses_examined": 7,
+    "invalidated": [],
+    "validated": [
+      "AOCS_EXTERNAL_DISTURBANCE"
+    ],
+    "uncertain": [
+      "ADCS_GYRO_SEU",
+      "EPS_SOLAR_UNDERVOLT",
+      "AOCS_CONTROL_COMMAND_ANOMALY",
+      "MULTI_CASCADE",
+      "AOCS_SENSOR_FAULT",
+      "AOCS_GYRO_BIAS_DRIFT"
+   

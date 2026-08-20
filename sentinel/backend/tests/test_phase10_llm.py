@@ -125,6 +125,10 @@ def _make_ranking_input(
         scenario_id="TEST_001",
         fault_type="ADCS_GYRO_SEU",
         safe_mode_trigger="Gyro rate exceeded threshold",
+        # Phase 21: this fixture carries supporting evidence on a healthy
+        # window, i.e. the ADEQUATE evidence state. The INSUFFICIENT default
+        # would (correctly) forbid every positive claim this fixture makes.
+        evidence_status="ADEQUATE",
     )
 
 

@@ -19,6 +19,8 @@ from app.llm.models import (  # noqa: F401
     RankedHypothesis,
     GuardrailViolation,
     GuardrailResult,
+    EvidenceStatus,
+    ViolationType,
 )
 from app.llm.provider import (  # noqa: F401
     LLMProvider,
@@ -33,6 +35,7 @@ from app.llm.ranker import (  # noqa: F401
     validate_ranking_output,
     run_constrained_ranking,
     convert_to_sentinel_output,
+    compute_evidence_status,
 )
 from app.llm.explainer import (  # noqa: F401
     explain_ranking,
@@ -49,6 +52,8 @@ __all__ = [
     "RankedHypothesis",
     "GuardrailViolation",
     "GuardrailResult",
+    "EvidenceStatus",
+    "ViolationType",
     # provider
     "LLMProvider",
     "GeminiProvider",
@@ -61,6 +66,7 @@ __all__ = [
     "validate_ranking_output",
     "run_constrained_ranking",
     "convert_to_sentinel_output",
+    "compute_evidence_status",
     # explainer
     "explain_ranking",
     "explain_evidence",

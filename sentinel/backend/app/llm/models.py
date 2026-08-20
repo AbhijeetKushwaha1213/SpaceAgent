@@ -154,6 +154,19 @@ class SafetyContext:
     notes: str = ""
 
 
+class EvidenceStatus(str, Enum):
+    """Machine-readable evidence state presented to the LLM (Phase 21).
+
+    Computed deterministically from the hypothesis evidence sets and the
+    telemetry window adequacy. The LLM must not override it; the guardrails
+    enforce the INSUFFICIENT contract independently of prompt compliance.
+    """
+    ADEQUATE = "ADEQUATE"
+    PARTIAL = "PARTIAL"
+    INSUFFICIENT = "INSUFFICIENT"
+    CONTRADICTORY = "CONTRADICTORY"
+
+
 @dataclass(frozen=True)
 class LLMRankingInput:
     """The complete context bundle sent to the LLM.
@@ -167,6 +180,7 @@ class LLMRankingInput:
     - procedure evidence
     - citations
     - safety constraints
+    - evidence_status (Phase 21: machine-readable evidence state)
     """
     # Anomaly report
     anomaly_summary: str = ""
@@ -194,6 +208,10 @@ class LLMRankingInput:
     scenario_id: str = ""
     fault_type: str = ""
     safe_mode_trigger: str = ""
+
+    # Phase 21: deterministic evidence state. Defaults to INSUFFICIENT —
+    # the fail-safe value when no stage has established evidence.
+    evidence_status: str = EvidenceStatus.INSUFFICIENT.value
 
     def as_prompt_dict(self) -> dict[str, Any]:
         """Serialize to a dict suitable for JSON-encoding into the prompt."""
@@ -273,6 +291,7 @@ class LLMRankingInput:
             "scenario_id": self.scenario_id,
             "fault_type": self.fault_type,
             "safe_mode_trigger": self.safe_mode_trigger,
+            "evidence_status": self.evidence_status,
         }
 
 
@@ -328,14 +347,19 @@ class LLMRankingOutput:
                 causal_chain=clean_chain,
             ))
 
-        supp_ev = data.get("supporting_evidence_ids", [])
-        clean_supp = tuple(str(x) for x in supp_ev) if isinstance(supp_ev, (list, tuple)) else ()
+        def _clean_id_list(value: Any) -> tuple[str, ...]:
+            """Coerce to a tuple of strings, deduplicated in first-seen order.
 
-        contra_ev = data.get("contradicting_evidence_ids", [])
-        clean_contra = tuple(str(x) for x in contra_ev) if isinstance(contra_ev, (list, tuple)) else ()
+            Phase 21: duplicated IDs in model output are noise, never extra
+            evidence; collapsing them keeps grounding metrics honest.
+            """
+            if not isinstance(value, (list, tuple)):
+                return ()
+            return tuple(dict.fromkeys(str(x) for x in value))
 
-        sel_proc = data.get("selected_procedure_ids", [])
-        clean_proc = tuple(str(x) for x in sel_proc) if isinstance(sel_proc, (list, tuple)) else ()
+        clean_supp = _clean_id_list(data.get("supporting_evidence_ids", []))
+        clean_contra = _clean_id_list(data.get("contradicting_evidence_ids", []))
+        clean_proc = _clean_id_list(data.get("selected_procedure_ids", []))
 
         return cls(
             ranked_hypotheses=tuple(ranked),
@@ -361,6 +385,9 @@ class ViolationType(str, Enum):
     UNSUPPORTED_HYPOTHESIS = "UNSUPPORTED_HYPOTHESIS"
     INVENTED_TELEMETRY = "INVENTED_TELEMETRY"
     UNSUPPORTED_CERTAINTY = "UNSUPPORTED_CERTAINTY"
+    # Phase 21: the model asserted evidence/procedures/confidence although the
+    # deterministic layer reported evidence_status=INSUFFICIENT.
+    INSUFFICIENT_EVIDENCE_CLAIM = "INSUFFICIENT_EVIDENCE_CLAIM"
 
 
 @dataclass(frozen=True)

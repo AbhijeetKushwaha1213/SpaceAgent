@@ -30,6 +30,7 @@ import time
 from typing import Any, Optional
 
 from app.llm.models import (
+    EvidenceStatus,
     GuardrailResult,
     GuardrailViolation,
     HypothesisContext,
@@ -47,6 +48,51 @@ from app.llm.models import (
 from app.llm.provider import LLMProvider, ProviderError
 
 logger = logging.getLogger("sentinel.llm.ranker")
+
+
+# ═══════════════════════════════════════════════════════════════════════
+# EVIDENCE STATUS — deterministic evidence state for the LLM (Phase 21)
+# ═══════════════════════════════════════════════════════════════════════
+
+#: Window-adequacy statuses that degrade evidence quality (Phase 21).
+_DEGRADED_WINDOW_STATUSES = frozenset({
+    "MISSING_REQUIRED_CHANNELS",
+    "UNDER_SAMPLED",
+    "UNDER_SAMPLED_FOR_PHYSICS",
+    "INVALID_TIMESTAMPS",
+})
+
+
+def compute_evidence_status(
+    hypotheses: tuple[HypothesisContext, ...],
+    window_adequacy_status: str,
+) -> str:
+    """Compute the machine-readable evidence state for the LLM (Phase 21).
+
+    The status is derived ONLY from deterministic pipeline outputs so the
+    model receives an explicit, tamper-proof evidence state:
+
+    - INSUFFICIENT  : no hypotheses at all, or no supporting evidence — the
+                      model must not diagnose anything.
+    - CONTRADICTORY : the window self-contradicts, or contradicting evidence
+                      is at least as strong as supporting evidence.
+    - PARTIAL       : supporting evidence exists but the telemetry window
+                      cannot fully back physics validation.
+    - ADEQUATE      : supporting evidence on an adequate window.
+    """
+    n_supp = sum(len(h.supporting_evidence) for h in hypotheses)
+    n_contra = sum(len(h.contradicting_evidence) for h in hypotheses)
+
+    if not hypotheses or n_supp == 0:
+        return EvidenceStatus.INSUFFICIENT.value
+    if (
+        window_adequacy_status == "CONTRADICTORY_DATA"
+        or (n_contra > 0 and n_contra >= n_supp)
+    ):
+        return EvidenceStatus.CONTRADICTORY.value
+    if window_adequacy_status in _DEGRADED_WINDOW_STATUSES:
+        return EvidenceStatus.PARTIAL.value
+    return EvidenceStatus.ADEQUATE.value
 
 
 # ═══════════════════════════════════════════════════════════════════════════
@@ -98,10 +144,25 @@ CONSTRAINTS:
 - ranked_hypotheses must contain exactly 3 entries with ranks 1, 2, 3
 - fault_id values MUST come from: {valid_fault_ids}
 - selected_procedure_ids MUST come from: {valid_procedure_ids}
+- supporting_evidence_ids and contradicting_evidence_ids MUST come from the evidence IDs present in the input
 - Confidence for rank 1 >= rank 2 >= rank 3
 - If physics validation says INVALID for a hypothesis, rank it lower
 - If physics validation says VALID for a hypothesis, note it as corroborated
 - Do NOT output any text outside the JSON object
+
+EVIDENCE STATUS: {evidence_status}
+evidence_status is computed deterministically from the telemetry. It is one of
+ADEQUATE, PARTIAL, INSUFFICIENT, CONTRADICTORY. You MUST NOT override it.
+
+IF evidence_status is INSUFFICIENT, or the input contains no evidence IDs:
+- ranked_hypotheses must be an empty list, or every confidence must be 0.0
+- supporting_evidence_ids must be an empty list
+- contradicting_evidence_ids must be an empty list
+- selected_procedure_ids must be an empty list
+- uncertainty must state which telemetry is missing
+- requires_human_review must be true
+- NEVER invent fault IDs, evidence IDs or procedure IDs
+An empty diagnosis is the ONLY correct answer when evidence is missing.
 """
 
 
@@ -119,6 +180,7 @@ def build_constrained_prompt(
     system_prompt = _CONSTRAINED_SYSTEM_PROMPT.format(
         valid_fault_ids=", ".join(ranking_input.valid_fault_ids),
         valid_procedure_ids=", ".join(ranking_input.valid_procedure_ids),
+        evidence_status=ranking_input.evidence_status,
     )
 
     user_content = json.dumps(
@@ -335,6 +397,12 @@ def build_ranking_input(
         ),
     )
 
+    # --- Evidence status (Phase 21) ---
+    evidence_status = compute_evidence_status(
+        tuple(hyp_contexts),
+        state_ctx.window_adequacy.status,
+    )
+
     return LLMRankingInput(
         anomaly_summary=anomaly_summary,
         anomalous_channels=tuple(anomalous_channels),
@@ -349,6 +417,7 @@ def build_ranking_input(
         scenario_id=crash_dump.get("scenario_id", ""),
         fault_type=crash_dump.get("fault_type", ""),
         safe_mode_trigger=crash_dump.get("safe_mode_trigger", ""),
+        evidence_status=evidence_status,
     )
 
 
@@ -445,13 +514,20 @@ def validate_ranking_output(
     """Validate the LLM's ranking output against guardrails.
 
     Rules:
-      1. Every fault_id in ranked_hypotheses MUST be in valid_fault_ids
-      2. Every selected_procedure_id MUST be in valid_procedure_ids
-      3. Supporting/contradicting evidence IDs should reference real evidence
+      1. Every fault_id in ranked_hypotheses MUST be in valid_fault_ids.
+         An empty valid set authorizes NOTHING (Phase 21): a ranked fault
+         with no deterministic hypothesis behind it is unsupported.
+      2. Every selected_procedure_id MUST be in valid_procedure_ids. An
+         empty valid set authorizes nothing.
+      3. Supporting/contradicting evidence IDs MUST reference real evidence.
+         An empty evidence set authorizes nothing — under S200-type inputs
+         every cited ID is fabricated by construction.
       4. If physics says INVALID for a fault, the LLM must not rank it #1
          with high confidence (physics is authoritative)
       5. No invented commands (reject if raw JSON contains command keys)
       6. No unsupported certainty claims
+      7. Phase 21: if evidence_status is INSUFFICIENT, the LLM must not
+         assert evidence, procedures, or positive confidence at all.
 
     Returns:
         GuardrailResult with violations and optionally a corrected output.
@@ -462,6 +538,10 @@ def validate_ranking_output(
 
     valid_faults = set(ranking_input.valid_fault_ids)
     valid_procs = set(ranking_input.valid_procedure_ids)
+    insufficient = (
+        getattr(ranking_input, "evidence_status", "")
+        == EvidenceStatus.INSUFFICIENT.value
+    )
 
     # Collect all valid evidence IDs from the input hypotheses
     valid_evidence: set[str] = set()
@@ -472,7 +552,7 @@ def validate_ranking_output(
 
     # --- 1. Check fault_ids ---
     for rh in output.ranked_hypotheses:
-        if valid_faults and rh.fault_id not in valid_faults:
+        if rh.fault_id not in valid_faults:
             violations.append(GuardrailViolation(
                 violation_type=ViolationType.UNSUPPORTED_HYPOTHESIS,
                 detail=(
@@ -487,9 +567,35 @@ def validate_ranking_output(
                 if h.fault_id != rh.fault_id
             ]
 
+    # --- 1b. INSUFFICIENT evidence: positive confidence is unsupported ---
+    if insufficient:
+        for rh in output.ranked_hypotheses:
+            if rh.fault_id in valid_faults and rh.confidence > 0.0:
+                violations.append(GuardrailViolation(
+                    violation_type=ViolationType.INSUFFICIENT_EVIDENCE_CLAIM,
+                    detail=(
+                        f"LLM assigned confidence {rh.confidence:.2f} to "
+                        f"'{rh.fault_id}' although evidence_status is "
+                        f"INSUFFICIENT"
+                    ),
+                    offending_value=rh.fault_id,
+                    corrective_action="Confidence forced to 0.0",
+                ))
+        corrected_hypotheses = [
+            RankedHypothesis(
+                fault_id=h.fault_id,
+                rank=h.rank,
+                confidence=0.0,
+                justification=h.justification,
+                affected_component=h.affected_component,
+                causal_chain=h.causal_chain,
+            )
+            for h in corrected_hypotheses
+        ]
+
     # --- 2. Check procedure IDs ---
     for pid in output.selected_procedure_ids:
-        if valid_procs and pid not in valid_procs:
+        if pid not in valid_procs:
             violations.append(GuardrailViolation(
                 violation_type=ViolationType.INVALID_PROCEDURE,
                 detail=(
@@ -502,31 +608,63 @@ def validate_ranking_output(
             corrected_procedure_ids = [
                 p for p in corrected_procedure_ids if p != pid
             ]
+        elif insufficient:
+            violations.append(GuardrailViolation(
+                violation_type=ViolationType.INSUFFICIENT_EVIDENCE_CLAIM,
+                detail=(
+                    f"LLM selected procedure_id '{pid}' although "
+                    f"evidence_status is INSUFFICIENT"
+                ),
+                offending_value=pid,
+                corrective_action="Procedure ID removed from selection",
+            ))
+            corrected_procedure_ids = [
+                p for p in corrected_procedure_ids if p != pid
+            ]
 
     # --- 3. Check evidence IDs ---
-    if valid_evidence:
-        for eid in output.supporting_evidence_ids:
-            if eid not in valid_evidence:
-                violations.append(GuardrailViolation(
-                    violation_type=ViolationType.NONEXISTENT_EVIDENCE,
-                    detail=(
-                        f"LLM referenced supporting evidence '{eid}' which "
-                        f"does not exist in the input"
-                    ),
-                    offending_value=eid,
-                    corrective_action="Evidence ID noted as unverifiable",
-                ))
-        for eid in output.contradicting_evidence_ids:
-            if eid not in valid_evidence:
-                violations.append(GuardrailViolation(
-                    violation_type=ViolationType.NONEXISTENT_EVIDENCE,
-                    detail=(
-                        f"LLM referenced contradicting evidence '{eid}' which "
-                        f"does not exist in the input"
-                    ),
-                    offending_value=eid,
-                    corrective_action="Evidence ID noted as unverifiable",
-                ))
+    for eid in output.supporting_evidence_ids:
+        if eid not in valid_evidence:
+            violations.append(GuardrailViolation(
+                violation_type=ViolationType.NONEXISTENT_EVIDENCE,
+                detail=(
+                    f"LLM referenced supporting evidence '{eid}' which "
+                    f"does not exist in the input"
+                ),
+                offending_value=eid,
+                corrective_action="Evidence ID noted as unverifiable",
+            ))
+        elif insufficient:
+            violations.append(GuardrailViolation(
+                violation_type=ViolationType.INSUFFICIENT_EVIDENCE_CLAIM,
+                detail=(
+                    f"LLM cited supporting evidence '{eid}' although "
+                    f"evidence_status is INSUFFICIENT"
+                ),
+                offending_value=eid,
+                corrective_action="Evidence ID removed",
+            ))
+    for eid in output.contradicting_evidence_ids:
+        if eid not in valid_evidence:
+            violations.append(GuardrailViolation(
+                violation_type=ViolationType.NONEXISTENT_EVIDENCE,
+                detail=(
+                    f"LLM referenced contradicting evidence '{eid}' which "
+                    f"does not exist in the input"
+                ),
+                offending_value=eid,
+                corrective_action="Evidence ID noted as unverifiable",
+            ))
+        elif insufficient:
+            violations.append(GuardrailViolation(
+                violation_type=ViolationType.INSUFFICIENT_EVIDENCE_CLAIM,
+                detail=(
+                    f"LLM cited contradicting evidence '{eid}' although "
+                    f"evidence_status is INSUFFICIENT"
+                ),
+                offending_value=eid,
+                corrective_action="Evidence ID removed",
+            ))
 
     # --- 4. Physics override check ---
     # The supplied PhysicsContext is enough to apply this guardrail in unit
@@ -631,15 +769,19 @@ def validate_ranking_output(
     # --- Filter invalid evidence IDs from corrected output ---
     corrected_supporting = output.supporting_evidence_ids
     corrected_contradicting = output.contradicting_evidence_ids
-    if valid_evidence:
-        corrected_supporting = tuple(
-            eid for eid in output.supporting_evidence_ids
-            if eid in valid_evidence
-        )
-        corrected_contradicting = tuple(
-            eid for eid in output.contradicting_evidence_ids
-            if eid in valid_evidence
-        )
+    corrected_supporting = tuple(
+        eid for eid in output.supporting_evidence_ids
+        if eid in valid_evidence
+    )
+    corrected_contradicting = tuple(
+        eid for eid in output.contradicting_evidence_ids
+        if eid in valid_evidence
+    )
+    if insufficient:
+        # Under INSUFFICIENT evidence no citation can be grounded, whatever
+        # ID space the input happens to expose (Phase 21 contract).
+        corrected_supporting = ()
+        corrected_contradicting = ()
 
     # --- Build corrected output ---
     corrected = LLMRankingOutput(
@@ -649,7 +791,9 @@ def validate_ranking_output(
         contradicting_evidence_ids=corrected_contradicting,
         selected_procedure_ids=tuple(corrected_procedure_ids),
         uncertainty=output.uncertainty,
-        requires_human_review=output.requires_human_review or bool(violations),
+        requires_human_review=(
+            output.requires_human_review or bool(violations) or insufficient
+        ),
     )
 
     return GuardrailResult(
@@ -682,7 +826,14 @@ def convert_to_sentinel_output(
 
     # Build 3 hypotheses (pad if fewer, truncate if more)
     hypotheses: list[dict[str, Any]] = []
-    ranked = sorted(ranking_output.ranked_hypotheses, key=lambda h: h.rank)
+    # Phase 21: the model may assign confidences that contradict its own
+    # ranks; SentinelOutput requires confidence to be non-increasing with
+    # rank. Sort by confidence (rank as tie-break) so the contract always
+    # holds instead of crashing the pipeline on valid model output.
+    ranked = sorted(
+        ranking_output.ranked_hypotheses,
+        key=lambda h: (-h.confidence, h.rank),
+    )
 
     for i, rh in enumerate(ranked[:3]):
         causal_chain = [str(c) for c in rh.causal_chain]
@@ -704,14 +855,16 @@ def convert_to_sentinel_output(
             "causal_chain": causal_chain,
         })
 
-    # Pad to 3 if needed
+    # Pad to 3 if needed. Padding confidence must never exceed the lowest
+    # real confidence, otherwise the monotonicity invariant breaks (Phase 21).
+    last_conf = hypotheses[-1]["confidence"] if hypotheses else 1.0
     while len(hypotheses) < 3:
         idx = len(hypotheses) + 1
         hypotheses.append({
             "rank": idx,
             "root_cause": "INSUFFICIENT_EVIDENCE",
             "affected_component": "UNKNOWN",
-            "confidence": max(0.05, 0.10 - 0.03 * idx),
+            "confidence": min(max(0.05, 0.10 - 0.03 * idx), last_conf),
             "causal_chain": [
                 "Insufficient evidence for additional hypothesis",
                 "Operator review recommended",

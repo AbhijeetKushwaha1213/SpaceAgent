@@ -1,0 +1,452 @@
+{
+  "model": "phi3:mini",
+  "temperature": 0.1,
+  "levels": {
+    "A_minimal_schema": {
+      "level": "A",
+      "trials": 3,
+      "json_valid_rate": 1.0,
+      "schema_complete_rate": 1.0,
+      "results": [
+        {
+          "trial": 1,
+          "json_valid": true,
+          "schema_complete": true,
+          "first_key": "ranked_hypotheses",
+          "finish_reason": "stop",
+          "prompt_tokens": 133,
+          "completion_tokens": 73,
+          "wall_seconds": 7.058,
+          "response_chars": 184,
+          "parsed": {
+            "ranked_hypotheses": [],
+            "supporting_evidence_ids": [],
+            "contradicting_evidence_ids": [],
+            "selected_procedure_ids": [],
+            "uncertainty": "",
+            "requires_human_review": true
+          },
+          "raw_head": "{\n  \"ranked_hypotheses\": [],\n  \"supporting_evidence_ids\": [],\n  \"contradicting_evidence_ids\": [],\n  \"selected_procedure_ids\": [],\n  \"uncertainty\": \"\",\n  \"requires_human_review\": true\n}",
+          "raw_tail": "{\n  \"ranked_hypotheses\": [],\n  \"supporting_evidence_ids\": [],\n  \"contradicting_evidence_ids\": [],\n  \"selected_procedure_ids\": [],\n  \"uncertainty\": \"\",\n  \"requires_human_review\": true\n}"
+        },
+        {
+          "trial": 2,
+          "json_valid": true,
+          "schema_complete": true,
+          "first_key": "ranked_hypotheses",
+          "finish_reason": "stop",
+          "prompt_tokens": 133,
+          "completion_tokens": 73,
+          "wall_seconds": 4.075,
+          "response_chars": 184,
+          "parsed": {
+            "ranked_hypotheses": [],
+            "supporting_evidence_ids": [],
+            "contradicting_evidence_ids": [],
+            "selected_procedure_ids": [],
+            "uncertainty": "",
+            "requires_human_review": true
+          },
+          "raw_head": "{\n  \"ranked_hypotheses\": [],\n  \"supporting_evidence_ids\": [],\n  \"contradicting_evidence_ids\": [],\n  \"selected_procedure_ids\": [],\n  \"uncertainty\": \"\",\n  \"requires_human_review\": true\n}",
+          "raw_tail": "{\n  \"ranked_hypotheses\": [],\n  \"supporting_evidence_ids\": [],\n  \"contradicting_evidence_ids\": [],\n  \"selected_procedure_ids\": [],\n  \"uncertainty\": \"\",\n  \"requires_human_review\": true\n}"
+        },
+        {
+          "trial": 3,
+          "json_valid": true,
+          "schema_complete": true,
+          "first_key": "ranked_hypotheses",
+          "finish_reason": "stop",
+          "prompt_tokens": 133,
+          "completion_tokens": 73,
+          "wall_seconds": 3.787,
+          "response_chars": 184,
+          "parsed": {
+            "ranked_hypotheses": [],
+            "supporting_evidence_ids": [],
+            "contradicting_evidence_ids": [],
+            "selected_procedure_ids": [],
+            "uncertainty": "",
+            "requires_human_review": true
+          },
+          "raw_head": "{\n  \"ranked_hypotheses\": [],\n  \"supporting_evidence_ids\": [],\n  \"contradicting_evidence_ids\": [],\n  \"selected_procedure_ids\": [],\n  \"uncertainty\": \"\",\n  \"requires_human_review\": true\n}",
+          "raw_tail": "{\n  \"ranked_hypotheses\": [],\n  \"supporting_evidence_ids\": [],\n  \"contradicting_evidence_ids\": [],\n  \"selected_procedure_ids\": [],\n  \"uncertainty\": \"\",\n  \"requires_human_review\": true\n}"
+        }
+      ]
+    },
+    "B_one_hypothesis": {
+      "level": "B",
+      "trials": 3,
+      "json_valid_rate": 1.0,
+      "schema_complete_rate": 1.0,
+      "results": [
+        {
+          "trial": 1,
+          "json_valid": true,
+          "schema_complete": true,
+          "first_key": "ranked_hypotheses",
+          "finish_reason": "stop",
+          "prompt_tokens": 230,
+          "completion_tokens": 121,
+          "wall_seconds": 8.189,
+          "response_chars": 276,
+          "parsed": {
+            "ranked_hypotheses": [
+              {
+                "fault_id": "ADCS_GYRO_SEU",
+                "rank": 1,
+                "confidence": 0.96
+              }
+            ],
+            "supporting_evidence_ids": [],
+            "contradicting_evidence_ids": [],
+            "selected_procedure_ids": [],
+            "uncertainty": 0,
+            "requires_human_review": false
+          },
+          "raw_head": "{\n  \"ranked_hypotheses\": [\n    {\n      \"fault_id\": \"ADCS_GYRO_SEU\",\n      \"rank\": 1,\n      \"confidence\": 0.96\n    }\n  ],\n  \"supporting_evidence_ids\": [],\n  \"contradicting_evidence_ids\": [],\n  \"selected_procedure_ids\": [],\n  \"uncertainty\": 0,\n  \"requires_human_review\": false\n}",
+          "raw_tail": "{\n  \"ranked_hypotheses\": [\n    {\n      \"fault_id\": \"ADCS_GYRO_SEU\",\n      \"rank\": 1,\n      \"confidence\": 0.96\n    }\n  ],\n  \"supporting_evidence_ids\": [],\n  \"contradicting_evidence_ids\": [],\n  \"selected_procedure_ids\": [],\n  \"uncertainty\": 0,\n  \"requires_human_review\": false\n}"
+        },
+        {
+          "trial": 2,
+          "json_valid": true,
+          "schema_complete": true,
+          "first_key": "ranked_hypotheses",
+          "finish_reason": "stop",
+          "prompt_tokens": 230,
+          "completion_tokens": 121,
+          "wall_seconds": 6.739,
+          "response_chars": 276,
+          "parsed": {
+            "ranked_hypotheses": [
+              {
+                "fault_id": "ADCS_GYRO_SEU",
+                "rank": 1,
+                "confidence": 0.96
+              }
+            ],
+            "supporting_evidence_ids": [],
+            "contradicting_evidence_ids": [],
+            "selected_procedure_ids": [],
+            "uncertainty": 0,
+            "requires_human_review": false
+          },
+          "raw_head": "{\n  \"ranked_hypotheses\": [\n    {\n      \"fault_id\": \"ADCS_GYRO_SEU\",\n      \"rank\": 1,\n      \"confidence\": 0.96\n    }\n  ],\n  \"supporting_evidence_ids\": [],\n  \"contradicting_evidence_ids\": [],\n  \"selected_procedure_ids\": [],\n  \"uncertainty\": 0,\n  \"requires_human_review\": false\n}",
+          "raw_tail": "{\n  \"ranked_hypotheses\": [\n    {\n      \"fault_id\": \"ADCS_GYRO_SEU\",\n      \"rank\": 1,\n      \"confidence\": 0.96\n    }\n  ],\n  \"supporting_evidence_ids\": [],\n  \"contradicting_evidence_ids\": [],\n  \"selected_procedure_ids\": [],\n  \"uncertainty\": 0,\n  \"requires_human_review\": false\n}"
+        },
+        {
+          "trial": 3,
+          "json_valid": true,
+          "schema_complete": true,
+          "first_key": "ranked_hypotheses",
+          "finish_reason": "stop",
+          "prompt_tokens": 230,
+          "completion_tokens": 121,
+          "wall_seconds": 6.164,
+          "response_chars": 276,
+          "parsed": {
+            "ranked_hypotheses": [
+              {
+                "fault_id": "ADCS_GYRO_SEU",
+                "rank": 1,
+                "confidence": 0.96
+              }
+            ],
+            "supporting_evidence_ids": [],
+            "contradicting_evidence_ids": [],
+            "selected_procedure_ids": [],
+            "uncertainty": 0,
+            "requires_human_review": false
+          },
+          "raw_head": "{\n  \"ranked_hypotheses\": [\n    {\n      \"fault_id\": \"ADCS_GYRO_SEU\",\n      \"rank\": 1,\n      \"confidence\": 0.96\n    }\n  ],\n  \"supporting_evidence_ids\": [],\n  \"contradicting_evidence_ids\": [],\n  \"selected_procedure_ids\": [],\n  \"uncertainty\": 0,\n  \"requires_human_review\": false\n}",
+          "raw_tail": "{\n  \"ranked_hypotheses\": [\n    {\n      \"fault_id\": \"ADCS_GYRO_SEU\",\n      \"rank\": 1,\n      \"confidence\": 0.96\n    }\n  ],\n  \"supporting_evidence_ids\": [],\n  \"contradicting_evidence_ids\": [],\n  \"selected_procedure_ids\": [],\n  \"uncertainty\": 0,\n  \"requires_human_review\": false\n}"
+        }
+      ]
+    },
+    "C_evidence_ids": {
+      "level": "C",
+      "trials": 3,
+      "json_valid_rate": 1.0,
+      "schema_complete_rate": 0.0,
+      "results": [
+        {
+          "trial": 1,
+          "json_valid": true,
+          "schema_complete": false,
+          "first_key": "ranked_hypotheses",
+          "finish_reason": "stop",
+          "prompt_tokens": 270,
+          "completion_tokens": 172,
+          "wall_seconds": 9.366,
+          "response_chars": 383,
+          "parsed": {
+            "ranked_hypotheses": [
+              {
+                "fault_id": "ADCS_GYRO_SEU",
+                "deterministic_rank": 1,
+                "deterministic_score": 0.96,
+                "supporting_evidence_ids": [
+                  "EVID-429070d6c1d9",
+                  "EVID-5796888f538d"
+                ],
+                "contradicting_evidence_ids": [],
+                "selected_procedure_ids": [],
+                "uncertainty": 0,
+                "requires_human_review": false
+              }
+            ]
+          },
+          "raw_head": "{\n  \"ranked_hypotheses\": [\n    {\n      \"fault_id\": \"ADCS_GYRO_SEU\",\n      \"deterministic_rank\": 1,\n      \"deterministic_score\": 0.96,\n      \"supporting_evidence_ids\": [\n        \"EVID-429070d6c1d9\",\n        \"EVID-5796888f538d\"\n      ],\n      \"contradicting_evidence_ids\": [],\n      \"selected_procedure",
+          "raw_tail": "istic_rank\": 1,\n      \"deterministic_score\": 0.96,\n      \"supporting_evidence_ids\": [\n        \"EVID-429070d6c1d9\",\n        \"EVID-5796888f538d\"\n      ],\n      \"contradicting_evidence_ids\": [],\n      \"selected_procedure_ids\": [],\n      \"uncertainty\": 0,\n      \"requires_human_review\": false\n    }\n  ]\n}"
+        },
+        {
+          "trial": 2,
+          "json_valid": true,
+          "schema_complete": false,
+          "first_key": "ranked_hypotheses",
+          "finish_reason": "stop",
+          "prompt_tokens": 270,
+          "completion_tokens": 172,
+          "wall_seconds": 8.616,
+          "response_chars": 383,
+          "parsed": {
+            "ranked_hypotheses": [
+              {
+                "fault_id": "ADCS_GYRO_SEU",
+                "deterministic_rank": 1,
+                "deterministic_score": 0.96,
+                "supporting_evidence_ids": [
+                  "EVID-429070d6c1d9",
+                  "EVID-5796888f538d"
+                ],
+                "contradicting_evidence_ids": [],
+                "selected_procedure_ids": [],
+                "uncertainty": 0,
+                "requires_human_review": false
+              }
+            ]
+          },
+          "raw_head": "{\n  \"ranked_hypotheses\": [\n    {\n      \"fault_id\": \"ADCS_GYRO_SEU\",\n      \"deterministic_rank\": 1,\n      \"deterministic_score\": 0.96,\n      \"supporting_evidence_ids\": [\n        \"EVID-429070d6c1d9\",\n        \"EVID-5796888f538d\"\n      ],\n      \"contradicting_evidence_ids\": [],\n      \"selected_procedure",
+          "raw_tail": "istic_rank\": 1,\n      \"deterministic_score\": 0.96,\n      \"supporting_evidence_ids\": [\n        \"EVID-429070d6c1d9\",\n        \"EVID-5796888f538d\"\n      ],\n      \"contradicting_evidence_ids\": [],\n      \"selected_procedure_ids\": [],\n      \"uncertainty\": 0,\n      \"requires_human_review\": false\n    }\n  ]\n}"
+        },
+        {
+          "trial": 3,
+          "json_valid": true,
+          "schema_complete": false,
+          "first_key": "ranked_hypotheses",
+          "finish_reason": "stop",
+          "prompt_tokens": 270,
+          "completion_tokens": 172,
+          "wall_seconds": 8.576,
+          "response_chars": 383,
+          "parsed": {
+            "ranked_hypotheses": [
+              {
+                "fault_id": "ADCS_GYRO_SEU",
+                "deterministic_rank": 1,
+                "deterministic_score": 0.96,
+                "supporting_evidence_ids": [
+                  "EVID-429070d6c1d9",
+                  "EVID-5796888f538d"
+                ],
+                "contradicting_evidence_ids": [],
+                "selected_procedure_ids": [],
+                "uncertainty": 0,
+                "requires_human_review": false
+              }
+            ]
+          },
+          "raw_head": "{\n  \"ranked_hypotheses\": [\n    {\n      \"fault_id\": \"ADCS_GYRO_SEU\",\n      \"deterministic_rank\": 1,\n      \"deterministic_score\": 0.96,\n      \"supporting_evidence_ids\": [\n        \"EVID-429070d6c1d9\",\n        \"EVID-5796888f538d\"\n      ],\n      \"contradicting_evidence_ids\": [],\n      \"selected_procedure",
+          "raw_tail": "istic_rank\": 1,\n      \"deterministic_score\": 0.96,\n      \"supporting_evidence_ids\": [\n        \"EVID-429070d6c1d9\",\n        \"EVID-5796888f538d\"\n      ],\n      \"contradicting_evidence_ids\": [],\n      \"selected_procedure_ids\": [],\n      \"uncertainty\": 0,\n      \"requires_human_review\": false\n    }\n  ]\n}"
+        }
+      ]
+    },
+    "D_causal_chain": {
+      "level": "D",
+      "trials": 3,
+      "json_valid_rate": 1.0,
+      "schema_complete_rate": 0.0,
+      "results": [
+        {
+          "trial": 1,
+          "json_valid": true,
+          "schema_complete": false,
+          "first_key": "ranked_hypotheses",
+          "finish_reason": "stop",
+          "prompt_tokens": 335,
+          "completion_tokens": 229,
+          "wall_seconds": 12.206,
+          "response_chars": 552,
+          "parsed": {
+            "ranked_hypotheses": [
+              {
+                "fault_id": "ADCS_GYRO_SEU",
+                "deterministic_rank": 1,
+                "deterministic_score": 0.96,
+                "supporting_evidence_ids": [
+                  "EVID-429070d6c1d9",
+                  "EVID-5796888f538d"
+                ],
+                "contradicting_evidence_ids": [],
+                "selected_procedure_ids": [],
+                "uncertainty": 0,
+                "requires_human_review": false
+              }
+            ],
+            "causal_chain": [
+              "SEU bitflip corrupts gyro register",
+              "Gyro rate reads NaN",
+              "Attitude error grows beyond threshold",
+              "ADCS triggers safe mode"
+            ]
+          },
+          "raw_head": "{\n  \"ranked_hypotheses\": [\n    {\n      \"fault_id\": \"ADCS_GYRO_SEU\",\n      \"deterministic_rank\": 1,\n      \"deterministic_score\": 0.96,\n      \"supporting_evidence_ids\": [\n        \"EVID-429070d6c1d9\",\n        \"EVID-5796888f538d\"\n      ],\n      \"contradicting_evidence_ids\": [],\n      \"selected_procedure",
+          "raw_tail": "ing_evidence_ids\": [],\n      \"selected_procedure_ids\": [],\n      \"uncertainty\": 0,\n      \"requires_human_review\": false\n    }\n  ],\n  \"causal_chain\": [\n    \"SEU bitflip corrupts gyro register\",\n    \"Gyro rate reads NaN\",\n    \"Attitude error grows beyond threshold\",\n    \"ADCS triggers safe mode\"\n  ]\n}"
+        },
+        {
+          "trial": 2,
+          "json_valid": true,
+          "schema_complete": false,
+          "first_key": "ranked_hypotheses",
+          "finish_reason": "stop",
+          "prompt_tokens": 335,
+          "completion_tokens": 229,
+          "wall_seconds": 10.654,
+          "response_chars": 552,
+          "parsed": {
+            "ranked_hypotheses": [
+              {
+                "fault_id": "ADCS_GYRO_SEU",
+                "deterministic_rank": 1,
+                "deterministic_score": 0.96,
+                "supporting_evidence_ids": [
+                  "EVID-429070d6c1d9",
+                  "EVID-5796888f538d"
+                ],
+                "contradicting_evidence_ids": [],
+                "selected_procedure_ids": [],
+                "uncertainty": 0,
+                "requires_human_review": false
+              }
+            ],
+            "causal_chain": [
+              "SEU bitflip corrupts gyro register",
+              "Gyro rate reads NaN",
+              "Attitude error grows beyond threshold",
+              "ADCS triggers safe mode"
+            ]
+          },
+          "raw_head": "{\n  \"ranked_hypotheses\": [\n    {\n      \"fault_id\": \"ADCS_GYRO_SEU\",\n      \"deterministic_rank\": 1,\n      \"deterministic_score\": 0.96,\n      \"supporting_evidence_ids\": [\n        \"EVID-429070d6c1d9\",\n        \"EVID-5796888f538d\"\n      ],\n      \"contradicting_evidence_ids\": [],\n      \"selected_procedure",
+          "raw_tail": "ing_evidence_ids\": [],\n      \"selected_procedure_ids\": [],\n      \"uncertainty\": 0,\n      \"requires_human_review\": false\n    }\n  ],\n  \"causal_chain\": [\n    \"SEU bitflip corrupts gyro register\",\n    \"Gyro rate reads NaN\",\n    \"Attitude error grows beyond threshold\",\n    \"ADCS triggers safe mode\"\n  ]\n}"
+        },
+        {
+          "trial": 3,
+          "json_valid": true,
+          "schema_complete": false,
+          "first_key": "ranked_hypotheses",
+          "finish_reason": "stop",
+          "prompt_tokens": 335,
+          "completion_tokens": 229,
+          "wall_seconds": 11.532,
+          "response_chars": 552,
+          "parsed": {
+            "ranked_hypotheses": [
+              {
+                "fault_id": "ADCS_GYRO_SEU",
+                "deterministic_rank": 1,
+                "deterministic_score": 0.96,
+                "supporting_evidence_ids": [
+                  "EVID-429070d6c1d9",
+                  "EVID-5796888f538d"
+                ],
+                "contradicting_evidence_ids": [],
+                "selected_procedure_ids": [],
+                "uncertainty": 0,
+                "requires_human_review": false
+              }
+            ],
+            "causal_chain": [
+              "SEU bitflip corrupts gyro register",
+              "Gyro rate reads NaN",
+              "Attitude error grows beyond threshold",
+              "ADCS triggers safe mode"
+            ]
+          },
+          "raw_head": "{\n  \"ranked_hypotheses\": [\n    {\n      \"fault_id\": \"ADCS_GYRO_SEU\",\n      \"deterministic_rank\": 1,\n      \"deterministic_score\": 0.96,\n      \"supporting_evidence_ids\": [\n        \"EVID-429070d6c1d9\",\n        \"EVID-5796888f538d\"\n      ],\n      \"contradicting_evidence_ids\": [],\n      \"selected_procedure",
+          "raw_tail": "ing_evidence_ids\": [],\n      \"selected_procedure_ids\": [],\n      \"uncertainty\": 0,\n      \"requires_human_review\": false\n    }\n  ],\n  \"causal_chain\": [\n    \"SEU bitflip corrupts gyro register\",\n    \"Gyro rate reads NaN\",\n    \"Attitude error grows beyond threshold\",\n    \"ADCS triggers safe mode\"\n  ]\n}"
+        }
+      ]
+    },
+    "E_full_production_prompt": {
+      "level": "E",
+      "trials": 1,
+      "json_valid_rate": 1.0,
+      "schema_complete_rate": 0.0,
+      "results": [
+        {
+          "trial": 1,
+          "json_valid": true,
+          "schema_complete": false,
+          "first_key": "hypothesis_id",
+          "finish_reason": "stop",
+          "prompt_tokens": 2050,
+          "completion_tokens": 345,
+          "wall_seconds": 31.34,
+          "response_chars": 746,
+          "parsed": {
+            "hypothesis_id": "HYP-88d4f15083c1",
+            "fault_id": "AOCS_EXTERNAL_DISTURBANCE",
+            "fault_name": "External disturbance torque",
+            "subsystem": "AOCS",
+            "deterministic_rank": 6,
+            "deterministic_score": 0.235,
+            "supporting_evidence": [
+              "EVID-429070d6c1d9",
+              "EVID-5796888f538d"
+            ],
+            "contradicting_evidence": [
+              "EVID-86c977ea0756",
+              "EVID-0961aacd8ea0",
+              "EVID-cc05e9d83bb3"
+            ],
+            "causal_chain": [
+              "An external torque acts on the vehicle",
+              "The control system absorbs it into the wheels",
+              "Wheel momentum accumulates",
+              "Pointing degrades once control authority is exhausted"
+            ],
+            "affected_channels": [
+              "Attitude_error_deg",
+              "Gyro_rate_degs",
+              "SEU_counter"
+            ],
+            "physics_status": "VALID"
+          },
+          "raw_head": "{\n  \"hypothesis_id\": \"HYP-88d4f15083c1\",\n  \"fault_id\": \"AOCS_EXTERNAL_DISTURBANCE\",\n  \"fault_name\": \"External disturbance torque\",\n  \"subsystem\": \"AOCS\",\n  \"deterministic_rank\": 6,\n  \"deterministic_score\": 0.235,\n  \"supporting_evidence\": [\n    \"EVID-429070d6c1d9\",\n    \"EVID-5796888f538d\"\n  ],\n  \"con",
+          "raw_tail": " acts on the vehicle\",\n    \"The control system absorbs it into the wheels\",\n    \"Wheel momentum accumulates\",\n    \"Pointing degrades once control authority is exhausted\"\n  ],\n  \"affected_channels\": [\n    \"Attitude_error_deg\",\n    \"Gyro_rate_degs\",\n    \"SEU_counter\"\n  ],\n  \"physics_status\": \"VALID\"\n}"
+        }
+      ]
+    },
+    "F_no_response_format_control": {
+      "level": "F",
+      "trials": 1,
+      "json_valid_rate": 0.0,
+      "schema_complete_rate": 0.0,
+      "results": [
+        {
+          "trial": 1,
+          "json_valid": false,
+          "schema_complete": false,
+          "first_key": "hypotheses",
+          "finish_reason": "length",
+          "prompt_tokens": 2050,
+          "completion_tokens": 1024,
+          "wall_seconds": 66.432,
+          "response_chars": 2375,
+          "parsed": null,
+          "raw_head": "\n```json\n{\n  \"hypotheses\": [\n    {\n      \"hypothesis_id\": \"HYP-88d4f15083c1\",\n      \"fault_id\": \"AOCS_EXTERNAL_DISTURBANCE\",\n      \"fault_name\": \"External disturbance torque\",\n      \"subsystem\": \"AOCS\",\n      \"deterministic_rank\": 6,\n      \"deterministic_score\": 0.235,\n      \"supporting_evidence\": [",
+          "raw_tail": "CS_EXTERNAL_DISTURBANCE\"\n    ],\n    \"uncertain\": [\n      \"ADCS_GYRO_SEU\",\n      \"EPS_SOLAR_UNDERVOLT\",\n      \"AOCS_CONTROL_COMMAND_ANOMALY\",\n      \"MULTI_CASCADE\",\n      \"AOCS_SENSOR_FAULT\",\n      \"AOCS_GYRO_BIAS_DRIFT\"\n    ],\n    \"summary\": \"1 of 7 hypothesis(es) corroborated by the state model (AO"
+        }
+      ]
+    }
+  }
+}

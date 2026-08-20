@@ -1,0 +1,70 @@
+{
+  "prompt_stats": {
+    "system_prompt_chars": 2017,
+    "user_prompt_chars": 8880,
+    "total_prompt_chars": 10897,
+    "system_prompt_est_tokens": 577,
+    "user_prompt_est_tokens": 2538,
+    "total_est_tokens": 3115,
+    "hypotheses_in_prompt": 7,
+    "valid_fault_ids": [
+      "ADCS_GYRO_SEU",
+      "EPS_SOLAR_UNDERVOLT",
+      "AOCS_GYRO_BIAS_DRIFT",
+      "AOCS_SENSOR_FAULT",
+      "AOCS_CONTROL_COMMAND_ANOMALY",
+      "MULTI_CASCADE",
+      "AOCS_EXTERNAL_DISTURBANCE"
+    ],
+    "valid_procedure_ids": [
+      "PROC-ADCS-SEU-001"
+    ],
+    "evidence_ids_in_prompt": [
+      "EVID-04024efc0a63",
+      "EVID-0961aacd8ea0",
+      "EVID-0b4a8dcb20ea",
+      "EVID-1cffcf962d79",
+      "EVID-23576a0d1f56",
+      "EVID-24ded1c1cee9",
+      "EVID-2b8fe0227409",
+      "EVID-429070d6c1d9",
+      "EVID-5796888f538d",
+      "EVID-6189b7b78f62",
+      "EVID-679e718dd1db",
+      "EVID-7d8615452a7f",
+      "EVID-86c977ea0756",
+      "EVID-99ff1ea0ce7b",
+      "EVID-9aed9742543f",
+      "EVID-9cc212ba9fe9",
+      "EVID-b39ca359e124",
+      "EVID-b5b01e7a04d7",
+      "EVID-bf2e0090666e",
+      "EVID-c8a0f111a0a3",
+      "EVID-cc05e9d83bb3",
+      "EVID-cc4f823e6a7b",
+      "EVID-ef5183161296",
+      "EVID-f91cf701dfc5"
+    ],
+    "residuals_in_prompt": 2,
+    "window_adequacy_status": "ADEQUATE_FOR_PHYSICS",
+    "requested_max_tokens": 1024,
+    "temperature": 0.1,
+    "model_context_window": 4096
+  },
+  "analysis": {
+    "finish_reason": "length",
+    "usage": {
+      "prompt_tokens": 2050,
+      "completion_tokens": 1024,
+      "total_tokens": 3074
+    },
+    "prompt_tokens_measured": 2050,
+    "completion_tokens_measured": 1024,
+    "first_json_key_in_response": "scenario_id",
+    "response_echoes_prompt_first_key": true,
+    "began_with_ranked_hypotheses": false,
+    "response_is_complete_json": false,
+    "response_chars": 2354,
+    "wall_seconds": 88.353
+  }
+}

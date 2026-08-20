@@ -60,11 +60,14 @@ def _pipeline(sid: str):
 def test_contract_top_level_keys_stable():
     _, ri, _ = _pipeline("1")
     keys = set(ri.as_prompt_dict().keys())
+    # Phase 21 added ``evidence_status`` — the machine-readable evidence
+    # state (ADEQUATE / PARTIAL / INSUFFICIENT / CONTRADICTORY).
     assert keys == {
         "anomaly_summary", "anomalous_channels", "anomaly_count",
         "hypotheses", "valid_fault_ids", "physics", "spacecraft_state",
         "procedures", "valid_procedure_ids", "safety_constraints",
         "scenario_id", "fault_type", "safe_mode_trigger",
+        "evidence_status",
     }
 
 
