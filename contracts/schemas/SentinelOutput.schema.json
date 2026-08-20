@@ -68,7 +68,6 @@
           "title": "Subsystem"
         },
         "supporting_context": {
-          "additionalProperties": true,
           "description": "Observed values the decision was based on, e.g. {'battery_soc_pct': 12.0, 'floor_pct': 15.0}. Only values actually read from the crash dump appear here.",
           "title": "Supporting Context",
           "type": "object"

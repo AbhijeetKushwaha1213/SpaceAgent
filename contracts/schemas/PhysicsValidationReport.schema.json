@@ -320,7 +320,6 @@
   "properties": {
     "assumed_parameters": {
       "items": {
-        "additionalProperties": true,
         "type": "object"
       },
       "title": "Assumed Parameters",
@@ -410,7 +409,6 @@
       "type": "array"
     },
     "window_adequacy": {
-      "additionalProperties": true,
       "description": "The telemetry-window adequacy verdict from the residual stage. Empty when no residual report was supplied. A non-adequate window means no physical consistency claim is made on this dump.",
       "title": "Window Adequacy",
       "type": "object"

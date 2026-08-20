@@ -132,7 +132,6 @@
       "description": "Detector that produced this"
     },
     "evidence": {
-      "additionalProperties": true,
       "description": "Observed values the verdict rests on, e.g. {'value': 1002.0, 'limit_max': 1000.0, 'exceeded_by': 2.0}. Only values actually read from the telemetry appear here.",
       "title": "Evidence",
       "type": "object"

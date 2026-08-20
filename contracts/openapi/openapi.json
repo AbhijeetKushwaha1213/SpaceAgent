@@ -35,7 +35,6 @@
             "description": "Detector that produced this"
           },
           "evidence": {
-            "additionalProperties": true,
             "description": "Observed values the verdict rests on, e.g. {'value': 1002.0, 'limit_max': 1000.0, 'exceeded_by': 2.0}. Only values actually read from the telemetry appear here.",
             "title": "Evidence",
             "type": "object"
@@ -639,7 +638,6 @@
             "anyOf": [
               {
                 "items": {
-                  "additionalProperties": true,
                   "type": "object"
                 },
                 "type": "array"
@@ -691,7 +689,6 @@
             "anyOf": [
               {
                 "items": {
-                  "additionalProperties": true,
                   "type": "object"
                 },
                 "type": "array"
@@ -823,25 +820,21 @@
         "description": "Machine-readable evaluation results response.",
         "properties": {
           "charts": {
-            "additionalProperties": true,
             "description": "Evaluation charts data derived from real metrics",
             "title": "Charts",
             "type": "object"
           },
           "pipelines": {
-            "additionalProperties": true,
             "description": "Per-pipeline evaluation metrics",
             "title": "Pipelines",
             "type": "object"
           },
           "provenance": {
-            "additionalProperties": true,
             "description": "Evaluation provenance metadata",
             "title": "Provenance",
             "type": "object"
           },
           "summary": {
-            "additionalProperties": true,
             "description": "Evaluation summary statistics",
             "title": "Summary",
             "type": "object"
@@ -1034,7 +1027,6 @@
         "properties": {
           "assumed_parameters": {
             "items": {
-              "additionalProperties": true,
               "type": "object"
             },
             "title": "Assumed Parameters",
@@ -1124,7 +1116,6 @@
             "type": "array"
           },
           "window_adequacy": {
-            "additionalProperties": true,
             "description": "The telemetry-window adequacy verdict from the residual stage. Empty when no residual report was supplied. A non-adequate window means no physical consistency claim is made on this dump.",
             "title": "Window Adequacy",
             "type": "object"
@@ -1708,7 +1699,6 @@
             "anyOf": [
               {
                 "items": {
-                  "additionalProperties": true,
                   "type": "object"
                 },
                 "type": "array"
@@ -1760,7 +1750,6 @@
             "anyOf": [
               {
                 "items": {
-                  "additionalProperties": true,
                   "type": "object"
                 },
                 "type": "array"
@@ -1975,7 +1964,6 @@
             "type": "string"
           },
           "payload": {
-            "additionalProperties": true,
             "description": "Stage detail, already redacted",
             "title": "Payload",
             "type": "object"
@@ -2322,13 +2310,6 @@
       },
       "ValidationError": {
         "properties": {
-          "ctx": {
-            "title": "Context",
-            "type": "object"
-          },
-          "input": {
-            "title": "Input"
-          },
           "loc": {
             "items": {
               "anyOf": [

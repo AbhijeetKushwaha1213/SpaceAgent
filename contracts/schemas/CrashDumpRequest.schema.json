@@ -266,7 +266,6 @@
       "anyOf": [
         {
           "items": {
-            "additionalProperties": true,
             "type": "object"
           },
           "type": "array"
@@ -322,7 +321,6 @@
       "anyOf": [
         {
           "items": {
-            "additionalProperties": true,
             "type": "object"
           },
           "type": "array"
