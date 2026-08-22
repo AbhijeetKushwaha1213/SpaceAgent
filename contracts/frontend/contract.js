@@ -97,6 +97,7 @@ export const AUDIT_STAGE = Object.freeze({
   detection: "detection",
   state_estimation: "state_estimation",
   rag: "rag",
+  routing: "routing",
   llm: "llm",
   external_transmission: "external_transmission",
   hypotheses: "hypotheses",

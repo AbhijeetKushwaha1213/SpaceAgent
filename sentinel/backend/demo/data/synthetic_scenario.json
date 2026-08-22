@@ -1,0 +1,169 @@
+{
+  "_comment": "SYNTHETIC DEMONSTRATION DATA — NOT REAL SPACECRAFT TELEMETRY",
+  "provenance": "SYNTHETIC",
+  "source_note": "Simulated crash dump modelled on ECSS solar array undervoltage fault signatures. Not real spacecraft telemetry.",
+  "scenario_id": 2,
+  "incident_id": "INC-2026-0002",
+  "fault_type": "EPS_SOLAR_UNDERVOLT",
+  "fault_register": "0x00000002",
+  "safe_mode_trigger": "EPS_UNDER_VOLT",
+  "telecommand_context": {
+    "event_id": 2,
+    "telecommand": "telecommand_45",
+    "execution_timestamp": "2026-06-12T04:10:00Z",
+    "gap_seconds": 300.0,
+    "gap_classification": "stale",
+    "gap_percentile": 92.1,
+    "anomaly_flag": true
+  },
+  "pre_fault_telemetry_window": [
+    {
+      "timestamp": "T-300s",
+      "parameter": "I_sa",
+      "value": 8.4,
+      "unit": "A",
+      "status": "NOMINAL"
+    },
+    {
+      "timestamp": "T-300s",
+      "parameter": "SoC_pct",
+      "value": 85.0,
+      "unit": "%",
+      "status": "NOMINAL"
+    },
+    {
+      "timestamp": "T-300s",
+      "parameter": "V_bat",
+      "value": 30.2,
+      "unit": "V",
+      "status": "NOMINAL"
+    },
+    {
+      "timestamp": "T-300s",
+      "parameter": "V_bus",
+      "value": 30.0,
+      "unit": "V",
+      "status": "NOMINAL"
+    },
+    {
+      "timestamp": "T-300s",
+      "parameter": "Heater_power_W",
+      "value": 15.0,
+      "unit": "W",
+      "status": "NOMINAL"
+    },
+    {
+      "timestamp": "T-180s",
+      "parameter": "I_sa",
+      "value": 0.0,
+      "unit": "A",
+      "status": "CRITICAL"
+    },
+    {
+      "timestamp": "T-180s",
+      "parameter": "V_bat",
+      "value": 21.8,
+      "unit": "V",
+      "status": "CRITICAL"
+    },
+    {
+      "timestamp": "T-180s",
+      "parameter": "SoC_pct",
+      "value": 14.2,
+      "unit": "%",
+      "status": "CRITICAL"
+    },
+    {
+      "timestamp": "T-180s",
+      "parameter": "V_bus",
+      "value": 24.1,
+      "unit": "V",
+      "status": "ANOMALOUS"
+    },
+    {
+      "timestamp": "T-120s",
+      "parameter": "V_bus",
+      "value": 24.1,
+      "unit": "V",
+      "status": "ANOMALOUS"
+    },
+    {
+      "timestamp": "T-120s",
+      "parameter": "OBC_temp_C",
+      "value": 18.2,
+      "unit": "degC",
+      "status": "NOMINAL"
+    },
+    {
+      "timestamp": "T-10s",
+      "parameter": "OBC_temp_C",
+      "value": 18.2,
+      "unit": "degC",
+      "status": "NOMINAL"
+    }
+  ],
+  "pre_fault_telemetry": [
+    {
+      "parameter": "I_sa",
+      "value": 0.0,
+      "unit": "A"
+    },
+    {
+      "parameter": "V_bat",
+      "value": 21.8,
+      "unit": "V"
+    },
+    {
+      "parameter": "V_bus",
+      "value": 24.1,
+      "unit": "V"
+    },
+    {
+      "parameter": "Heater_power_W",
+      "value": 15.0,
+      "unit": "W"
+    },
+    {
+      "parameter": "Attitude_error_deg",
+      "value": 0.004,
+      "unit": "deg"
+    },
+    {
+      "parameter": "OBC_temp_C",
+      "value": 18.2,
+      "unit": "degC"
+    }
+  ],
+  "event_log": [
+    {
+      "timestamp": "T-300s",
+      "source": "EPS_SENSORS",
+      "message": "Solar Array A Current dropped to 0A (expected: 8.5A)"
+    },
+    {
+      "timestamp": "T-180s",
+      "source": "EPS_MANAGER",
+      "message": "State of Charge low (14.2%). Starting load shedding."
+    },
+    {
+      "timestamp": "T-120s",
+      "source": "OBC_CORE",
+      "message": "Command issued: Power off PYLD subsystem"
+    },
+    {
+      "timestamp": "T-0s",
+      "source": "FDIR_CORE",
+      "message": "Safe Mode entry triggered by EPS_UNDER_VOLT"
+    }
+  ],
+  "hardware_state": {
+    "solar_relay": "open",
+    "battery_relays": "closed",
+    "shed_status": "active"
+  },
+  "operating_context": {
+    "eclipse_fraction": 0.0,
+    "sun_sensor_angle_deg": 42.0,
+    "time_since_contact_s": 2400
+  }
+}

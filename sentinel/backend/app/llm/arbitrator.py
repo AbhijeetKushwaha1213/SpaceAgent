@@ -188,17 +188,24 @@ class Arbitrator:
                     disagreement=False,
                     rule_applied="A6_LOCAL_INVALID_PHYSICS",
                 )
+            # If cloud actually ran and failed (degraded fallback), this is an
+            # inherently less-certain local-only result: force human review so an
+            # operator can assess whether the cloud failure was transient.
+            cloud_ran_and_failed = (
+                cloud is not None
+                and cloud.outcome != BranchOutcome.NOT_RUN
+                and not cloud_valid
+            )
             forced_review = combine_human_review(
                 base_review,
                 local.validated_output.requires_human_review,
+                cloud_ran_and_failed,
             )
-            decision = (
-                RoutingDecision.HUMAN_REVIEW
-                if forced_review
-                else RoutingDecision.LOCAL_ACCEPT
-            )
+            # A3 always produces LOCAL_ACCEPT — there IS a valid local winner.
+            # HUMAN_REVIEW is reserved for no-winner cases (A5, A6, A10).
+            # The human_review_required flag carries any mandatory oversight need.
             return ArbitrationResult(
-                decision=decision,
+                decision=RoutingDecision.LOCAL_ACCEPT,
                 reasons=(RoutingReason.VALID_LOCAL_RESULT,),
                 winning_branch=Branch.LOCAL,
                 human_review_required=forced_review,
@@ -225,18 +232,16 @@ class Arbitrator:
                 base_review,
                 cloud.validated_output.requires_human_review,
             )
-            decision = (
-                RoutingDecision.HUMAN_REVIEW
-                if forced_review
-                else RoutingDecision.CLOUD_ACCEPT
-            )
             reasons = (
                 (RoutingReason.LOCAL_ESCALATION, RoutingReason.VALID_CLOUD_RESULT)
                 if local is not None and local.outcome != BranchOutcome.NOT_RUN
                 else (RoutingReason.VALID_CLOUD_RESULT,)
             )
+            # A4 always produces CLOUD_ACCEPT — there IS a valid cloud winner.
+            # HUMAN_REVIEW is reserved for no-winner cases (A5, A6, A10).
+            # The human_review_required flag carries any mandatory oversight need.
             return ArbitrationResult(
-                decision=decision,
+                decision=RoutingDecision.CLOUD_ACCEPT,
                 reasons=reasons,
                 winning_branch=Branch.CLOUD,
                 human_review_required=forced_review,

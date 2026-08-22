@@ -3,11 +3,11 @@ from pathlib import Path
 
 from dotenv import load_dotenv
 
-# Load .env from sentinel/.env (one level above backend/)
+# Load .env from backend/.env or sentinel/.env
 _BACKEND_DIR = Path(__file__).resolve().parent.parent
 for _env_path in [_BACKEND_DIR / ".env", _BACKEND_DIR.parent / ".env"]:
     if _env_path.is_file():
-        load_dotenv(_env_path, override=False)
+        load_dotenv(_env_path, override=True)
         break
 
 import asyncio

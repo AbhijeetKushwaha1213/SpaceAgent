@@ -29,15 +29,19 @@ const SAFETY_BADGE = {
 };
 
 export default function RecoveryView() {
-  const { analysis, selectedScenario, recordDecision, decisionResult } = useSentinel();
+  const { analysis, selectedScenario, selectedRun, selectedRunId, recordDecision, decisionResult } = useSentinel();
   const [operatorId, setOperatorId] = useState("");
   const [rationale, setRationale] = useState("");
   const [lastDecision, setLastDecision] = useState(null);
 
-  const plan = recoveryPlan(analysis);
-  const blocked = blockedCommands(analysis);
-  const safetyStatus = analysis?.output?.safety_status || null;
-  const runId = analysis?.runId || null;
+  const plan = recoveryPlan(analysis, selectedRun);
+  const blocked = blockedCommands(analysis, selectedRun);
+  const safetyStatus =
+    analysis?.output?.safety_status ||
+    selectedRun?.data?.entries?.find((e) => e.stage === "safety_validation")?.payload?.safety_status ||
+    selectedRun?.data?.entries?.find((e) => e.stage === "diagnosis")?.payload?.sentinel_output?.safety_status ||
+    null;
+  const runId = analysis?.runId || selectedRunId || selectedRun?.data?.run_id || null;
 
   const proposedSteps = useMemo(() => {
     const steps = plan.map((s) => ({
@@ -77,7 +81,7 @@ export default function RecoveryView() {
     setLastDecision({ step, command, decision, ok: Boolean(result) });
   };
 
-  const hasOutput = Boolean(analysis?.output);
+  const hasOutput = Boolean(analysis?.output || (selectedRun?.data && (plan.length > 0 || blocked.length > 0)));
   const safetyMeta = SAFETY_BADGE[safetyStatus] || { status: "NOT_VALIDATED", label: "NOT VALIDATED" };
 
   return (

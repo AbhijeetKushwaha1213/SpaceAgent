@@ -82,6 +82,17 @@ class Stage(str, Enum):
     RAG = "rag"
     """Procedure retrieval, its query, backend and per-snippet sources."""
 
+    ROUTING = "routing"
+    """Deterministic hybrid-router decision (Phase 22 §13, Phase 23 Step 5).
+
+    Written only by the RouterOrchestrator while the router is DORMANT
+    (ROUTER_ENABLED=false). Carries the RoutingRecord facts: policy signal
+    snapshot, per-branch outcomes, escalation trigger, arbitration rule,
+    winning branch, physics recheck result, safety outcome, and the
+    monotone human-review flag. It never carries raw model output, raw
+    telemetry, unredacted payloads, or credentials.
+    """
+
     LLM = "llm"
     """Provider, model, mode, prompt identity, and the raw output."""
 

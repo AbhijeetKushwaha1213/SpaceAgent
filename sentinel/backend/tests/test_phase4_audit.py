@@ -883,6 +883,8 @@ class TestAllRequiredFieldsArePersisted(unittest.TestCase):
             # Phase 14: this run used the stub provider, so no data left the
             # host and the transmission guard records NOT_RUN rather than OK.
             "external_transmission": "NOT_RUN",
+            # Phase 23: routing is dormant (ROUTER_ENABLED=false) and records NOT_RUN.
+            "routing": "NOT_RUN",
         }
         self.assertEqual(coverage, expected)
 

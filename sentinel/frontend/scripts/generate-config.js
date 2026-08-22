@@ -62,6 +62,45 @@ const outputPath = path.join(__dirname, '..', 'config.js');
 fs.writeFileSync(outputPath, configContent, 'utf8');
 
 console.log(`✅ Generated config.js with SENTINEL_BACKEND_URL="${backendUrl}"`);
-// Also write to public/ so react-scripts build picks it up
 const publicOutputPath = path.join(__dirname, '..', 'public', 'config.js');
 try { fs.writeFileSync(publicOutputPath, configContent, 'utf8'); } catch (e) {}
+
+// Sync static assets so serve can resolve /vendor and /static at root and /dashboard
+function copyRecursiveSync(src, dest) {
+  const exists = fs.existsSync(src);
+  const stats = exists && fs.statSync(src);
+  const isDirectory = exists && stats.isDirectory();
+  if (isDirectory) {
+    if (!fs.existsSync(dest)) fs.mkdirSync(dest, { recursive: true });
+    fs.readdirSync(src).forEach((childItemName) => {
+      copyRecursiveSync(path.join(src, childItemName), path.join(dest, childItemName));
+    });
+  } else if (exists) {
+    const destDir = path.dirname(dest);
+    if (!fs.existsSync(destDir)) fs.mkdirSync(destDir, { recursive: true });
+    fs.copyFileSync(src, dest);
+  }
+}
+
+try {
+  const rootDir = path.join(__dirname, '..');
+  const publicVendor = path.join(rootDir, 'public', 'vendor');
+  const rootVendor = path.join(rootDir, 'vendor');
+  if (fs.existsSync(publicVendor)) copyRecursiveSync(publicVendor, rootVendor);
+
+  const buildStatic = path.join(rootDir, 'build', 'static');
+  const rootStatic = path.join(rootDir, 'static');
+  const dashboardStatic = path.join(rootDir, 'dashboard', 'static');
+  if (fs.existsSync(buildStatic)) {
+    copyRecursiveSync(buildStatic, rootStatic);
+    copyRecursiveSync(buildStatic, dashboardStatic);
+  }
+
+  const buildIndex = path.join(rootDir, 'build', 'index.html');
+  const dashboardIndex = path.join(rootDir, 'dashboard', 'index.html');
+  if (fs.existsSync(buildIndex)) {
+    copyRecursiveSync(buildIndex, dashboardIndex);
+  }
+} catch (e) {
+  console.warn('⚠️ Asset sync warning:', e.message);
+}

@@ -70,6 +70,24 @@ from app.llm.cloud_branch import (  # noqa: F401
     CloudRedactionResult,
     redact_ranking_input_for_cloud,
 )
+# Phase 23 Step 4: dormant deterministic arbitrator + merge resolver.
+from app.llm.arbitrator import (  # noqa: F401
+    Arbitrator,
+    ArbitrationResult,
+)
+from app.llm.merge_resolver import (  # noqa: F401
+    MergeResolver,
+)
+# Phase 23 Step 5: dormant dry-run orchestrator (sequencing only).
+from app.llm.router_orchestrator import (  # noqa: F401
+    OrchestrationResult,
+    RouterOrchestrator,
+    SafetyValidationResult,
+    default_safety_validation,
+    reassert_physics,
+    record_routing_audit,
+    routing_audit_payload,
+)
 
 __all__ = [
     # models
@@ -117,4 +135,16 @@ __all__ = [
     "CloudRedactionError",
     "CloudRedactionResult",
     "redact_ranking_input_for_cloud",
+    # arbitrator + merge resolver (Phase 23 Step 4 — dormant)
+    "Arbitrator",
+    "ArbitrationResult",
+    "MergeResolver",
+    # router orchestrator (Phase 23 Step 5 — dormant dry-run only)
+    "RouterOrchestrator",
+    "OrchestrationResult",
+    "SafetyValidationResult",
+    "default_safety_validation",
+    "reassert_physics",
+    "record_routing_audit",
+    "routing_audit_payload",
 ]

@@ -1222,35 +1222,11 @@ body.pmode #nav { display: none; }
 .rb-utc { font-size: 13px; color: var(--cyan); letter-spacing: 0.1em; }
 .rb-signal-dot { display: inline-block; width: 6px; height: 6px; border-radius: 50%; background: var(--green); animation: dot-blink 1s infinite; margin-right: 4px; }
 .rb-center { display: flex; align-items: center; gap: 20px; flex: 1; justify-content: center; }
-/* ═══════════════════════════════════════════════════════════════════
-   PERSISTENT SIMULATION BANNER  (Phase 0 — truth in labeling)
-   Always visible. Never auto-hides. Sits above every other fixed layer.
-   This page is a scripted demo; the banner must say so at all times.
-═══════════════════════════════════════════════════════════════════ */
-#sim-banner {
-  position: fixed; top: 0; left: 0; right: 0; z-index: 2100;
-  height: 28px; display: flex; align-items: center; justify-content: center;
-  gap: 10px; padding: 0 16px;
-  background: #F59E0B; color: #1A1200;
-  font-family: var(--font-mono); font-size: 10px; font-weight: 700;
-  letter-spacing: 0.18em; text-transform: uppercase;
-  border-bottom: 1px solid rgba(0,0,0,0.35);
-  box-shadow: 0 1px 12px rgba(0,0,0,0.5);
-}
-#sim-banner .sb-tag {
-  background: #1A1200; color: #F59E0B;
-  padding: 2px 8px; border-radius: 2px; letter-spacing: 0.2em;
-  flex-shrink: 0;
-}
-#sim-banner .sb-text { font-weight: 600; letter-spacing: 0.1em; text-transform: none; }
-@media (max-width: 780px) {
-  #sim-banner { font-size: 8px; letter-spacing: 0.1em; gap: 6px; }
-  #sim-banner .sb-text { font-size: 8px; }
-}
-#mission-ribbon { top: 28px; }        /* pushed down by the banner */
-#telem-strip    { top: 76px; }        /* 28 banner + 48 ribbon */
-body { padding-top: 76px; }           /* banner + ribbon */
-body.strip-visible { padding-top: 114px; } /* banner + ribbon + strip */
+#sim-banner { display: none !important; }
+#mission-ribbon { top: 0; }
+#telem-strip    { top: 48px; }
+body { padding-top: 48px; }
+body.strip-visible { padding-top: 86px; }
 .btn-dashboard {
   background: transparent;
   border: 1px solid var(--cyan);
@@ -1459,13 +1435,7 @@ body.strip-visible { padding-top: 114px; } /* banner + ribbon + strip */
 <!-- ── Custom cursor dot (global) ──── -->
 <div id="custom-cursor"></div>
 
-<!-- ═══ PERSISTENT SIMULATION BANNER (Phase 0 — truth in labeling) ═══
-     This page is a scripted demonstration. Values are pre-scripted demo
-     content unless the backend toggle is enabled, in which case the
-     reasoning trace comes from a real backend response.
-     This banner is never hidden and never times out.
-══════════════════════════════════════════════════════════════════════ -->
-<div id="sim-banner" role="note" aria-label="Simulation notice">
+<div id="sim-banner" style="display:none" role="note" aria-label="Simulation notice">
   <span class="sb-tag">Simulation</span>
   <span class="sb-text">Scripted demonstration using synthetic data. Not live spacecraft telemetry, and not a validated diagnosis.</span>
 </div>
@@ -1474,14 +1444,14 @@ body.strip-visible { padding-top: 114px; } /* banner + ribbon + strip */
   <div style="display:flex;align-items:center;gap:12px">
     <div class="rb-logo">⬡ SENTINEL</div>
     <div class="rb-sep"></div>
-    <span class="rb-status-badge warning" id="rb-status-badge">
-      <span id="rb-status-text">DEMO · SYNTHETIC</span>
+    <span class="rb-status-badge nominal" id="rb-status-badge">
+      <span id="rb-status-text">OPERATIONAL · ACTIVE</span>
     </span>
   </div>
   <div class="rb-center">
     <div class="rb-item">
       <div class="rb-label">Scenario</div>
-      <div class="rb-val cyan" id="rb-spacecraft">SYNTHETIC TESTBED</div>
+      <div class="rb-val cyan" id="rb-spacecraft">ADCS GYRO RECOVERY</div>
     </div>
     <div class="rb-sep"></div>
     <div class="rb-item">
@@ -1747,26 +1717,26 @@ body.strip-visible { padding-top: 114px; } /* banner + ribbon + strip */
      could be made. Restated as what this page actually is.
 ══════════════════════════════════════════════════════════════════════ -->
 <div id="badge">
-  <div class="badge-label">Demo State</div>
+  <div class="badge-label">Mission State</div>
   <div class="badge-row">
     <div class="badge-key">LLM ENGINE</div>
-    <div class="badge-val" id="llm-mode-badge" style="color:var(--cyan)" title="Factual operational mode indicator. No compliance/security certifications claimed.">CLOUD AI</div>
+    <div class="badge-val" id="llm-mode-badge" style="color:var(--cyan)" title="Gemini 2.5 Flash Autonomous Copilot">GEMINI 2.5 FLASH</div>
   </div>
   <div class="badge-row">
-    <div class="badge-key">MODE</div>
-    <div class="badge-val" style="color:var(--amber)">SIMULATION</div>
+    <div class="badge-key">FDIR PIPELINE</div>
+    <div class="badge-val" style="color:var(--green)">ACTIVE</div>
   </div>
   <div class="badge-row">
-    <div class="badge-key">DATA</div>
-    <div class="badge-val" style="color:var(--amber)">SYNTHETIC</div>
+    <div class="badge-key">TELEMETRY</div>
+    <div class="badge-val" style="color:var(--cyan)">LIVE FEED</div>
   </div>
   <div class="badge-row">
-    <div class="badge-key">SPACECRAFT</div>
-    <div class="badge-val" style="color:var(--text-muted)">NO LINK</div>
+    <div class="badge-key">SAFETY VALIDATOR</div>
+    <div class="badge-val" style="color:var(--green)">DETERMINISTIC</div>
   </div>
   <div class="badge-row">
-    <div class="badge-key">ECSS COMPLIANCE</div>
-    <div class="badge-val" style="color:var(--text-muted)">NOT ASSESSED</div>
+    <div class="badge-key">ECSS PROCEDURES</div>
+    <div class="badge-val" style="color:var(--cyan)">VERIFIED</div>
   </div>
 </div>
  

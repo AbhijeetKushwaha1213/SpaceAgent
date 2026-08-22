@@ -103,18 +103,44 @@ export function residualsForChannel(physicsReport, channelId) {
   return out;
 }
 
-// ── analysis output (SentinelOutput from SSE result) ─────────────────────
+// ── analysis output (SentinelOutput from SSE result or loaded audit run) ─
 
-export function hypotheses(analysis) {
-  return analysis?.output?.hypotheses || [];
+export function hypotheses(analysis, selectedRun) {
+  if (analysis?.output?.hypotheses?.length > 0) return analysis.output.hypotheses;
+  const diag = stageSummary(selectedRun?.data, "diagnosis");
+  return diag?.payload?.sentinel_output?.hypotheses || [];
 }
 
-export function recoveryPlan(analysis) {
-  return analysis?.output?.recovery_plan || [];
+export function recoveryPlan(analysis, selectedRun) {
+  if (analysis?.output?.recovery_plan?.length > 0) return analysis.output.recovery_plan;
+  const diag = stageSummary(selectedRun?.data, "diagnosis");
+  return (
+    diag?.payload?.sentinel_output?.recovery_plan ||
+    diag?.payload?.recommended_actions ||
+    []
+  );
 }
 
-export function blockedCommands(analysis) {
-  return analysis?.output?.blocked_steps || [];
+export function blockedCommands(analysis, selectedRun) {
+  if (analysis?.output?.blocked_steps?.length > 0) return analysis.output.blocked_steps;
+  const diag = stageSummary(selectedRun?.data, "diagnosis");
+  return diag?.payload?.sentinel_output?.blocked_steps || [];
+}
+
+export function reasoningSummary(analysis, selectedRun) {
+  if (analysis?.output?.reasoning_summary) return analysis.output.reasoning_summary;
+  const diag = stageSummary(selectedRun?.data, "diagnosis");
+  return diag?.payload?.sentinel_output?.reasoning_summary || null;
+}
+
+export function safetyStatus(analysis, selectedRun) {
+  if (analysis?.output?.safety_status) return analysis.output.safety_status;
+  const diag = stageSummary(selectedRun?.data, "diagnosis");
+  return (
+    diag?.payload?.sentinel_output?.safety_status ||
+    diag?.payload?.safety_status ||
+    null
+  );
 }
 
 // ── audit helpers ────────────────────────────────────────────────────────

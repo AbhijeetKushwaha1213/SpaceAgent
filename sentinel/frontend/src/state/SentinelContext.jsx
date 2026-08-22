@@ -141,23 +141,9 @@ export function SentinelProvider({ children }) {
     };
   }, []);
 
-  // ── fetch audit run list ───────────────────────────────────────────────
-  const refreshRuns = useCallback(async () => {
-    setRuns((prev) => ({ ...prev, loading: true, error: null }));
-    try {
-      const data = await apiGet(`${ENDPOINTS.runs}?limit=100`);
-      setRuns({ data, loading: false, error: null });
-    } catch (err) {
-      setRuns({ data: null, loading: false, error: String(err) });
-    }
-  }, []);
-
-  useEffect(() => {
-    refreshRuns();
-  }, [refreshRuns]);
-
   // ── fetch one run detail ───────────────────────────────────────────────
   const selectRun = useCallback(async (runId) => {
+    if (!runId) return;
     setSelectedRunId(runId);
     setSelectedRun({ data: null, loading: true, error: null });
     try {
@@ -167,6 +153,24 @@ export function SentinelProvider({ children }) {
       setSelectedRun({ data: null, loading: false, error: String(err) });
     }
   }, []);
+
+  // ── fetch audit run list ───────────────────────────────────────────────
+  const refreshRuns = useCallback(async () => {
+    setRuns((prev) => ({ ...prev, loading: true, error: null }));
+    try {
+      const data = await apiGet(`${ENDPOINTS.runs}?limit=100`);
+      setRuns({ data, loading: false, error: null });
+      if (data?.runs?.length > 0 && !selectedRunId) {
+        selectRun(data.runs[0].run_id);
+      }
+    } catch (err) {
+      setRuns({ data: null, loading: false, error: String(err) });
+    }
+  }, [selectRun, selectedRunId]);
+
+  useEffect(() => {
+    refreshRuns();
+  }, [refreshRuns]);
 
   const verifyRun = useCallback(async (runId) => {
     setChainVerification({ data: null, loading: true, error: null });

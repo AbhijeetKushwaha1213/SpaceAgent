@@ -36,4 +36,5 @@ sentinel/backend/data/chroma_db/
 
 
 .kiro/
+.qoder/
 frontend/src/generated/

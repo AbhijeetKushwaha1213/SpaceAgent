@@ -17,6 +17,8 @@ import { useSentinel } from "../../state/SentinelContext";
 import {
   channelById,
   fmtPct,
+  hypotheses,
+  reasoningSummary,
 } from "../../state/selectors";
 import Panel from "../ui/Panel";
 import StatusBadge from "../ui/StatusBadge";
@@ -36,14 +38,15 @@ export default function FaultInvestigationView({ onNavigate }) {
     detection,
     physicsReport,
     analysis,
+    selectedRun,
     channelDictionary,
     focusTelemetry,
   } = useSentinel();
 
   const anomalies = detection?.data?.anomalies || [];
   const verdicts = physicsReport?.data?.verdicts || [];
-  const llmHypotheses = analysis?.output?.hypotheses || [];
-  const reasoning = analysis?.output?.reasoning_summary || null;
+  const llmHypotheses = hypotheses(analysis, selectedRun);
+  const reasoning = reasoningSummary(analysis, selectedRun);
 
   const anomalousChannels = Array.from(new Set(anomalies.map((a) => a.channel)));
 
@@ -323,79 +326,76 @@ export default function FaultInvestigationView({ onNavigate }) {
         {chainStep(
           "06",
           "Final ranking",
-          analysis?.output
-            ? llmHypotheses.length > 0
-              ? (() => {
-                  const top = llmHypotheses.find((h) => h.rank === 1);
-                  return (
-                    <div>
-                      <div className="final-ranking">
-                        <span className="final-ranking__label">PRIMARY ROOT CAUSE</span>
-                        <span className="final-ranking__value mono">
-                          {top ? `${top.root_cause} (${fmtPct(top.confidence)})` : "N/A"}
-                        </span>
-                        <StatusBadge
-                          status={analysis.output.requires_human_review ? "REQUIRES_HUMAN_REVIEW" : "VALIDATED"}
-                          label={analysis.output.requires_human_review ? "HUMAN REVIEW REQUIRED" : "NO REVIEW REQUIRED"}
-                        />
-                      </div>
-                      <ol className="ranked-hypotheses">
-                        {[...llmHypotheses]
-                          .sort((a, b) => a.rank - b.rank)
-                          .map((h) => {
-                            const verdict = verdictForFault(h.root_cause);
-                            return (
-                              <li key={h.rank} className="ranked-hypothesis">
-                                <div className="ranked-hypothesis__head">
-                                  <span className="mono bold">
-                                    RANK {h.rank}: {h.root_cause}
-                                  </span>
-                                  <span className="mono fs-sm">
-                                    {fmtPct(h.confidence)} confidence
-                                  </span>
-                                  {verdict ? <StatusBadge status={verdict.validation_status} label={`PHYSICS ${verdict.validation_status}`} /> : null}
-                                </div>
-                                <p className="fs-sm muted-text">
-                                  {h.affected_component ? `AFFECTED: ${h.affected_component}` : "AFFECTED: N/A"}
-                                </p>
-                                {h.causal_chain?.length ? (
-                                  <ol className="causal-chain">
-                                    {h.causal_chain.map((link, i) => (
-                                      <li key={i} className="mono fs-sm">
-                                        {link}
-                                      </li>
-                                    ))}
-                                  </ol>
-                                ) : null}
-                              </li>
-                            );
-                          })}
-                      </ol>
-                      {reasoning ? (
-                        <p className="reasoning-summary">
-                          <strong>Reasoning summary:</strong> {reasoning}
-                        </p>
-                      ) : null}
-                    </div>
-                  );
-                })()
-              : <p className="muted-text">NO RANKED HYPOTHESES IN ANALYSIS OUTPUT</p>
-            : (
-              <div>
-                <p className="muted-text">
-                  NO ANALYSIS RUN COMPLETED — deterministic candidate set and physics
-                  verdicts above are the only ranking available. Run FDIR analysis to
-                  produce the constrained LLM ranking.
-                </p>
-                <button
-                  type="button"
-                  className="btn btn--sm"
-                  onClick={() => onNavigate("overview")}
-                >
-                  Run analysis from Mission Overview
-                </button>
-              </div>
-            )
+          llmHypotheses.length > 0 ? (
+            (() => {
+              const top = llmHypotheses.find((h) => h.rank === 1) || llmHypotheses[0];
+              const reqReview =
+                analysis?.output?.requires_human_review !== undefined
+                  ? analysis.output.requires_human_review
+                  : selectedRun?.data?.entries?.find((e) => e.stage === "diagnosis")?.payload?.requires_human_review || false;
+              return (
+                <div>
+                  <div className="final-ranking">
+                    <span className="final-ranking__label">PRIMARY ROOT CAUSE</span>
+                    <span className="final-ranking__value mono">
+                      {top ? `${top.root_cause || top.fault_id} (${fmtPct(top.confidence)})` : "N/A"}
+                    </span>
+                    <StatusBadge
+                      status={reqReview ? "REQUIRES_HUMAN_REVIEW" : "VALIDATED"}
+                      label={reqReview ? "HUMAN REVIEW REQUIRED" : "NO REVIEW REQUIRED"}
+                    />
+                  </div>
+                  <ol className="ranked-hypotheses">
+                    {[...llmHypotheses]
+                      .sort((a, b) => (a.rank || 1) - (b.rank || 1))
+                      .map((h, idx) => {
+                        const faultName = h.root_cause || h.fault_id;
+                        const verdict = verdictForFault(faultName);
+                        return (
+                          <li key={h.rank || idx} className="ranked-hypothesis">
+                            <div className="ranked-hypothesis__head">
+                              <span className="mono bold">
+                                RANK {h.rank || idx + 1}: {faultName}
+                              </span>
+                              <span className="mono fs-sm">
+                                {fmtPct(h.confidence)} confidence
+                              </span>
+                              {verdict ? <StatusBadge status={verdict.validation_status} label={`PHYSICS ${verdict.validation_status}`} /> : null}
+                            </div>
+                            <p className="fs-sm muted-text">
+                              {h.affected_component ? `AFFECTED: ${h.affected_component}` : "AFFECTED: N/A"}
+                            </p>
+                            {h.causal_chain?.length ? (
+                              <ol className="causal-chain">
+                                {h.causal_chain.map((link, i) => (
+                                  <li key={i} className="mono fs-sm">
+                                    {link}
+                                  </li>
+                                ))}
+                              </ol>
+                            ) : null}
+                          </li>
+                        );
+                      })}
+                  </ol>
+                  {reasoning ? (
+                    <p className="reasoning-summary">
+                      <strong>Reasoning summary:</strong> {reasoning}
+                    </p>
+                  ) : null}
+                </div>
+              );
+            })()
+          ) : (
+            <div>
+              <p className="muted-text">
+                NO ANALYSIS RUN COMPLETED — deterministic candidate set and physics
+                verdicts above are the only ranking available. Click "RUN FDIR ANALYSIS" in
+                the header to run live diagnosis.
+              </p>
+            </div>
+          ),
+          llmHypotheses.length > 0 ? "nominal" : "neutral"
         )}
       </ol>
     </div>

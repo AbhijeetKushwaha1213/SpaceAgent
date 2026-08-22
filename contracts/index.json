@@ -21,6 +21,7 @@
       "detection",
       "state_estimation",
       "rag",
+      "routing",
       "llm",
       "external_transmission",
       "hypotheses",
