@@ -95,6 +95,7 @@ export const ANALYSIS_STATUS = Object.freeze({
 export const AUDIT_STAGE = Object.freeze({
   input: "input",
   detection: "detection",
+  reconciliation: "reconciliation",
   state_estimation: "state_estimation",
   rag: "rag",
   routing: "routing",

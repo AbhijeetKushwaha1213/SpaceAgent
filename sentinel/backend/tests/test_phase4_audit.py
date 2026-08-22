@@ -885,6 +885,8 @@ class TestAllRequiredFieldsArePersisted(unittest.TestCase):
             "external_transmission": "NOT_RUN",
             # Phase 23: routing is dormant (ROUTER_ENABLED=false) and records NOT_RUN.
             "routing": "NOT_RUN",
+            # Phase 24: reconciliation is dormant (RECONCILIATION_ENABLED=false) and records NOT_RUN.
+            "reconciliation": "NOT_RUN",
         }
         self.assertEqual(coverage, expected)
 

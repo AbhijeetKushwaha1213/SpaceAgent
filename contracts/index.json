@@ -19,6 +19,7 @@
     "AuditStage": [
       "input",
       "detection",
+      "reconciliation",
       "state_estimation",
       "rag",
       "routing",

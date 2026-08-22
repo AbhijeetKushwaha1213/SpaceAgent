@@ -6,7 +6,7 @@
     "api_version": "v1",
     "model": "stub:eval-runner",
     "seed": 123,
-    "timestamp": "2026-08-22T05:20:34.914676+00:00",
+    "timestamp": "2026-08-22T10:57:21.952871+00:00",
     "split": "DEV",
     "scenarios_evaluated": 3,
     "llm": {
@@ -41,7 +41,7 @@
         "recall": 0.1667,
         "f1": 0.2222,
         "false_positive_rate": 0.0,
-        "detection_latency_ms": 0.44
+        "detection_latency_ms": 0.67
       },
       "hypothesis_generation": {
         "top1_accuracy": 0.3333,
@@ -67,8 +67,8 @@
         "blocked_plan_rate": 0.0
       },
       "system_performance": {
-        "end_to_end_latency_ms": 0.44,
-        "detector_latency_ms": 0.44,
+        "end_to_end_latency_ms": 0.67,
+        "detector_latency_ms": 0.67,
         "physics_latency_ms": 0.0,
         "rag_latency_ms": 0.0,
         "llm_latency_ms": 0.0,
@@ -93,7 +93,7 @@
               "recall": 0.5,
               "f1": 0.6667,
               "false_positive_rate": 0.0,
-              "latency_ms": 0.87
+              "latency_ms": 0.73
             },
             "hypothesis": {
               "top1_accuracy": 1.0,
@@ -128,7 +128,7 @@
               "recall": 0.0,
               "f1": 0.0,
               "false_positive_rate": 0.0,
-              "latency_ms": 0.27
+              "latency_ms": 0.79
             },
             "hypothesis": {
               "top1_accuracy": 0.0,
@@ -163,7 +163,7 @@
               "recall": 0.0,
               "f1": 0.0,
               "false_positive_rate": 0.0,
-              "latency_ms": 0.18
+              "latency_ms": 0.5
             },
             "hypothesis": {
               "top1_accuracy": 0.0,
@@ -196,7 +196,7 @@
         "recall": 0.1667,
         "f1": 0.2222,
         "false_positive_rate": 0.0,
-        "detection_latency_ms": 0.28
+        "detection_latency_ms": 0.4
       },
       "hypothesis_generation": {
         "top1_accuracy": 0.6667,
@@ -222,8 +222,8 @@
         "blocked_plan_rate": 0.0
       },
       "system_performance": {
-        "end_to_end_latency_ms": 1.64,
-        "detector_latency_ms": 0.28,
+        "end_to_end_latency_ms": 2.29,
+        "detector_latency_ms": 0.4,
         "physics_latency_ms": 0.0,
         "rag_latency_ms": 0.0,
         "llm_latency_ms": 0.0,
@@ -248,7 +248,7 @@
               "recall": 0.5,
               "f1": 0.6667,
               "false_positive_rate": 0.0,
-              "latency_ms": 0.27
+              "latency_ms": 0.56
             },
             "hypothesis": {
               "top1_accuracy": 0.0,
@@ -283,7 +283,7 @@
               "recall": 0.0,
               "f1": 0.0,
               "false_positive_rate": 0.0,
-              "latency_ms": 0.33
+              "latency_ms": 0.4
             },
             "hypothesis": {
               "top1_accuracy": 1.0,
@@ -318,7 +318,7 @@
               "recall": 0.0,
               "f1": 0.0,
               "false_positive_rate": 0.0,
-              "latency_ms": 0.23
+              "latency_ms": 0.26
             },
             "hypothesis": {
               "top1_accuracy": 1.0,
@@ -351,7 +351,7 @@
         "recall": 0.1667,
         "f1": 0.2222,
         "false_positive_rate": 0.0,
-        "detection_latency_ms": 0.31
+        "detection_latency_ms": 0.37
       },
       "hypothesis_generation": {
         "top1_accuracy": 0.6667,
@@ -377,11 +377,11 @@
         "blocked_plan_rate": 0.0
       },
       "system_performance": {
-        "end_to_end_latency_ms": 2.3,
-        "detector_latency_ms": 0.31,
+        "end_to_end_latency_ms": 2.95,
+        "detector_latency_ms": 0.37,
         "physics_latency_ms": 0.0,
-        "rag_latency_ms": 1.58,
-        "llm_latency_ms": 0.42,
+        "rag_latency_ms": 2.1,
+        "llm_latency_ms": 0.48,
         "token_usage": {
           "avg_prompt_tokens": 0,
           "avg_completion_tokens": 0,
@@ -403,7 +403,7 @@
               "recall": 0.5,
               "f1": 0.6667,
               "false_positive_rate": 0.0,
-              "latency_ms": 0.36
+              "latency_ms": 0.4
             },
             "hypothesis": {
               "top1_accuracy": 0.0,
@@ -438,7 +438,7 @@
               "recall": 0.0,
               "f1": 0.0,
               "false_positive_rate": 0.0,
-              "latency_ms": 0.34
+              "latency_ms": 0.42
             },
             "hypothesis": {
               "top1_accuracy": 1.0,
@@ -473,7 +473,7 @@
               "recall": 0.0,
               "f1": 0.0,
               "false_positive_rate": 0.0,
-              "latency_ms": 0.21
+              "latency_ms": 0.3
             },
             "hypothesis": {
               "top1_accuracy": 1.0,
@@ -506,7 +506,7 @@
         "recall": 0.1667,
         "f1": 0.2222,
         "false_positive_rate": 0.0,
-        "detection_latency_ms": 0.34
+        "detection_latency_ms": 0.33
       },
       "hypothesis_generation": {
         "top1_accuracy": 1.0,
@@ -532,11 +532,11 @@
         "blocked_plan_rate": 0.0
       },
       "system_performance": {
-        "end_to_end_latency_ms": 22.7,
-        "detector_latency_ms": 0.34,
-        "physics_latency_ms": 2.26,
-        "rag_latency_ms": 1.1,
-        "llm_latency_ms": 18.99,
+        "end_to_end_latency_ms": 19.53,
+        "detector_latency_ms": 0.33,
+        "physics_latency_ms": 2.18,
+        "rag_latency_ms": 1.13,
+        "llm_latency_ms": 15.89,
         "token_usage": {
           "avg_prompt_tokens": 0,
           "avg_completion_tokens": 0,
@@ -558,7 +558,7 @@
               "recall": 0.5,
               "f1": 0.6667,
               "false_positive_rate": 0.0,
-              "latency_ms": 0.36
+              "latency_ms": 0.45
             },
             "hypothesis": {
               "top1_accuracy": 1.0,
@@ -593,7 +593,7 @@
               "recall": 0.0,
               "f1": 0.0,
               "false_positive_rate": 0.0,
-              "latency_ms": 0.43
+              "latency_ms": 0.33
             },
             "hypothesis": {
               "top1_accuracy": 1.0,
@@ -628,7 +628,7 @@
               "recall": 0.0,
               "f1": 0.0,
               "false_positive_rate": 0.0,
-              "latency_ms": 0.23
+              "latency_ms": 0.21
             },
             "hypothesis": {
               "top1_accuracy": 1.0,
@@ -708,10 +708,10 @@
         "SENTINEL"
       ],
       "data": [
-        0.44,
-        1.64,
-        2.3,
-        22.7
+        0.67,
+        2.29,
+        2.95,
+        19.53
       ]
     }
   }

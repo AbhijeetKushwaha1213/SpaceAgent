@@ -43,7 +43,7 @@ export declare const ACTOR: Readonly<Record<Actor, Actor>>;
 export type AnalysisStatus = "complete" | "partial" | "timeout" | "error";
 export declare const ANALYSIS_STATUS: Readonly<Record<AnalysisStatus, AnalysisStatus>>;
 
-export type AuditStage = "input" | "detection" | "state_estimation" | "rag" | "routing" | "llm" | "external_transmission" | "hypotheses" | "physics_validation" | "safety_validation" | "diagnosis" | "operator_decision";
+export type AuditStage = "input" | "detection" | "reconciliation" | "state_estimation" | "rag" | "routing" | "llm" | "external_transmission" | "hypotheses" | "physics_validation" | "safety_validation" | "diagnosis" | "operator_decision";
 export declare const AUDIT_STAGE: Readonly<Record<AuditStage, AuditStage>>;
 
 export type BaselineSource = "OBSERVED_PROVIDED" | "OBSERVED_WINDOW" | "RANGE_DERIVED" | "NONE";

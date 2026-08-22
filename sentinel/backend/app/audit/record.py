@@ -76,6 +76,9 @@ class Stage(str, Enum):
     DETECTION = "detection"
     """Deterministic anomaly detection (Phase 2 pipeline)."""
 
+    RECONCILIATION = "reconciliation"
+    """Deterministic observation reconciliation & separation (Phase 24)."""
+
     STATE_ESTIMATION = "state_estimation"
     """Simplified dynamics / state estimation. Not implemented in this build."""
 

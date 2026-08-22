@@ -1632,6 +1632,52 @@ class SentinelAgent:
             )
             _audit_record_state_estimation(recorder, crash_dict)
 
+        # ── Phase 24: Reconciliation / Separation Logic (Flag-Gated) ────────
+        reconciliation_result = None
+        try:
+            from app.reconciliation import reconciliation_enabled
+            if reconciliation_enabled() and detection_report is not None:
+                from app.reconciliation import (
+                    ReconciliationEngine,
+                    ReconciliationInput,
+                    build_observation_events,
+                    build_reconciliation_audit_payload,
+                )
+
+                _recon_events = build_observation_events(
+                    detection_report=detection_report,
+                    crash_dump=crash_dict,
+                    scenario_id=str(crash_dict.get("scenario_id", "") or ""),
+                )
+                _recon_input = ReconciliationInput(
+                    events=_recon_events,
+                    scenario_id=str(crash_dict.get("scenario_id", "") or ""),
+                )
+                reconciliation_result = ReconciliationEngine().reconcile(_recon_input)
+
+                if recorder is not None:
+                    _audit_payload = build_reconciliation_audit_payload(
+                        _recon_input, reconciliation_result
+                    )
+                    recorder.record(
+                        stage=Stage.RECONCILIATION,
+                        status=StageStatus.OK,
+                        summary=f"Reconciled {len(_recon_events)} observation(s) into {reconciliation_result.case_count} case(s).",
+                        payload=_audit_payload,
+                    )
+        except Exception as _r_exc:
+            logger.warning("Reconciliation error (non-fatal): %s", _r_exc)
+            if recorder is not None:
+                try:
+                    recorder.record(
+                        stage=Stage.RECONCILIATION,
+                        status=StageStatus.DEGRADED,
+                        summary=f"Reconciliation encountered an error: {_r_exc}",
+                        payload={"error": str(_r_exc)},
+                    )
+                except Exception:
+                    pass
+
         yield SSEEvent(
             event_type=SSEEventType.OBSERVATION,
             data=f"Anomaly detector result: {anomaly_details}",
