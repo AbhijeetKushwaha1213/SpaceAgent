@@ -63,13 +63,22 @@ class CaseIsolationBoundary:
 
         filtered: list[Any] = []
         for item in evidence_items:
-            # Check by channel if item has channel
+            if item is None or isinstance(item, (str, int, float, bool)):
+                continue
+
             item_ch = getattr(item, "channel", None)
+            item_ev = getattr(item, "event_id", None)
+            item_an = getattr(item, "anomaly_ids", None)
+
+            # Fail-closed: Must have at least one identifiable attribute
+            if item_ch is None and item_ev is None and item_an is None:
+                continue
+
+            # Check by channel if item has channel
             if item_ch is not None and item_ch not in in_scope_channels:
                 continue
 
             # Check by event_id if item has event_id
-            item_ev = getattr(item, "event_id", None)
             if item_ev is not None and item_ev not in in_scope_events:
                 continue
 

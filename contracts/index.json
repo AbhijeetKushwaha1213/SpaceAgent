@@ -255,6 +255,7 @@
     "/api/v1/health",
     "/api/v1/physics",
     "/api/v1/physics/constraints",
+    "/api/v1/reconciliation",
     "/api/v1/runs",
     "/api/v1/runs/{run_id}",
     "/api/v1/runs/{run_id}/decisions",

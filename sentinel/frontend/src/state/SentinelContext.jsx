@@ -23,6 +23,7 @@ import React, {
 } from "react";
 import { apiGet, apiPost, resolveBackendUrl, streamAnalysis } from "../api/client";
 import { ENDPOINTS, runDecisions, runVerify } from "../api/endpoints";
+import { derivePipelineProgress } from "./pipelineStateMachine";
 
 const SentinelContext = createContext(null);
 
@@ -53,6 +54,7 @@ export function SentinelProvider({ children }) {
   // ── per-scenario analysis artifacts (deterministic backend endpoints) ──
   const [detection, setDetection] = useState(emptyEntity);
   const [physicsReport, setPhysicsReport] = useState(emptyEntity);
+  const [reconciliation, setReconciliation] = useState(emptyEntity);
 
   // ── audit runs ─────────────────────────────────────────────────────────
   const [runs, setRuns] = useState(emptyEntity);
@@ -226,6 +228,7 @@ export function SentinelProvider({ children }) {
 
     setDetection({ data: null, loading: true, error: null });
     setPhysicsReport({ data: null, loading: true, error: null });
+    setReconciliation({ data: null, loading: true, error: null });
 
     (async () => {
       try {
@@ -244,6 +247,16 @@ export function SentinelProvider({ children }) {
       } catch (err) {
         if (!cancelled) {
           setPhysicsReport({ data: null, loading: false, error: String(err) });
+        }
+      }
+    })();
+    (async () => {
+      try {
+        const data = await apiPost(ENDPOINTS.reconciliation, payload);
+        if (!cancelled) setReconciliation({ data, loading: false, error: null });
+      } catch (err) {
+        if (!cancelled) {
+          setReconciliation({ data: null, loading: false, error: String(err) });
         }
       }
     })();
@@ -277,17 +290,33 @@ export function SentinelProvider({ children }) {
         },
         onEvent: (eventType, data) => {
           setAnalysis((prev) => {
+            const msgText =
+              typeof data === "object" && data !== null && "data" in data
+                ? String(data.data || "")
+                : String(data || "");
+
+            const stepNumber =
+              typeof data === "object" && data !== null && "step_number" in data
+                ? data.step_number
+                : null;
+
             const next = {
               ...prev,
-              events: [...prev.events.slice(-400), { type: eventType, data }],
+              events: [
+                ...prev.events.slice(-400),
+                { type: eventType, data: msgText, stepNumber, raw: data },
+              ],
             };
+
             if (eventType === "result" && data) {
-              // The backend serializes the result payload as a JSON string
-              // inside the SSE event ("data" is the SSE event's data field).
-              let output = data;
-              if (typeof data === "string") {
+              let rawOutput =
+                typeof data === "object" && data !== null && "data" in data
+                  ? data.data
+                  : data;
+              let output = rawOutput;
+              if (typeof rawOutput === "string") {
                 try {
-                  output = JSON.parse(data);
+                  output = JSON.parse(rawOutput);
                 } catch (e) {
                   output = null;
                 }
@@ -320,6 +349,26 @@ export function SentinelProvider({ children }) {
 
   const clearTelemetryFocus = useCallback(() => setFocus(null), []);
 
+  const pipelineProgress = useMemo(
+    () =>
+      derivePipelineProgress({
+        analysis,
+        scenario: selectedScenario,
+        detection,
+        reconciliation,
+        physicsReport,
+        systemStatus,
+      }),
+    [
+      analysis,
+      selectedScenario,
+      detection,
+      reconciliation,
+      physicsReport,
+      systemStatus,
+    ]
+  );
+
   const value = useMemo(
     () => ({
       backendUrl,
@@ -330,6 +379,7 @@ export function SentinelProvider({ children }) {
       auditStatus,
       detection,
       physicsReport,
+      reconciliation,
       runs,
       selectedRun,
       selectedRunId,
@@ -338,6 +388,7 @@ export function SentinelProvider({ children }) {
       selectedScenario,
       selectedScenarioId,
       analysis,
+      pipelineProgress,
       focus,
       selectScenario,
       runAnalysis,
@@ -357,6 +408,7 @@ export function SentinelProvider({ children }) {
       auditStatus,
       detection,
       physicsReport,
+      reconciliation,
       runs,
       selectedRun,
       selectedRunId,

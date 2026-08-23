@@ -9,9 +9,12 @@ import React, { useState } from "react";
 import "./App.css";
 
 import HeaderNav from "./components/HeaderNav";
+import FlowGuide from "./components/ui/FlowGuide";
 import MissionOverview from "./components/views/MissionOverview";
+import PipelineDemoView from "./components/views/PipelineDemoView";
 import TelemetryView from "./components/views/TelemetryView";
 import FaultInvestigationView from "./components/views/FaultInvestigationView";
+import ReconciliationView from "./components/views/ReconciliationView";
 import PhysicsView from "./components/views/PhysicsView";
 import RecoveryView from "./components/views/RecoveryView";
 import EvidenceView from "./components/views/EvidenceView";
@@ -21,8 +24,10 @@ import { SentinelProvider } from "./state/SentinelContext";
 
 const TAB_IDS = Object.freeze({
   overview: "overview",
+  pipeline: "pipeline",
   telemetry: "telemetry",
   investigation: "investigation",
+  reconciliation: "reconciliation",
   physics: "physics",
   recovery: "recovery",
   evidence: "evidence",
@@ -72,6 +77,7 @@ function Console() {
     <div className="app-shell">
       <HeaderNav activeTab={activeTab} onSelectTab={navigate} />
       <main className="ops-main" id="ops-main">
+        <FlowGuide activeTab={activeTab} onSelectTab={navigate} />
         <div
           key={activeTab}
           role="tabpanel"
@@ -79,10 +85,12 @@ function Console() {
           aria-labelledby={`tab-${activeTab}`}
         >
           {activeTab === TAB_IDS.overview && <MissionOverview onNavigate={navigate} />}
+          {activeTab === TAB_IDS.pipeline && <PipelineDemoView onNavigate={navigate} />}
           {activeTab === TAB_IDS.telemetry && <TelemetryView />}
           {activeTab === TAB_IDS.investigation && (
             <FaultInvestigationView onNavigate={navigate} />
           )}
+          {activeTab === TAB_IDS.reconciliation && <ReconciliationView />}
           {activeTab === TAB_IDS.physics && <PhysicsView />}
           {activeTab === TAB_IDS.recovery && <RecoveryView />}
           {activeTab === TAB_IDS.evidence && <EvidenceView onNavigate={navigate} />}

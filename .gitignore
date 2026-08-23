@@ -6,8 +6,12 @@ __pycache__/
 *.pyd
 env/
 venv/
+# Secrets — never commit real env files; DO keep the *.example templates tracked.
 *.env
-.env.example/
+.env
+.env.*
+!.env.example
+!*.env.example
 # Node
 node_modules/
 build/
@@ -37,4 +41,8 @@ sentinel/backend/data/chroma_db/
 
 .kiro/
 .qoder/
+.claude/
+.DS_Store
+*.DS_Store
+*.ses
 frontend/src/generated/

@@ -47,6 +47,12 @@ const STATUS_META = {
   BLOCKED: { icon: "block", cls: "crit" },
   REJECTED: { icon: "cross", cls: "crit" },
   ABANDONED: { icon: "cross", cls: "crit" },
+  // reconciliation relationship types (Phase 24/26) — CORRELATION != IDENTITY
+  SEPARATE: { icon: "check", cls: "ok" },
+  RELATED: { icon: "warn", cls: "warn" },
+  DUPLICATE: { icon: "check", cls: "neutral" },
+  SAME_CASE: { icon: "check", cls: "neutral" },
+  CONFLICT: { icon: "cross", cls: "crit" },
   // neutral / not stated
   UNKNOWN: { icon: "unknown", cls: "neutral" },
   INFO: { icon: "unknown", cls: "neutral" },

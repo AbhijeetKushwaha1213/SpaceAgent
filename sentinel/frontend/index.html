@@ -1891,20 +1891,20 @@ body.strip-visible { padding-top: 86px; }
         <button class="crash-action-btn" onclick="clearJSON()">Clear</button>
       </div>
     </div>
-    <textarea id="crash-json" class="crash-textarea" spellcheck="false" placeholder='{
+    <textarea id="crash-json" class="crash-textarea" spellcheck="false">{
   "scenario_id": 1,
   "fault_type": "ADCS_GYRO_SEU",
+  "spacecraft_id": "SAT-SIM-01",
   "incident_id": "INC-2026-0036",
   "fault_register": "0x00000008",
+  "safe_mode_trigger": "ADCS_ATTITUDE_RATE_EXCEEDED",
   "pre_fault_telemetry_window": [
-    {"timestamp": "T-120s", "parameter": "Gyro_rate_degs", "value": 0.5,
-     "unit": "deg/s", "status": "NOMINAL", "nominal_min": 0.0, "nominal_max": 7.0},
-    {"timestamp": "T-60s", "parameter": "Gyro_rate_degs", "value": "NaN",
-     "unit": "deg/s", "status": "CRITICAL", "nominal_min": 0.0, "nominal_max": 7.0},
-    {"timestamp": "T-30s", "parameter": "Attitude_error_deg", "value": 7.3,
-     "unit": "deg", "status": "CRITICAL", "nominal_min": 0.0, "nominal_max": 0.01}
+    {"timestamp": "T-120s", "parameter": "Gyro_rate_degs", "value": 0.5, "unit": "deg/s", "status": "NOMINAL", "nominal_min": 0.0, "nominal_max": 7.0},
+    {"timestamp": "T-60s", "parameter": "Gyro_rate_degs", "value": "NaN", "unit": "deg/s", "status": "CRITICAL", "nominal_min": 0.0, "nominal_max": 7.0},
+    {"timestamp": "T-30s", "parameter": "Attitude_error_deg", "value": 7.3, "unit": "deg", "status": "CRITICAL", "nominal_min": 0.0, "nominal_max": 0.01},
+    {"timestamp": "T-10s", "parameter": "RW_speed_rpm", "value": 4500.0, "unit": "rpm", "status": "NOMINAL", "nominal_min": 0.0, "nominal_max": 5000.0}
   ]
-}'></textarea>
+}</textarea>
     <div class="crash-footer">
       <div class="sim-status" style="margin-top:0;flex:1">
         <div class="sim-stat">
@@ -2949,6 +2949,11 @@ async function fetchScenarioCatalogue() {
     SCENARIO_CATALOGUE.state = list.length ? 'ready' : 'unavailable';
     SCENARIO_CATALOGUE.error = list.length ? null : 'backend returned an empty catalogue';
     refreshPresetDisplay();
+    const crashEl = document.getElementById('crash-json');
+    if (crashEl && !crashEl.value.trim()) {
+      const text = presetPayloadText(currentPreset);
+      if (text) crashEl.value = text;
+    }
   } catch (err) {
     console.warn('[SENTINEL] scenario catalogue unavailable:', err);
     SCENARIO_CATALOGUE.state = 'unavailable';
@@ -2994,10 +2999,11 @@ let currentPreset = 'gyro';
 function selectPreset(type, el) {
   currentPreset = type;
   document.querySelectorAll('.preset-btn').forEach(b => b.classList.remove('selected'));
-  el.classList.add('selected');
-  // Phase 3: the summary is derived from the fetched scenario, so it cannot
-  // advertise a mission the payload does not contain.
+  if (el) el.classList.add('selected');
   refreshPresetDisplay();
+  const text = presetPayloadText(currentPreset);
+  const crashEl = document.getElementById('crash-json');
+  if (crashEl && text) crashEl.value = text;
 }
 function loadPresetJSON() {
   const text = presetPayloadText(currentPreset);

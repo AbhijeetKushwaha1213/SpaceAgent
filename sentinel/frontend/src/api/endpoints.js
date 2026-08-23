@@ -28,6 +28,7 @@ export const ENDPOINTS = Object.freeze({
   detect: CONTRACT_API.detect,
   physics: "/api/v1/physics",
   physicsConstraints: "/api/v1/physics/constraints",
+  reconciliation: "/api/v1/reconciliation",
   analyze: CONTRACT_API.analyze,
   auditStatus: AUDIT_API.status,
   runs: AUDIT_API.runs,

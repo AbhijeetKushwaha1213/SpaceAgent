@@ -50,6 +50,15 @@ from app.detection import (
     channel_dictionary_status,
     run_detection_on_crash_dump,
 )
+from app.reconciliation import (
+    RECONCILIATION_CONFIG_VERSION,
+    RECONCILIATION_ENGINE_VERSION,
+    ReconciliationEngine,
+    ReconciliationInput,
+    RelationshipType,
+    build_observation_events,
+    reconciliation_enabled,
+)
 from app.validation.physics import PhysicsValidationReport
 
 # ---------------------------------------------------------------------------
@@ -61,6 +70,24 @@ logger = logging.getLogger("sentinel.backend")
 # ---------------------------------------------------------------------------
 # App
 # ---------------------------------------------------------------------------
+from contextlib import asynccontextmanager
+
+
+@asynccontextmanager
+async def _lifespan(_app):
+    # Log the active posture (auth/demo mode, reconciliation, LLM mode, and the
+    # physics/safety authority spine) once when the server starts — Phase
+    # 1B/1C/1K. Wrapped so a banner failure can never block startup; the banner
+    # carries no secret (the API key is reported only as "configured").
+    try:
+        from app.startup_report import log_startup_banner
+
+        log_startup_banner(sec_config)
+    except Exception as exc:  # pragma: no cover - banner is best-effort
+        logger.warning("startup banner unavailable: %s", exc)
+    yield
+
+
 app = FastAPI(
     title="Sentinel Backend",
     description=(
@@ -68,6 +95,7 @@ app = FastAPI(
         "Streams LLM reasoning trace and structured diagnostic output via SSE."
     ),
     version="1.0.0",
+    lifespan=_lifespan,
 )
 
 from app.security.config import SecurityConfig
@@ -410,6 +438,155 @@ def physics_constraints_endpoint():
     return physics_status()
 
 
+# ---------------------------------------------------------------------------
+# Phase 24/26 — Reconciliation & Separation (flag-gated projection)
+# ---------------------------------------------------------------------------
+_RECONCILIATION_AUTHORITY_NOTE = (
+    "Deterministic case separation only. A RELATED relationship is a "
+    "deterministic relationship (possible propagation), NOT physical proof: "
+    "physics validation is a separate authority (POST /api/v1/physics). "
+    "Reconciliation does not call an LLM, does not authorize commands, and "
+    "does not override physics or safety. CORRELATION != IDENTITY."
+)
+
+
+def _reconciliation_response(payload: dict[str, Any], *, enabled: bool) -> dict[str, Any]:
+    """Build the reconciliation API envelope from the real Phase 24 engine.
+
+    Pure projection, mirroring :func:`detect_endpoint` and
+    :func:`physics_validation_endpoint`: same deterministic engine the pipeline
+    and the tests exercise, no audit side-effect, no LLM, no command authority.
+
+    States are made explicit so the frontend never has to guess why a field is
+    zero (§14):
+
+      - ``reconciliation_enabled=False``  the feature flag is off (state A).
+        The engine is NOT run; empty case/relationship lists mean "disabled",
+        not "nothing found".
+      - ``reconciliation_enabled=True, executed=True`` the engine ran; the
+        counts and lists are its actual output — including a legitimate zero
+        (no anomalies to reconcile) which is distinct from "disabled".
+    """
+    scenario_id = str(payload.get("scenario_id") or "")
+
+    if not enabled:
+        return {
+            "reconciliation_enabled": False,
+            "executed": False,
+            "scenario_id": scenario_id,
+            "flag_name": "RECONCILIATION_ENABLED",
+            "config_version": RECONCILIATION_CONFIG_VERSION,
+            "engine_version": RECONCILIATION_ENGINE_VERSION,
+            "total_cases": 0,
+            "isolated_cases": 0,
+            "related_relationships": 0,
+            "separate_relationships": 0,
+            "conflicts_detected": 0,
+            "uncertain_relationships": 0,
+            "merges_performed": 0,
+            "human_review_required": False,
+            "cases": [],
+            "relationships": [],
+            "reasons": [],
+            "warnings": [],
+            "note": (
+                "Reconciliation is disabled by default. Start the backend with "
+                "RECONCILIATION_ENABLED=true to enable deterministic case "
+                "separation for the demo."
+            ),
+            "authority_note": _RECONCILIATION_AUTHORITY_NOTE,
+            "physics_validation": "not_applicable",
+        }
+
+    report = run_detection_on_crash_dump(payload)
+    events = build_observation_events(
+        report, crash_dump=payload, scenario_id=scenario_id
+    )
+    result = ReconciliationEngine().reconcile(
+        ReconciliationInput(events=tuple(events), scenario_id=scenario_id)
+    )
+    serialized = result.as_dict()
+
+    # Summary counts — computed once on the backend so the frontend displays
+    # them verbatim and never re-derives reconciliation logic client-side (§4).
+    def _count(rel_type: RelationshipType) -> int:
+        return sum(
+            1 for r in result.relationships if r.relationship_type == rel_type
+        )
+
+    linked_case_ids: set[str] = set()
+    for r in result.relationships:
+        if r.relationship_type != RelationshipType.SEPARATE:
+            linked_case_ids.add(r.source_case_id)
+            linked_case_ids.add(r.target_case_id)
+    isolated_cases = sum(
+        1 for c in result.cases if c.case_id not in linked_case_ids
+    )
+
+    return {
+        "reconciliation_enabled": True,
+        "executed": True,
+        "scenario_id": scenario_id,
+        "flag_name": "RECONCILIATION_ENABLED",
+        "config_version": result.config_version or RECONCILIATION_CONFIG_VERSION,
+        "engine_version": result.engine_version or RECONCILIATION_ENGINE_VERSION,
+        "total_cases": result.case_count,
+        "isolated_cases": isolated_cases,
+        "related_relationships": _count(RelationshipType.RELATED),
+        "separate_relationships": _count(RelationshipType.SEPARATE),
+        "conflicts_detected": _count(RelationshipType.CONFLICT),
+        "uncertain_relationships": _count(RelationshipType.UNCERTAIN),
+        "merges_performed": len(result.merges_performed),
+        "human_review_required": result.human_review_required,
+        "cases": serialized["cases"],
+        "relationships": serialized["relationships"],
+        "reasons": serialized["reasons"],
+        "warnings": serialized["warnings"],
+        "authority_note": _RECONCILIATION_AUTHORITY_NOTE,
+        "physics_validation": "pending",
+    }
+
+
+@app.post(f"{_V1}/reconciliation")
+def reconciliation_endpoint(crash_dump: CrashDumpRequest):
+    """Run the deterministic reconciliation / separation engine for one dump.
+
+    Phase 24/26. A pure projection sibling of ``POST /api/v1/detect`` and
+    ``POST /api/v1/physics``: it sanitizes the dump, runs detection, projects
+    the findings into ``ObservationEvent``s, and hands them to the *same*
+    ``ReconciliationEngine`` the FDIR pipeline and the Phase 24/25 tests use.
+    It writes no audit record — the audited reconciliation run is the pipeline
+    path in ``app/agent/agent.py``, which records ``Stage.RECONCILIATION`` when
+    the flag is enabled.
+
+    Gating (§3): reconciliation is OFF by default and this endpoint honours
+    ``reconciliation_enabled()``. When the flag is off it returns HTTP 200 with
+    ``reconciliation_enabled=False`` and empty lists — an explicit "disabled"
+    signal, never a silent conversion of missing data to zeros.
+
+    Authority (§2, §11): reconciliation decides only DUPLICATE / SAME_CASE /
+    RELATED / SEPARATE / CONFLICT / UNCERTAIN. It never consults an LLM,
+    inspects model confidence, authorizes a command, or overrides physics or
+    safety. A RELATED verdict is a deterministic relationship, not physical
+    proof; ``physics_validation`` is reported as ``pending``.
+    """
+    payload = crash_dump.model_dump(mode="json", exclude_none=True)
+    payload = sanitize_telemetry_payload_data(payload)
+    enabled = reconciliation_enabled()
+    response = _reconciliation_response(payload, enabled=enabled)
+    logger.info(
+        "POST /reconciliation — scenario_id=%s: enabled=%s cases=%d "
+        "related=%d conflicts=%d human_review=%s",
+        response["scenario_id"],
+        response["reconciliation_enabled"],
+        response["total_cases"],
+        response["related_relationships"],
+        response["conflicts_detected"],
+        response["human_review_required"],
+    )
+    return response
+
+
 @app.get(f"{_V1}/channels/{{channel_id}}")
 def channel_lookup_endpoint(channel_id: str):
     """Resolve one channel by id or alias.
@@ -710,10 +887,14 @@ async def analyze_endpoint_v1(crash_dump: CrashDumpRequest):
     recorded as ABANDONED rather than COMPLETED — an interrupted investigation
     that looked finished would be worse than no record.
 
-    NOTE ON ACCESS CONTROL: this endpoint is unauthenticated, like the rest of
-    this API. Anyone who can reach the port can start a run and read any stored
-    record. Audit records contain telemetry, model output and operator names, so
-    an authentication layer is required before this is exposed beyond localhost.
+    NOTE ON ACCESS CONTROL: this endpoint carries no auth logic of its own — it
+    is governed by the global ``SecurityMiddleware`` like every other route.
+    Authentication is FAIL-CLOSED by default: every request returns 401 until a
+    ``SENTINEL_API_KEY`` is configured. It is served unauthenticated ONLY in the
+    explicit localhost demo (``SECURE_DEV_MODE=1``). Audit records contain
+    telemetry, model output and operator names, so any non-localhost deployment
+    MUST run authenticated (configured ``SENTINEL_API_KEY``, ``SECURE_DEV_MODE``
+    unset).
     """
     from app.audit import AuditRecorder, RunStatus, get_store
 

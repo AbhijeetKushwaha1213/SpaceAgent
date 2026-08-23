@@ -2582,7 +2582,7 @@
     },
     "/api/v1/analyze": {
       "post": {
-        "description": "Analyze a crash dump, streaming the trace and recording an audit run.\n\nPhase 4. This is the audited entry point. It differs from the unversioned\n``POST /analyze`` in one way: every invocation opens an audit run and\npersists it, so the investigation is reproducible afterwards through\n``GET /api/v1/runs/{run_id}``.\n\nThe run id is published twice, because the two consumers need it at\ndifferent moments:\n\n  * response header ``X-Sentinel-Run-Id`` — available before the body starts\n    streaming, so a client can record it even if the stream then fails\n  * an SSE ``status`` event early in the stream, for a browser client that\n    cannot read headers from an EventSource\n\nThe record is persisted in a ``finally`` block, so a run is stored even when\nthe stream raises or the client disconnects mid-analysis. A disconnect is\nrecorded as ABANDONED rather than COMPLETED — an interrupted investigation\nthat looked finished would be worse than no record.\n\nNOTE ON ACCESS CONTROL: this endpoint is unauthenticated, like the rest of\nthis API. Anyone who can reach the port can start a run and read any stored\nrecord. Audit records contain telemetry, model output and operator names, so\nan authentication layer is required before this is exposed beyond localhost.",
+        "description": "Analyze a crash dump, streaming the trace and recording an audit run.\n\nPhase 4. This is the audited entry point. It differs from the unversioned\n``POST /analyze`` in one way: every invocation opens an audit run and\npersists it, so the investigation is reproducible afterwards through\n``GET /api/v1/runs/{run_id}``.\n\nThe run id is published twice, because the two consumers need it at\ndifferent moments:\n\n  * response header ``X-Sentinel-Run-Id`` — available before the body starts\n    streaming, so a client can record it even if the stream then fails\n  * an SSE ``status`` event early in the stream, for a browser client that\n    cannot read headers from an EventSource\n\nThe record is persisted in a ``finally`` block, so a run is stored even when\nthe stream raises or the client disconnects mid-analysis. A disconnect is\nrecorded as ABANDONED rather than COMPLETED — an interrupted investigation\nthat looked finished would be worse than no record.\n\nNOTE ON ACCESS CONTROL: this endpoint carries no auth logic of its own — it\nis governed by the global ``SecurityMiddleware`` like every other route.\nAuthentication is FAIL-CLOSED by default: every request returns 401 until a\n``SENTINEL_API_KEY`` is configured. It is served unauthenticated ONLY in the\nexplicit localhost demo (``SECURE_DEV_MODE=1``). Audit records contain\ntelemetry, model output and operator names, so any non-localhost deployment\nMUST run authenticated (configured ``SENTINEL_API_KEY``, ``SECURE_DEV_MODE``\nunset).",
         "operationId": "analyze_endpoint_v1_api_v1_analyze_post",
         "requestBody": {
           "content": {
@@ -2924,6 +2924,43 @@
           }
         },
         "summary": "Physics Constraints Endpoint"
+      }
+    },
+    "/api/v1/reconciliation": {
+      "post": {
+        "description": "Run the deterministic reconciliation / separation engine for one dump.\n\nPhase 24/26. A pure projection sibling of ``POST /api/v1/detect`` and\n``POST /api/v1/physics``: it sanitizes the dump, runs detection, projects\nthe findings into ``ObservationEvent``s, and hands them to the *same*\n``ReconciliationEngine`` the FDIR pipeline and the Phase 24/25 tests use.\nIt writes no audit record — the audited reconciliation run is the pipeline\npath in ``app/agent/agent.py``, which records ``Stage.RECONCILIATION`` when\nthe flag is enabled.\n\nGating (§3): reconciliation is OFF by default and this endpoint honours\n``reconciliation_enabled()``. When the flag is off it returns HTTP 200 with\n``reconciliation_enabled=False`` and empty lists — an explicit \"disabled\"\nsignal, never a silent conversion of missing data to zeros.\n\nAuthority (§2, §11): reconciliation decides only DUPLICATE / SAME_CASE /\nRELATED / SEPARATE / CONFLICT / UNCERTAIN. It never consults an LLM,\ninspects model confidence, authorizes a command, or overrides physics or\nsafety. A RELATED verdict is a deterministic relationship, not physical\nproof; ``physics_validation`` is reported as ``pending``.",
+        "operationId": "reconciliation_endpoint_api_v1_reconciliation_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CrashDumpRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Reconciliation Endpoint"
       }
     },
     "/api/v1/runs": {

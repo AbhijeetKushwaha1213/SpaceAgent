@@ -17,8 +17,10 @@ import Icon from "./ui/Icon";
 
 export const NAV_TABS = [
   { id: "overview", label: "Mission Overview" },
+  { id: "pipeline", label: "Pipeline Demo" },
   { id: "telemetry", label: "Telemetry" },
   { id: "investigation", label: "Fault Investigation" },
+  { id: "reconciliation", label: "Reconciliation" },
   { id: "physics", label: "Physics / State" },
   { id: "recovery", label: "Recovery" },
   { id: "evidence", label: "Evidence" },

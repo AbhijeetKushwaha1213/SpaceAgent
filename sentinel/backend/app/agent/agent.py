@@ -1635,8 +1635,14 @@ class SentinelAgent:
         # ── Phase 24: Reconciliation / Separation Logic (Flag-Gated) ────────
         reconciliation_result = None
         try:
+            from app.audit import Stage, StageStatus
             from app.reconciliation import reconciliation_enabled
             if reconciliation_enabled() and detection_report is not None:
+                yield SSEEvent(
+                    event_type=SSEEventType.STATUS,
+                    data="[RECONCILIATION] Reconciling multi-channel observations (CORRELATION != IDENTITY)...",
+                    step_number=2,
+                )
                 from app.reconciliation import (
                     ReconciliationEngine,
                     ReconciliationInput,
@@ -1654,6 +1660,22 @@ class SentinelAgent:
                     scenario_id=str(crash_dict.get("scenario_id", "") or ""),
                 )
                 reconciliation_result = ReconciliationEngine().reconcile(_recon_input)
+
+                recon_summary = (
+                    f"Partitioned {len(_recon_events)} observation(s) into {reconciliation_result.case_count} case(s): "
+                    f"{', '.join(c.case_id for c in reconciliation_result.cases)}."
+                )
+                yield SSEEvent(
+                    event_type=SSEEventType.OBSERVATION,
+                    data=f"[RECONCILIATION] {recon_summary}",
+                    step_number=2,
+                )
+
+                yield SSEEvent(
+                    event_type=SSEEventType.STATUS,
+                    data=f"[CASE_ISOLATION] Enforcing case isolation: {reconciliation_result.case_count} isolated case boundary(ies).",
+                    step_number=2,
+                )
 
                 if recorder is not None:
                     _audit_payload = build_reconciliation_audit_payload(
@@ -2021,10 +2043,32 @@ class SentinelAgent:
                     (time.time() - time.time()) * 1000.0,
                 )
 
-            # ── Stage 9: Final Result ──────────────────────────────────────
+            # ── Stage 9: Recovery Plan Gating ──────────────────────────────
+            if result.safety_status.value == "BLOCKED" or result.requires_human_review:
+                yield SSEEvent(
+                    event_type=SSEEventType.STATUS,
+                    data="[RECOVERY_PLAN] Recovery sequence gated: MANDATORY HUMAN REVIEW REQUIRED.",
+                    step_number=9,
+                )
+            else:
+                yield SSEEvent(
+                    event_type=SSEEventType.STATUS,
+                    data=f"[RECOVERY_PLAN] Recovery sequence verified: {len(result.recovery_plan)} command(s) authorized.",
+                    step_number=9,
+                )
+
+            # ── Stage 10: Audit Record & Final Verdict ─────────────────────
+            if recorder is not None:
+                yield SSEEvent(
+                    event_type=SSEEventType.STATUS,
+                    data=f"[AUDIT_RECORD] Cryptographic SHA-256 audit record persisted (run: {recorder.run_id}).",
+                    step_number=10,
+                )
+
             yield SSEEvent(
                 event_type=SSEEventType.STATUS,
                 data=f"[FINAL_RESULT] {_format_safety_status(result)}",
+                step_number=10,
             )
             yield SSEEvent(
                 event_type=SSEEventType.RESULT,

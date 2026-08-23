@@ -18,6 +18,9 @@ import StatusBadge from "../ui/StatusBadge";
 import AsyncBlock from "../ui/AsyncBlock";
 import DataTable from "../ui/DataTable";
 import Icon from "../ui/Icon";
+import FirstRunHero from "../ui/FirstRunHero";
+import PipelineStepper from "../ui/PipelineStepper";
+import EventTicker from "../ui/EventTicker";
 
 const SUBSYSTEM_ORDER = ["EPS", "AOCS", "OBC", "TCS", "COMMS", "PYLD", "UNKNOWN"];
 
@@ -93,6 +96,10 @@ export default function MissionOverview({ onNavigate }) {
       ? "COMPLETE"
       : "NOT RUN";
 
+  const isRunning = analysis.status === "RUNNING";
+  const isError = analysis.status === "ERROR";
+  const hasRun = isRunning || isError || analysis.status === "COMPLETE" || Boolean(analysis.output);
+
   return (
     <div className="view-stack">
       <div className="view-heading">
@@ -102,6 +109,16 @@ export default function MissionOverview({ onNavigate }) {
           served by the SENTINEL backend; absent data renders as N/A.
         </p>
       </div>
+
+      {hasRun ? (
+        <PipelineStepper analysis={analysis}>
+          {isRunning || isError ? (
+            <EventTicker events={analysis.events} />
+          ) : null}
+        </PipelineStepper>
+      ) : (
+        <FirstRunHero />
+      )}
 
       <Panel
         id="mo-spacecraft"

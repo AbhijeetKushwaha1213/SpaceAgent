@@ -37,6 +37,17 @@ from __future__ import annotations
 
 import os
 from dataclasses import dataclass
+from pathlib import Path
+
+try:
+    from dotenv import load_dotenv
+    _BACKEND_DIR = Path(__file__).resolve().parent.parent.parent
+    for _env_path in [_BACKEND_DIR / ".env", _BACKEND_DIR.parent / ".env"]:
+        if _env_path.is_file():
+            load_dotenv(_env_path, override=False)
+            break
+except ImportError:
+    pass
 
 #: Version of the threshold set below. Recorded in every relationship record and
 #: every audit payload, so a decision can be replayed against the exact numbers

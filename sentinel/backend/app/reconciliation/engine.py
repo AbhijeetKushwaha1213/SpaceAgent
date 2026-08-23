@@ -78,7 +78,7 @@ class ReconciliationEngine:
             for j in range(i + 1, n):
                 ev_a = events[i]
                 ev_b = events[j]
-                pair_key = (ev_a.event_id, ev_b.event_id)
+                pair_key = tuple(sorted([ev_a.event_id, ev_b.event_id]))
 
                 signals = evaluate_all_signals(ev_a, ev_b, input_data, cfg)
                 rel_type, reasons = self._classify_pair(ev_a, ev_b, signals, cfg)
@@ -106,7 +106,7 @@ class ReconciliationEngine:
             for j in range(i + 1, n):
                 ev_a = events[i]
                 ev_b = events[j]
-                pair_key = (ev_a.event_id, ev_b.event_id)
+                pair_key = tuple(sorted([ev_a.event_id, ev_b.event_id]))
                 rel_type, _, _ = pairwise_outcomes[pair_key]
 
                 if rel_type.merge_permitted:

@@ -13,14 +13,19 @@ def verify_api_key(
     provided_key: str | None,
     config: SecurityConfig | None = None,
 ) -> bool:
-    """Verify if provided API key matches the configured SENTINEL_API_KEY.
+    """Verify a provided API key against the configured SENTINEL_API_KEY.
 
-    If SENTINEL_API_KEY is not configured (None or empty), authentication
-    is not enforced (returns True).
+    Contract of THIS function alone: with no key configured it returns True.
+    That is NOT the system's access decision. ``SecurityMiddleware`` fails
+    CLOSED when authentication is required and no key is set — it returns 401
+    *before* calling this function (see app/security/middleware.py:74) and only
+    invokes ``verify_api_key`` once a key IS configured. So in the running
+    system this is reached solely to compare a request-supplied key against a
+    configured one.
     """
     sec_cfg = config or SecurityConfig.from_env()
     if not sec_cfg.api_key:
-        return True  # Unauthenticated access permitted when key is unconfigured
+        return True  # No key configured: never reached fail-open; middleware fails closed first
 
     if not provided_key:
         return False

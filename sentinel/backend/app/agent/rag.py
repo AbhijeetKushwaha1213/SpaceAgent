@@ -783,7 +783,17 @@ def initialize_pdf_rag(force_rebuild: bool = False) -> bool:
         return False
 
     # --- Step 4: Check if already populated ---
-    existing_count = collection.count()
+    # count() reads the persisted index; a corrupt or version-incompatible
+    # ChromaDB store raises here (e.g. InternalError: metadata segment type
+    # mismatch). Like every other ChromaDB call in this function, degrade to the
+    # fallback KB instead of letting the error escape and hard-fail the RAG stage.
+    try:
+        existing_count = collection.count()
+    except Exception as e:
+        _rag_status.available = False
+        _rag_status.last_error = f"ChromaDB count failed: {e}"
+        logger.warning("ChromaDB count failed (falling back to KB): %s", e)
+        return False
     if existing_count > 0 and not force_rebuild:
         _chroma_collection = collection
         _rag_status.available = True
