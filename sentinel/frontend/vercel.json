@@ -1,12 +1,14 @@
 {
   "version": 2,
-  "buildCommand": "node scripts/generate-config.js",
+  "buildCommand": "npm run build",
   "outputDirectory": ".",
   "installCommand": "npm install",
   "routes": [
     { "src": "/config.js", "dest": "/config.js" },
+    { "src": "/vendor/(.*)", "dest": "/vendor/$1" },
+    { "src": "/static/(.*)", "dest": "/static/$1" },
     { "src": "/assets/(.*)", "dest": "/assets/$1" },
-    { "src": "/dashboard/static/(.*)", "dest": "/dashboard/static/$1" },
+    { "src": "/dashboard/static/(.*)", "dest": "/static/$1" },
     { "src": "/dashboard", "dest": "/dashboard/index.html" },
     { "src": "/dashboard/", "dest": "/dashboard/index.html" },
     { "src": "/dashboard/(.*)", "dest": "/dashboard/index.html" },

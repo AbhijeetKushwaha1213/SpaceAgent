@@ -1,0 +1,21 @@
+services:
+  # ── SENTINEL FastAPI Backend Service ──────────────────────────────
+  - type: web
+    name: sentinel-backend
+    runtime: python
+    rootDir: sentinel/backend
+    buildCommand: pip install -r requirements.txt
+    startCommand: uvicorn app.main:app --host 0.0.0.0 --port $PORT
+    envVars:
+      - key: PYTHON_VERSION
+        value: 3.12.0
+      - key: SECURE_DEV_MODE
+        value: "1"
+      - key: RECONCILIATION_ENABLED
+        value: "true"
+      - key: SENTINEL_CORS_ORIGINS
+        value: "*"
+      - key: LLM_MODE
+        value: "STUB"
+      - key: GEMINI_API_KEY
+        sync: false
