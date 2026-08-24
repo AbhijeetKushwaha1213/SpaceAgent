@@ -112,6 +112,25 @@ try {
   if (fs.existsSync(buildIndex)) {
     copyRecursiveSync(buildIndex, dashboardIndex);
   }
+
+  const landingSrc = path.join(rootDir, 'public', 'landing.html');
+  if (fs.existsSync(landingSrc)) {
+    const landingTargets = [
+      path.join(rootDir, 'public', 'landing', 'index.html'),
+      path.join(rootDir, 'public', 'public', 'landing.html'),
+      path.join(rootDir, 'public', 'public', 'landing', 'index.html'),
+      path.join(rootDir, 'build', 'landing', 'index.html'),
+      path.join(rootDir, 'build', 'landing.html'),
+      path.join(rootDir, 'build', 'public', 'landing.html'),
+      path.join(rootDir, 'build', 'public', 'landing', 'index.html'),
+      path.join(rootDir, 'dashboard', 'landing', 'index.html'),
+      path.join(rootDir, 'dashboard', 'landing.html'),
+      path.join(rootDir, 'dashboard', 'public', 'landing.html'),
+    ];
+    for (const lt of landingTargets) {
+      copyRecursiveSync(landingSrc, lt);
+    }
+  }
 } catch (e) {
   console.warn('⚠️ Asset sync warning:', e.message);
 }
