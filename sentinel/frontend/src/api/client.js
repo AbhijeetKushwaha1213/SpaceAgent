@@ -6,7 +6,7 @@
  * an absent field renders as N/A downstream.
  */
 
-const DEFAULT_BACKEND_URL = "http://localhost:8000";
+const DEFAULT_BACKEND_URL = "https://spaceagent.nitishbiswas0099.workers.dev";
 
 export function resolveBackendUrl() {
   if (typeof window !== "undefined" && window.SENTINEL_BACKEND_URL) {
