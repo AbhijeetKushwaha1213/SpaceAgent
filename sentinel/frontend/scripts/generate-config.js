@@ -28,7 +28,7 @@ const path = require('path');
 //   - sentinel/frontend/public/landing.html (SENTINEL_DEFAULT_BACKEND_URL)
 //   - sentinel/frontend/src/App.jsx         (DEFAULT_BACKEND_URL)
 //   - sentinel/frontend/.env.example
-const DEFAULT_BACKEND_URL = 'https://spaceagent.nitishbiswas0099.workers.dev';
+const DEFAULT_BACKEND_URL = 'http://localhost:8000';
 
 // Load .env if present (manual simple parser — no dotenv dependency needed)
 const envPath = path.join(__dirname, '..', '.env');
