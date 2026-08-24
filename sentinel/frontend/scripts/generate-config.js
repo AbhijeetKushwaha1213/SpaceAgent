@@ -58,12 +58,23 @@ window.SENTINEL_BACKEND_URL = "${backendUrl}";
 console.log('[SENTINEL] Backend URL:', window.SENTINEL_BACKEND_URL, '(loaded from config.js built at ${timestamp})');
 `;
 
-const outputPath = path.join(__dirname, '..', 'config.js');
-fs.writeFileSync(outputPath, configContent, 'utf8');
+const targets = [
+  path.join(__dirname, '..', 'config.js'),
+  path.join(__dirname, '..', 'public', 'config.js'),
+  path.join(__dirname, '..', 'dashboard', 'config.js'),
+  path.join(__dirname, '..', 'build', 'config.js'),
+  path.join(__dirname, '..', '..', 'backend', 'dashboard', 'config.js'),
+];
 
-console.log(`✅ Generated config.js with SENTINEL_BACKEND_URL="${backendUrl}"`);
-const publicOutputPath = path.join(__dirname, '..', 'public', 'config.js');
-try { fs.writeFileSync(publicOutputPath, configContent, 'utf8'); } catch (e) {}
+for (const target of targets) {
+  try {
+    const parentDir = path.dirname(target);
+    if (!fs.existsSync(parentDir)) fs.mkdirSync(parentDir, { recursive: true });
+    fs.writeFileSync(target, configContent, 'utf8');
+  } catch (e) {}
+}
+
+console.log(`✅ Generated config.js with SENTINEL_BACKEND_URL="${backendUrl}" across all directories`);
 
 // Sync static assets so serve can resolve /vendor and /static at root and /dashboard
 function copyRecursiveSync(src, dest) {
