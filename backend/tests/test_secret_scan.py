@@ -24,7 +24,10 @@ import re
 import subprocess
 from pathlib import Path
 
-import pytest
+try:
+    import pytest
+except ImportError:
+    pytest = None
 
 # ── What a Google API key looks like ─────────────────────────────────────────
 # "AIzaSy" + 33 url-safe chars = 39 chars total. We match 30+ trailing chars so
@@ -43,7 +46,12 @@ _ALLOWLIST = frozenset(
         "sentinel/backend/tests/test_phase23_cloud_redaction.py",
         "sentinel/backend/tests/test_phase25_adversarial_security.py",
         "sentinel/backend/app/security/redaction.py",
-        "sentinel/backend/tests/test_secret_scan.py",  # this guard itself
+        "sentinel/backend/tests/test_secret_scan.py",
+        "backend/tests/test_phase14_security.py",
+        "backend/tests/test_phase23_cloud_redaction.py",
+        "backend/tests/test_phase25_adversarial_security.py",
+        "backend/app/security/redaction.py",
+        "backend/tests/test_secret_scan.py",
     }
 )
 
@@ -63,7 +71,9 @@ def _repo_root() -> Path:
         ["git", "rev-parse", "--show-toplevel"], capture_output=True, text=True
     )
     if out.returncode != 0:
-        pytest.skip("not a git repository — secret scan needs the tracked file list")
+        if pytest is not None:
+            pytest.skip("not a git repository — secret scan needs the tracked file list")
+        return Path(".")
     return Path(out.stdout.strip())
 
 
@@ -163,3 +173,11 @@ def test_env_example_secret_values_are_placeholders_only():
         + ", ".join(sorted(offenders))
         + " — replace with a placeholder such as 'your-api-key-here'."
     )
+
+
+if __name__ == "__main__":
+    test_no_google_api_key_shaped_string_in_tracked_tree()
+    test_no_real_dotenv_file_is_tracked()
+    test_env_example_secret_values_are_placeholders_only()
+    print("All secret scan checks passed successfully!")
+

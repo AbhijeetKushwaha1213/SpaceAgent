@@ -39,8 +39,8 @@ _BACKEND = Path(__file__).resolve().parent.parent
 if str(_BACKEND) not in sys.path:
     sys.path.insert(0, str(_BACKEND))
 
-_REPO = _BACKEND.parent.parent
-_FRONTEND = _REPO / "sentinel" / "frontend"
+_REPO = _BACKEND.parent
+_FRONTEND = _REPO / "frontend"
 _CONTRACTS = _REPO / "contracts"
 
 PYTHON = sys.executable
@@ -566,7 +566,7 @@ class TestGeneratedContractArtifacts(unittest.TestCase):
         self.assertEqual(
             result.returncode, 0,
             "contract artifacts are stale — run "
-            "python3 sentinel/backend/scripts/export_contracts.py\n"
+            "python3 backend/scripts/export_contracts.py\n"
             + result.stdout + result.stderr,
         )
 

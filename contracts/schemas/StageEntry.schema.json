@@ -71,6 +71,7 @@
       "type": "string"
     },
     "payload": {
+      "additionalProperties": true,
       "description": "Stage detail, already redacted",
       "title": "Payload",
       "type": "object"

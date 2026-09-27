@@ -47,7 +47,7 @@ from typing import Any
 
 _HERE = Path(__file__).resolve().parent
 _BACKEND = _HERE.parent
-_REPO = _BACKEND.parent.parent
+_REPO = _BACKEND.parent
 if str(_BACKEND) not in sys.path:
     sys.path.insert(0, str(_BACKEND))
 
@@ -55,13 +55,13 @@ CONTRACTS_DIR = _REPO / "contracts"
 OPENAPI_DIR = CONTRACTS_DIR / "openapi"
 SCHEMAS_DIR = CONTRACTS_DIR / "schemas"
 FRONTEND_DIR = CONTRACTS_DIR / "frontend"
-CRA_MIRROR = _REPO / "sentinel" / "frontend" / "src" / "generated" / "contract.js"
+CRA_MIRROR = _REPO / "frontend" / "src" / "generated" / "contract.js"
 
 GENERATED_BANNER = (
     "GENERATED FILE — DO NOT EDIT BY HAND.\n"
-    "Source of truth: sentinel/backend/app/api/models.py\n"
-    "Regenerate:      python3 sentinel/backend/scripts/export_contracts.py\n"
-    "Verify:          python3 sentinel/backend/scripts/export_contracts.py --check"
+    "Source of truth: backend/app/api/models.py\n"
+    "Regenerate:      python3 backend/scripts/export_contracts.py\n"
+    "Verify:          python3 backend/scripts/export_contracts.py --check"
 )
 
 
@@ -531,9 +531,9 @@ API version: `{API_VERSION}`
 
 ## Source of truth
 
-`sentinel/backend/app/api/models.py` (Pydantic) and
-`sentinel/backend/app/api/provenance.py`. Detection models come from
-`sentinel/backend/app/detection/models.py`.
+`backend/app/api/models.py` (Pydantic) and
+`backend/app/api/provenance.py`. Detection models come from
+`backend/app/detection/models.py`.
 
 Nothing in this directory is authored by hand, so the backend and the frontend
 cannot describe the same payload differently.
@@ -541,13 +541,13 @@ cannot describe the same payload differently.
 ## Regenerate
 
 ```bash
-python3 sentinel/backend/scripts/export_contracts.py
+python3 backend/scripts/export_contracts.py
 ```
 
 ## Verify (CI)
 
 ```bash
-python3 sentinel/backend/scripts/export_contracts.py --check
+python3 backend/scripts/export_contracts.py --check
 ```
 
 `--check` regenerates in memory and byte-compares against what is committed, so
@@ -563,7 +563,7 @@ consumer.
 ## CRA mirror
 
 Create React App 5 forbids imports from outside `src/`, so `frontend/contract.js`
-is mirrored byte-for-byte to `sentinel/frontend/src/generated/contract.js`.
+is mirrored byte-for-byte to `frontend/src/generated/contract.js`.
 `--check` verifies the mirror matches; it is not a second source of truth.
 """
 
@@ -616,7 +616,7 @@ def check_all(artifacts: dict[Path, str]) -> int:
     if missing or stale:
         print()
         print("  Contract artifacts are out of date with the models.")
-        print("  Run: python3 sentinel/backend/scripts/export_contracts.py")
+        print("  Run: python3 backend/scripts/export_contracts.py")
         return 1
     print(f"  OK — {len(artifacts)} artifact(s) match the models")
     return 0

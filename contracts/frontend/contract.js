@@ -1,8 +1,8 @@
 /*
  * GENERATED FILE — DO NOT EDIT BY HAND.
- * Source of truth: sentinel/backend/app/api/models.py
- * Regenerate:      python3 sentinel/backend/scripts/export_contracts.py
- * Verify:          python3 sentinel/backend/scripts/export_contracts.py --check
+ * Source of truth: backend/app/api/models.py
+ * Regenerate:      python3 backend/scripts/export_contracts.py
+ * Verify:          python3 backend/scripts/export_contracts.py --check
  *
  * Runtime constants shared by the SENTINEL frontend. Every vocabulary
  * here is derived from a backend enum, so a value the frontend compares

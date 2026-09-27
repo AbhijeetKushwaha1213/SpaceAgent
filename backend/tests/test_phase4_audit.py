@@ -998,7 +998,7 @@ class TestProvenancePreserved(unittest.TestCase):
         import re
 
         contract = (
-            _BACKEND.parent.parent / "contracts" / "frontend" / "contract.js"
+            _BACKEND.parent / "contracts" / "frontend" / "contract.js"
         ).read_text(encoding="utf-8")
         match = re.search(
             r"export const PROVENANCE_LABELS = Object\.freeze\(\{(.*?)\}\);",

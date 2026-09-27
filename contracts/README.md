@@ -17,9 +17,9 @@ API version: `v1`
 
 ## Source of truth
 
-`sentinel/backend/app/api/models.py` (Pydantic) and
-`sentinel/backend/app/api/provenance.py`. Detection models come from
-`sentinel/backend/app/detection/models.py`.
+`backend/app/api/models.py` (Pydantic) and
+`backend/app/api/provenance.py`. Detection models come from
+`backend/app/detection/models.py`.
 
 Nothing in this directory is authored by hand, so the backend and the frontend
 cannot describe the same payload differently.
@@ -27,13 +27,13 @@ cannot describe the same payload differently.
 ## Regenerate
 
 ```bash
-python3 sentinel/backend/scripts/export_contracts.py
+python3 backend/scripts/export_contracts.py
 ```
 
 ## Verify (CI)
 
 ```bash
-python3 sentinel/backend/scripts/export_contracts.py --check
+python3 backend/scripts/export_contracts.py --check
 ```
 
 `--check` regenerates in memory and byte-compares against what is committed, so
@@ -49,5 +49,5 @@ consumer.
 ## CRA mirror
 
 Create React App 5 forbids imports from outside `src/`, so `frontend/contract.js`
-is mirrored byte-for-byte to `sentinel/frontend/src/generated/contract.js`.
+is mirrored byte-for-byte to `frontend/src/generated/contract.js`.
 `--check` verifies the mirror matches; it is not a second source of truth.

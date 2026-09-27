@@ -848,7 +848,7 @@ class TestChannelApi(unittest.TestCase):
         self.assertEqual(result["subsystem"], "AOCS")
 
     def test_generated_contract_publishes_the_channel_vocabulary(self):
-        contract = _BACKEND.parent.parent / "contracts" / "frontend" / "contract.js"
+        contract = _BACKEND.parent / "contracts" / "frontend" / "contract.js"
         text = _read(contract)
         self.assertIn("CHANNEL_API", text)
         self.assertIn("UNKNOWN_SUBSYSTEM", text)

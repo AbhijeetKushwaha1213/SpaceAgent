@@ -1,174 +1,138 @@
-# 🚀 SENTINEL: Autonomous Spacecraft FDIR Agent
+# SENTINEL — Autonomous Spacecraft FDIR & Recovery Console
 
-> **SENTINEL** is a Gemini-first, model-agnostic spacecraft safe-mode diagnosis and recovery system. It combines crash-dump parsing, anomaly pre-filtering, RAG-grounded reasoning, safety validation, and auditable causal-chain visualization into an end-to-end FDIR (Fault Detection, Isolation, and Recovery) copilot.
-
----
-
-## 📖 Overview
-
-Modern spacecraft generate massive amounts of telemetry during a fault. When a spacecraft enters **Safe Mode**, ground operators must manually sift through telemetry to identify the root cause and safely command a recovery. 
-
-**SENTINEL** automates this by:
-1. **Ingesting** raw crash dumps and pre-fault telemetry windows.
-2. **Detecting** anomalies via statistical Z-score analysis.
-3. **Retrieving** standard FDIR procedures using Hybrid RAG over ECSS standards.
-4. **Reasoning** over the fault using a Large Language Model (Gemini by default).
-5. **Streaming** an auditable reasoning trace (Thought, Action, Observation).
-6. **Validating** proposed recovery commands against safety constraints.
-7. **Presenting** a rich UI with a Causal DAG and Risk-Assessed Recovery Plan.
+> **SENTINEL** is a model-agnostic, deterministic-first Spacecraft Fault Detection, Isolation, and Recovery (FDIR) system combining statistical anomaly filtering, physical state estimation, ECSS procedure RAG retrieval, constrained LLM hypothesis ranking, deterministic safety validation, and an operator-grade Mission Control console.
 
 ---
 
-## 🏗 System Architecture
+## 1. What SENTINEL Currently Implements
 
-The project consists of a Python FastAPI backend and a React frontend, communicating via REST and Server-Sent Events (SSE).
-
-### Tech Stack
-
-| Component | Technology | Description |
-|-----------|------------|-------------|
-| **Core LLM** | Gemini 2.5 Flash | Primary hosted reasoning model for fast inference. |
-| **Fallback LLM** | Phi-3-mini / Qwen2.5 | Local models via Ollama for offline/backup modes. |
-| **Embeddings** | `sentence-transformers` | Free, local embeddings (`all-MiniLM-L6-v2`). |
-| **Vector Database**| ChromaDB | Persistent local storage for document retrieval. |
-| **Backend** | FastAPI + Uvicorn | High-performance async API with SSE streaming. |
-| **Frontend** | React / HTML / CSS | Real-time dashboard for operators. |
+- **Multi-Stage FDIR Reasoning Pipeline**:
+  1. **Telemetry Ingestion & Anomaly Detection**: Statistical z-score filtering, multi-parameter limits checking, and missing value/NaN sensor drop detection across 6 spacecraft subsystems (`ADCS`, `EPS`, `OBC`, `TCS`, `COMMS`, `PYLD`).
+  2. **Physical State Estimation**: Extended Kalman Filter residuals computing observed vs predicted states ($\Delta$) for rigid-body satellite energy and momentum conservation.
+  3. **Deterministic Candidate Generation**: Generates candidate root causes based on deterministic state boundaries and hardware telemetry signatures.
+  4. **ECSS Procedure RAG Retrieval**: Indexing and citation retrieval from ECSS-E-ST-70-11C standard space engineering procedures using vector embeddings.
+  5. **Constrained LLM Ranking & Explanation**: Ranks hypotheses using either hosted Gemini Flash (`CLOUD` mode) or OpenAI-compatible endpoints (`LOCAL` mode) without allowing LLM outputs to override physical constraints.
+  6. **Deterministic Safety Validator**: Hardware safety rule enforcement blocking dangerous or uncalibrated recovery commands (battery SoC floor 15%, thermal ceiling 85°C, comms lock reboot requirement).
+  7. **Operator-Grade Mission Control Dashboard**: React desktop-first console with 8 dedicated engineering views, SVG time-series telemetry plots, dedicated blocked commands panel, and real-time SSE stream integration.
+  8. **Security & Audit System**: Correlation ID request tracking (`X-Correlation-ID`), API authentication, request payload size limiting (10MB), sliding window IP rate limiting, explicit CORS allowlists, redacted logging, and prompt injection protection.
 
 ---
 
-## 🧠 Code Flow & Execution Pipeline
+## 2. Telemetry & Provenance Classification
 
-The core analysis pipeline is seamlessly orchestrated by the `SentinelAgent` in the backend.
-
-### 1. Data Intake & Validation
-When the frontend submits a crash dump (`POST /api/analyze`), the payload is validated against rigorous Pydantic schemas in `sentinel/backend/app/api/models.py`.
-
-### 2. Anomaly Detection
-A Z-score statistical detector scans the `pre_fault_telemetry_window`. Parameters deviating significantly from nominal bounds are flagged as anomalies.
-
-### 3. RAG Retrieval
-The safe-mode trigger and identified anomalies formulate a search query. ChromaDB fetches relevant procedure snippets from standard **ECSS (European Cooperation for Space Standardization)** manuals. 
-
-### 4. LLM Reasoning
-The system compiles the crash dump, anomalies, and RAG context into a prompt. Depending on the configuration, the LLM is queried (Gemini Flash, Tuned Models, or Fallback Models).
-
-### 5. Structured Output & Retry Logic
-The LLM is required to return a specific JSON schema (`SentinelOutput`). If the LLM generates malformed JSON, the agent automatically retries with a repair prompt.
-
-### 6. Safety Validation
-Before the user sees the recovery commands, a deterministic safety layer evaluates the commands against whitelist rules and physical state constraints. High-risk commands are marked as `BLOCKED` or `HIGH` risk.
-
-### 7. SSE Streaming
-Throughout the entire process, intermediate events (`STATUS`, `THOUGHT`, `OBSERVATION`, `RESULT`) are streamed to the frontend via Server-Sent Events (SSE), creating a real-time, typewriter-like transparency trace.
+- **Real ESA Telemetry**: Scenario `ESA-ADB id_109` contains real numeric spacecraft telemetry read directly from ESA fault dump datasets.
+- **Synthetic / Simulated Data**: Other scenarios are synthetic telemetry fault patterns generated to evaluate specific subsystem failure modes (`ADCS_GYRO_SEU`, `EPS_SOLAR_UNDERVOLT`, `OBC_WATCHDOG_OVERFLOW`, `TCS_THERMAL_RUNAWAY`, `COMMS_TRANSPONDER_LOSS`, `MULTI_SUBSYSTEM_CASCADE`).
+- **Data Classification**: All incoming data fields are classified (`CONFIDENTIAL`, `RESTRICTED_TELEMETRY`, `PUBLIC`).
 
 ---
 
-## 📂 Directory Structure
+## 3. Sovereign / Local LLM Mode vs Cloud Mode
+
+SENTINEL supports two explicit operational AI modes:
+
+| Mode | Provider Architecture | Data Isolation Guarantee |
+|---|---|---|
+| `CLOUD` | Google Gemini API (`gemini-2.5-flash`) | Telemetry sent over HTTPS to hosted endpoint |
+| `LOCAL` | OpenAI-compatible endpoint (vLLM, Ollama, LM Studio) | **100% Sovereign**: External cloud API calls are strictly blocked (`LLMCallError`) |
+
+---
+
+## 4. Reproducible Evaluation Benchmarks (Phase 12)
+
+SENTINEL provides a reproducible evaluation harness (`backend/app/evaluation/`) separating `DEV` scenarios from held-out `HELD_OUT_TEST` scenarios.
+
+### Matrix Metrics (Held-Out Test Set)
+
+Reproducible from the committed artifact `backend/app/evaluation/results/evaluation_results.json`
+(`split: HELD_OUT_TEST`, 4 scenarios, seed 42, stub LLM mode):
+
+```bash
+cd backend && python3 -m app.evaluation.runner --split HELD_OUT_TEST --mode stub
+```
+
+| Pipeline Configuration | Anomaly F1 | Top-1 Accuracy | Top-3 Accuracy | Brier Score | ECE | RAG Precision | Safety Blocking | Latency |
+|---|---|---|---|---|---|---|---|---|
+| **Baseline 1** (Z-Score + Rules) | 0.29 | 0.25 | 0.25 | 0.250 | 0.250 | N/A | 1.00 | ~0.3 ms |
+| **Baseline 2** (Enhanced Detector) | 0.29 | 0.50 | 0.75 | 0.369 | 0.323 | N/A | 1.00 | ~0.8 ms |
+| **Baseline 3** (Detector + Unconstrained LLM) | 0.29 | 0.50 | 0.75 | 0.369 | 0.323 | 0.00 | 1.00 | ~1.2 ms |
+| **SENTINEL** (Deterministic + Physics + Safety + LLM) | **0.29** | **0.25** | **0.25** | **0.189** | **0.210** | 0.00 | **1.00** | ~3959 ms |
+
+> **Honest labelling:** this committed run executes in `STUB` mode — the LLM stage
+> serves a fixed response, so LLM-dependent numbers (Top-1/Top-3, RAG precision)
+> reflect stub behaviour, not a live model. Token counts are reported as
+> `measured: false` (the provider interface returns text only; no token counts
+> are fabricated). Every result file's `provenance.llm` records the exact
+> mode/provider/model/endpoint used, with `api_key_value_recorded: false`.
+> Live-model numbers require `--mode local` (sovereign endpoint) or
+> `--mode cloud`; guardrail-corrected stub runs intentionally differ from the
+> numbers a tuned live model would produce.
+
+---
+
+## 5. Limitations & Known Failure Modes
+
+1. **Not Flight-Qualified**: SENTINEL is a prototype engineering demonstration. It is **not flight-qualified software** for direct autonomous satellite actuation without human flight operator authorization (`Stage 3 Operator Approval`).
+2. **Sensor Blackout Window**: Complete simultaneous multi-sensor NaN drops across all rate gyros require safe-mode tumbling hold before state recovery.
+3. **Cascading Unknown Faults**: Unmodeled multi-subsystem interactions with incomplete telemetry history increase uncertainty bounds.
+
+---
+
+## 6. Disclaimers & Project Status
+
+- **No Unsubstantiated Regulatory Claims**: SENTINEL makes no claim of formal certification or official partnership with NASA, ESA, or civil space agencies unless backed by specific open dataset provenance (`ESA-ADB id_109`).
+- **Safety First**: All telecommand proposals require human flight operator authorization prior to uplink execution.
+
+---
+
+## 7. Architecture Overview
 
 ```text
-SpaceAgent/
-├── README.md                              ← This documentation
-├── ESA-Mission1/                          ← Raw mission data
-├── ESA-Mission1_extracted/                ← Processed mission data
-└── sentinel/                              ← The Core Codebase
-    ├── backend/                           ← Python FastAPI server
-    │   ├── app/                           ← Core application logic
-    │   ├── data/                          ← ECSS Manuals and data assets
-    │   ├── data_tools/                    ← Tooling for data processing
-    │   ├── simulation/                    ← Telemetry generation & simulation
-    │   ├── tests/                         ← Test suites
-    │   ├── Dockerfile
-    │   └── requirements.txt               
-    ├── frontend/                          ← Operator Dashboard (React)
-    │   ├── public/                        ← Static assets
-    │   ├── src/                           ← React components
-    │   ├── package.json                   
-    │   └── package-lock.json
-    ├── notebooks/                         ← Jupyter notebooks for EDA & fine-tuning
-    └── docs/                              ← Architecture diagrams and additional documentation
+                                 SENTINEL PIPELINE ARCHITECTURE
+                                 
+  [ RAW TELEMETRY / CRASH DUMP ]
+               │
+               ▼
+   [ 1. ANOMALY DETECTOR ] ──► Z-Score & Hard Limits Check
+               │
+               ▼
+   [ 2. STATE ESTIMATION ] ──► EKF Residuals & Physics Bounds ($\Delta$)
+               │
+               ▼
+   [ 3. DETERMINISTIC CANDIDATES ] ──► Hardware Fault Signatures
+               │
+               ▼
+   [ 4. RAG PROCEDURE RETRIEVAL ] ──► ECSS-E-ST-70-11C Vector Index
+               │
+               ▼
+   [ 5. CONSTRAINED LLM RANKER ] ──► Local / Cloud Model Hypothesis Ranking
+               │
+               ▼
+   [ 6. SAFETY VALIDATOR ] ──► Whitelist & Thermal/Battery Floor Rules
+               │
+               ▼
+   [ 7. OPERATOR CONSOLE ] ──► 8-Tab Desktop Mission Control UI
 ```
 
 ---
 
-## 🛠 Setup & Installation
+## 8. Development & Quickstart
 
-### 1. Environment Setup
+### Backend Setup & Tests
 
-Create a virtual environment and install backend dependencies:
-```bash
-cd sentinel
-python3 -m venv venv
-source venv/bin/activate
-pip install -r backend/requirements.txt
-```
-
-Set up your environment variables:
-```bash
-cp sentinel/.env.example sentinel/.env
-```
-Edit `.env` and add your Google Gemini API key:
-`GEMINI_API_KEY=your_api_key_here`
-
-### 2. Running the Backend
-
-Launch the FastAPI server on port 8000:
 ```bash
 cd backend
-uvicorn app.main:app --reload
+pip install -r requirements.txt
+
+# Run all backend unit & security tests across all phases
+python -c "import unittest; loader = unittest.TestLoader(); suite = loader.discover('tests', pattern='test_*.py'); runner = unittest.TextTestRunner(verbosity=2); runner.run(suite)"
 ```
-You can check if it's running by hitting `http://localhost:8000/health`.
 
-### 3. Running the Frontend
+### Frontend Setup
 
-In a new terminal window, serve the frontend on port 3000:
 ```bash
-cd sentinel/frontend
+cd frontend
 npm install
 npm run dev
 ```
 
-Visit `http://localhost:3000` in your browser.
-
----
-
-## 💡 Usage Examples
-
-### Python API Usage
-
-You can use the Sentinel agent directly in your Python code:
-
-```python
-from app.agent.agent import SentinelAgent
-
-# Default uses Gemini Flash + Hybrid RAG
-agent = SentinelAgent()
-
-crash_dump_dict = {
-    "scenario_id": "TEST_001",
-    "fault_type": "ADCS_GYRO_SEU"
-}
-
-# This performs retrieval, anomaly detection, reasoning, and safety checks in one go
-result = agent.analyze_with_rag(crash_dump_dict)
-
-print(result.model_dump_json(indent=2))
-```
-
-### HTTP API Usage
-
-Trigger a crash dump analysis manually via `curl`:
-
-```bash
-curl -X POST http://localhost:8000/analyze \
-  -H 'Content-Type: application/json' \
-  -d '{"scenario_id": 1, "fault_type": "ADCS_GYRO_SEU"}'
-```
-
----
-
-## 🛡 Risk Management & Fallbacks
-
-Sentinel is designed with safety and reliability in mind:
-- **API Outages**: If the Gemini API is down, the system can seamlessly fall back to local models (e.g. Phi-3) using the `FALLBACK` mode.
-- **Hallucination Prevention**: The deterministic safety validator ensures that even if the LLM hallucinated a dangerous command, it would be flagged and blocked before execution.
-- **Explainability**: The agent never outputs just a command. It is forced by the Pydantic schema to output 3 distinct hypotheses, confidences, causal chains, and step-by-step rationales.
+Visit `http://localhost:3001` or `http://localhost:8000/dashboard` to access the Mission Control Console.

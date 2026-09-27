@@ -6,6 +6,7 @@ __pycache__/
 *.pyd
 env/
 venv/
+.venv/
 # Secrets — never commit real env files; DO keep the *.example templates tracked.
 *.env
 .env
@@ -31,6 +32,8 @@ ESA-Mission*_extracted/
 # of the working tree afterwards — only the whole file removed.
 sentinel/backend/data/audit/
 sentinel/backend/data/chroma_db/
+backend/data/audit/
+backend/data/chroma_db/
 *.sqlite3
 *.sqlite3-wal
 *.sqlite3-shm

@@ -22,7 +22,7 @@ jobs:
         run: pip install ruff==0.16.3
 
       - name: Run ruff check
-        run: ruff check sentinel/backend/app sentinel/backend/tests sentinel/backend/scripts
+        run: ruff check backend/app backend/tests backend/scripts
 
   test-backend:
     name: Backend Test Suite & Security Checks
@@ -39,20 +39,20 @@ jobs:
       - name: Install dependencies
         run: |
           python -m pip install --upgrade pip
-          pip install -r sentinel/backend/requirements-dev.txt
+          pip install -r backend/requirements-dev.txt
 
       - name: Export OpenAPI & Frontend Contract Bindings
         run: |
-          python sentinel/backend/scripts/export_contracts.py
+          python backend/scripts/export_contracts.py
 
       - name: Execute Full Python Test Suite
         run: |
-          cd sentinel/backend
+          cd backend
           python -m pytest tests/ -q -p no:cacheprovider --ignore=tests/run_tests.py
 
       - name: Phase 14 Security & Data Handling Tests
         run: |
-          cd sentinel/backend
+          cd backend
           python -m pytest tests/test_phase14_security.py -v -p no:cacheprovider
 
   build-frontend:
@@ -66,16 +66,16 @@ jobs:
         with:
           node-version: 20
           cache: "npm"
-          cache-dependency-path: sentinel/frontend/package.json
+          cache-dependency-path: frontend/package.json
 
       - name: Install Frontend Dependencies
         run: |
-          cd sentinel/frontend
+          cd frontend
           npm ci || npm install
 
       - name: Build Production Frontend Assets
         run: |
-          cd sentinel/frontend
+          cd frontend
           npm run build
 
   build-docker:
@@ -86,4 +86,4 @@ jobs:
 
       - name: Build Docker image
         run: |
-          docker build -t sentinel-backend:ci sentinel/backend
+          docker build -t sentinel-backend:ci backend
