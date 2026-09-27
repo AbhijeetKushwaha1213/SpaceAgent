@@ -279,11 +279,12 @@ body::before {
   position: sticky;
   top: 0;
   z-index: 100;
-  background: linear-gradient(180deg, rgba(16, 22, 33, 0.92), rgba(10, 15, 24, 0.92));
-  -webkit-backdrop-filter: blur(10px);
-  backdrop-filter: blur(10px);
+  background: var(--bg-header);
+  -webkit-backdrop-filter: blur(12px);
+  backdrop-filter: blur(12px);
   border-bottom: 1px solid var(--border);
-  box-shadow: var(--shadow-md);
+  box-shadow: var(--shadow-sm);
+  transition: background-color var(--dur) var(--ease), border-color var(--dur) var(--ease);
 }
 
 .ops-header__top {
@@ -292,7 +293,7 @@ body::before {
   justify-content: space-between;
   flex-wrap: wrap;
   gap: 12px;
-  padding: 11px 18px 9px;
+  padding: 12px 24px 10px;
 }
 
 .brand {
@@ -302,28 +303,30 @@ body::before {
 }
 
 .brand__name {
-  font-family: var(--mono);
-  font-size: 18px;
+  font-family: var(--sans);
+  font-size: 26px;
   font-weight: 800;
-  letter-spacing: 0.2em;
-  background: linear-gradient(120deg, #eafcff 0%, var(--accent) 55%, var(--accent-2) 100%);
-  -webkit-background-clip: text;
-  background-clip: text;
-  -webkit-text-fill-color: transparent;
-  filter: drop-shadow(0 0 14px rgba(74, 212, 230, 0.35));
+  letter-spacing: -0.03em;
+  color: var(--text);
+  -webkit-text-fill-color: var(--text);
+  background: none;
+  filter: none;
 }
 
 .brand__sub {
   font-family: var(--mono);
   font-size: 10px;
-  letter-spacing: 0.14em;
-  color: var(--text-muted);
+  letter-spacing: 0.1em;
+  font-weight: 600;
+  color: var(--text-dim);
 }
 
 .brand__version {
   font-family: var(--mono);
-  font-size: 10px;
-  color: var(--text-dim);
+  font-size: 10.5px;
+  font-weight: 600;
+  color: var(--text-muted);
+  background: var(--bg-surface-2);
   border: 1px solid var(--border);
   border-radius: 999px;
   padding: 1px 8px;
@@ -332,13 +335,45 @@ body::before {
 .ops-header__controls {
   display: flex;
   align-items: center;
-  gap: 10px;
+  gap: 12px;
   flex-wrap: wrap;
+}
+
+.scenario-select-box {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+
+.scenario-select-box .field-label {
+  font-size: 9.5px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  color: var(--text-dim);
+  text-transform: uppercase;
+}
+
+.scenario-select-box .field-select {
+  background: var(--bg-surface-2);
+  border: 1px solid var(--border);
+  color: var(--text);
+  font-size: 12px;
+  font-weight: 600;
+  padding: 6px 10px;
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+  transition: border-color var(--dur) var(--ease);
+}
+
+.scenario-select-box .field-select:focus {
+  border-color: var(--accent);
+  outline: none;
 }
 
 .ops-header__status {
   display: flex;
-  gap: 8px;
+  align-items: center;
+  gap: 10px;
   flex-wrap: wrap;
 }
 
@@ -346,11 +381,12 @@ body::before {
   display: flex;
   flex-direction: column;
   border: 1px solid var(--border);
-  background: linear-gradient(180deg, var(--bg-surface-2), var(--bg-surface));
+  background: var(--bg-surface-2);
   border-radius: var(--radius-sm);
-  padding: 5px 11px;
+  padding: 6px 12px;
   min-width: 120px;
-  box-shadow: var(--inset-hi);
+  box-shadow: var(--shadow-sm);
+  transition: background-color var(--dur) var(--ease), border-color var(--dur) var(--ease);
 }
 
 .sys-pill__label {
@@ -401,12 +437,14 @@ body::before {
 
 .ops-tabs {
   border-top: 1px solid var(--border);
-  background: linear-gradient(180deg, rgba(255, 255, 255, 0.012), transparent);
+  background: var(--bg-header);
+  transition: background-color var(--dur) var(--ease), border-color var(--dur) var(--ease);
 }
 
 .ops-tabs__list {
   display: flex;
   overflow-x: auto;
+  padding: 0 12px;
 }
 
 .ops-tab {
@@ -420,9 +458,9 @@ body::before {
   color: var(--text-muted);
   font-family: var(--mono);
   font-size: 11px;
-  font-weight: 700;
-  letter-spacing: 0.05em;
-  padding: 10px 15px;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  padding: 10px 16px;
   cursor: pointer;
   white-space: nowrap;
   transition: color var(--dur) var(--ease), background var(--dur) var(--ease);
@@ -430,12 +468,13 @@ body::before {
 
 .ops-tab:hover {
   color: var(--text);
-  background: rgba(255, 255, 255, 0.03);
+  background: var(--bg-surface-2);
 }
 
 .ops-tab--active {
   color: var(--text);
-  background: linear-gradient(180deg, rgba(74, 212, 230, 0.08), transparent);
+  font-weight: 700;
+  background: var(--bg-surface-2);
 }
 
 /* Gradient underline indicator for the active tab, with a soft glow so the
