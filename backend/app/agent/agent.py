@@ -1927,6 +1927,17 @@ class SentinelAgent:
                 procedure_results=procedure_results,
             )
 
+            from app.llm.models import GuardrailResult
+            from app.llm.router_contract import (
+                Branch,
+                BranchResult,
+                RoutingDecision,
+                router_enabled,
+            )
+            from app.llm.router_orchestrator import RouterOrchestrator
+            from app.llm.local_branch import LocalBranchRunner
+            from app.llm.cloud_branch import CloudBranchRunner
+
             # Create provider from agent config
             provider_config = ProviderConfig(
                 model=self.config.model,
@@ -1941,18 +1952,76 @@ class SentinelAgent:
                 max_tokens=self.config.max_tokens,
                 timeout_seconds=self.config.timeout_seconds,
             )
-            provider = create_provider(
-                mode=self.config.mode.value,
-                config=provider_config,
-            )
 
-            # Run constrained ranking
-            ranking_output, guardrail_result, llm_ms = run_constrained_ranking(
-                provider=provider,
-                ranking_input=ranking_input,
-                physics_report=physics_report,
-                max_retries=self.config.max_retries,
-            )
+            orch_result = None
+            if router_enabled():
+                # ── Hybrid Local / Cloud Router Path (ROUTER_ENABLED=true) ──
+                if self.config.mode.value == "stub":
+                    local_provider = create_provider(mode="stub", config=provider_config)
+                    cloud_provider = create_provider(mode="stub", config=provider_config)
+                else:
+                    local_provider = create_provider(mode="local", config=provider_config)
+                    cloud_provider = create_provider(mode="cloud", config=provider_config)
+
+                local_runner = LocalBranchRunner(
+                    provider=local_provider,
+                    max_retries=self.config.max_retries,
+                )
+                cloud_runner = CloudBranchRunner(
+                    provider=cloud_provider,
+                    max_retries=self.config.max_retries,
+                    security_config=getattr(self.config, "security", None),
+                )
+
+                orchestrator = RouterOrchestrator(
+                    local_runner=local_runner,
+                    cloud_runner=cloud_runner,
+                )
+
+                started_orch = time.perf_counter()
+                orch_result = orchestrator.run(
+                    ranking_input=ranking_input,
+                    physics_report=physics_report,
+                    review_already_required=False,
+                    safety_context=crash_dict,
+                    recorder=recorder,
+                )
+                llm_ms = (time.perf_counter() - started_orch) * 1000.0
+
+                ranking_output = orch_result.merged_output
+                winning_branch = orch_result.arbitration.winning_branch if orch_result.arbitration else None
+                winning_res = (
+                    orch_result.cloud if winning_branch == Branch.CLOUD
+                    else (orch_result.local if winning_branch == Branch.LOCAL else None)
+                )
+                guardrail_result = (
+                    winning_res.guardrail_result
+                    if winning_res and winning_res.guardrail_result
+                    else GuardrailResult(is_valid=True, corrected_output=ranking_output)
+                )
+
+                yield SSEEvent(
+                    event_type=SSEEventType.OBSERVATION,
+                    data=(
+                        f"[ROUTER] Decision: {orch_result.decision.value} "
+                        f"(reasons: {', '.join(r.value for r in orch_result.reasons)})"
+                    ),
+                    step_number=7,
+                )
+            else:
+                # ── Legacy Single-Provider Path (ROUTER_ENABLED=false) ──────
+                provider = create_provider(
+                    mode=self.config.mode.value,
+                    config=provider_config,
+                )
+
+                # Run constrained ranking
+                ranking_output, guardrail_result, llm_ms = run_constrained_ranking(
+                    provider=provider,
+                    ranking_input=ranking_input,
+                    physics_report=physics_report,
+                    max_retries=self.config.max_retries,
+                )
 
             # Emit ranking explanation
             ranking_explanation = explain_ranking(ranking_output, ranking_input)
@@ -1996,6 +2065,8 @@ class SentinelAgent:
                 ranking_output, procedure_results,
             )
             result = _validate_output(output_dict)
+            if orch_result is not None and orch_result.human_review_required:
+                result.requires_human_review = True
 
             # ── Stage 8: Safety Validation ─────────────────────────────────
             yield SSEEvent(event_type=SSEEventType.STATUS,

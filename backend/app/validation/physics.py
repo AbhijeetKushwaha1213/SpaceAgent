@@ -1712,6 +1712,20 @@ def validate_crash_dump(crash_dump: Optional[dict[str, Any]]) -> tuple[
     sequence = estimate_states(dump)
     residual_report = compute_residuals(dump, sequence)
     physics = validate_hypotheses(hypothesis_set, residual_report, sequence)
+
+    # Phase 7: Deterministic 3-Axis Spacecraft Attitude Dynamics
+    try:
+        from app.validation.attitude_dynamics import (
+            validate_3axis_from_dump,
+            integrate_3axis_into_physics_report,
+        )
+        dynamics_verdict = validate_3axis_from_dump(dump)
+        if dynamics_verdict is not None:
+            physics = integrate_3axis_into_physics_report(physics, dynamics_verdict)
+    except Exception:  # pragma: no cover
+        # Fail-safe: input errors in 3-axis telemetry do not crash the pipeline
+        pass
+
     return physics, hypothesis_set, residual_report, sequence
 
 
