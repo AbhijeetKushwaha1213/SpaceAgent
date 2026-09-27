@@ -35,7 +35,7 @@ _BACKEND_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 if _BACKEND_ROOT not in sys.path:
     sys.path.insert(0, _BACKEND_ROOT)
 _FRONTEND = os.path.abspath(os.path.join(_BACKEND_ROOT, "..", "frontend"))
-_REPO = os.path.abspath(os.path.join(_BACKEND_ROOT, "..", ".."))
+_REPO = os.path.abspath(os.path.join(_BACKEND_ROOT, ".."))
 
 APP_JSX = os.path.join(_FRONTEND, "src", "App.jsx")
 HEADER_NAV = os.path.join(_FRONTEND, "src", "components", "HeaderNav.jsx")

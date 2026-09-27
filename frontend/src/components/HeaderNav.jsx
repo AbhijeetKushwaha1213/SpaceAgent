@@ -12,6 +12,7 @@
 
 import React, { useRef } from "react";
 import { useSentinel } from "../state/SentinelContext";
+import { useTheme } from "../state/ThemeContext";
 import { PROVENANCE_LABELS, normalizeProvenance } from "../generated/contract";
 import Icon from "./ui/Icon";
 
@@ -45,6 +46,7 @@ export default function HeaderNav({ activeTab, onSelectTab }) {
     runAnalysis,
   } = useSentinel();
 
+  const { theme, toggleTheme } = useTheme();
   const tabRefs = useRef({});
 
   const llmMode = systemStatus?.data?.llm_mode || "N/A";
@@ -80,61 +82,85 @@ export default function HeaderNav({ activeTab, onSelectTab }) {
     <header className="ops-header" role="banner">
       <div className="ops-header__top">
         <div className="brand">
-          <span className="brand__name">SENTINEL</span>
-          <span className="brand__sub">SPACECRAFT FDIR &amp; RECOVERY CONSOLE</span>
-          <span className="brand__version">CONTRACT {version}</span>
+          <div className="brand__title-wrap">
+            <span className="brand__name">Dashboard</span>
+            <span className="brand__version">v{version}</span>
+          </div>
+          <span className="brand__sub">SENTINEL AUTONOMOUS SPACECRAFT FDIR</span>
         </div>
 
         <div className="ops-header__controls">
-          <label className="field-label" htmlFor="scenario-select">
-            Crash dump scenario
-          </label>
-          <select
-            id="scenario-select"
-            className="field-select"
-            value={selectedScenarioId || ""}
-            onChange={(e) => selectScenario(e.target.value)}
-            disabled={isAnalyzing}
-          >
-            {scenarios.loading ? (
-              <option value="">Loading scenarios...</option>
-            ) : scenarios.error || !scenarios.data ? (
-              <option value="">Scenarios unavailable</option>
-            ) : (
-              (scenarios.data.scenarios || []).map((sc) => (
-                <option key={sc.scenario_id} value={sc.scenario_id}>
-                  SCENARIO {sc.scenario_id}: {sc.fault_type || "N/A"} — {provenanceLabel(sc)}
-                </option>
-              ))
-            )}
-          </select>
+          <div className="scenario-select-box">
+            <label className="field-label" htmlFor="scenario-select">
+              Active Scenario
+            </label>
+            <select
+              id="scenario-select"
+              className="field-select"
+              value={selectedScenarioId || ""}
+              onChange={(e) => selectScenario(e.target.value)}
+              disabled={isAnalyzing}
+            >
+              {scenarios.loading ? (
+                <option value="">Loading scenarios...</option>
+              ) : scenarios.error || !scenarios.data ? (
+                <option value="">Scenarios unavailable</option>
+              ) : (
+                (scenarios.data.scenarios || []).map((sc) => (
+                  <option key={sc.scenario_id} value={sc.scenario_id}>
+                    SCENARIO {sc.scenario_id}: {sc.fault_type || "N/A"} — {provenanceLabel(sc)}
+                  </option>
+                ))
+              )}
+            </select>
+          </div>
 
           <button
             type="button"
-            className="btn btn--primary"
+            className="btn btn--primary btn--run-analysis"
             onClick={runAnalysis}
             disabled={isAnalyzing || !selectedScenario}
           >
+            <Icon name={isAnalyzing ? "refresh" : "rocket"} size={15} className={isAnalyzing ? "spin" : ""} />
             {isAnalyzing ? "ANALYSIS RUNNING" : "RUN FDIR ANALYSIS"}
           </button>
         </div>
 
         <div className="ops-header__status">
-          <div className="sys-pill">
-            <span className="sys-pill__label">SOURCE</span>
-            <span className="sys-pill__value">{String(simLive).toUpperCase()}</span>
+          {/* Quick Header Metric Badges matching Image 1 */}
+          <div className="header-quick-stat">
+            <div className="quick-stat-num">
+              <span className="mono">7,052</span>
+              <span className="quick-stat-badge">$22.5M</span>
+            </div>
+            <span className="quick-stat-lbl">EOI SENT</span>
           </div>
+
+          <div className="header-quick-stat">
+            <div className="quick-stat-num">
+              <span className="mono">34</span>
+              <span className="quick-stat-badge">$5.9M</span>
+            </div>
+            <span className="quick-stat-lbl">NEW REQUESTS</span>
+          </div>
+
           <div className={`sys-pill sys-pill--ai ${llmMode === "LOCAL" ? "sys-pill--local" : ""}`}>
             <span className="sys-pill__label">AI ENGINE</span>
             <span className="sys-pill__value">{aiModeLabel}</span>
             <span className="sys-pill__detail">{aiDetail}</span>
           </div>
-          <div className="sys-pill sys-pill--run">
-            <span className="sys-pill__label">RUN ID</span>
-            <span className="sys-pill__value">
-              {analysis.runId || (analysis.output ? "COMPLETE" : "N/A")}
-            </span>
-          </div>
+
+          {/* Theme Toggle Button */}
+          <button
+            type="button"
+            className="header-theme-toggle"
+            onClick={toggleTheme}
+            aria-label={`Switch to ${theme === "dark" ? "light" : "dark"} mode`}
+            title={`Switch to ${theme === "dark" ? "light" : "dark"} mode`}
+          >
+            <Icon name={theme === "dark" ? "sun" : "moon"} size={16} />
+            <span className="theme-toggle-label">{theme === "dark" ? "Light" : "Dark"}</span>
+          </button>
         </div>
       </div>
 

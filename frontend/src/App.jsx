@@ -8,6 +8,7 @@
 import React, { useState } from "react";
 import "./App.css";
 
+import SidebarNav from "./components/SidebarNav";
 import HeaderNav from "./components/HeaderNav";
 import FlowGuide from "./components/ui/FlowGuide";
 import MissionOverview from "./components/views/MissionOverview";
@@ -21,6 +22,7 @@ import EvidenceView from "./components/views/EvidenceView";
 import AuditView from "./components/views/AuditView";
 import EvaluationView from "./components/views/EvaluationView";
 import { SentinelProvider } from "./state/SentinelContext";
+import { ThemeProvider } from "./state/ThemeContext";
 
 const TAB_IDS = Object.freeze({
   overview: "overview",
@@ -43,13 +45,18 @@ function isDashboardPath(path) {
 
 function Console() {
   const [currentPath, setCurrentPath] = useState(
-    typeof window !== "undefined" ? window.location.pathname : "/dashboard"
+    typeof window !== "undefined"
+      ? (window.location.pathname === "/" ? "/dashboard" : window.location.pathname)
+      : "/dashboard"
   );
   const [activeTab, setActiveTab] = useState(TAB_IDS.overview);
 
   React.useEffect(() => {
     if (typeof window === "undefined") return undefined;
-    const handlePopState = () => setCurrentPath(window.location.pathname);
+    const handlePopState = () => {
+      const p = window.location.pathname;
+      setCurrentPath(p === "/" ? "/dashboard" : p);
+    };
     window.addEventListener("popstate", handlePopState);
     return () => window.removeEventListener("popstate", handlePopState);
   }, []);
@@ -74,44 +81,49 @@ function Console() {
   const navigate = (tabId) => setActiveTab(tabId);
 
   return (
-    <div className="app-shell">
-      <HeaderNav activeTab={activeTab} onSelectTab={navigate} />
-      <main className="ops-main" id="ops-main">
-        <FlowGuide activeTab={activeTab} onSelectTab={navigate} />
-        <div
-          key={activeTab}
-          role="tabpanel"
-          id={`panel-${activeTab}`}
-          aria-labelledby={`tab-${activeTab}`}
-        >
-          {activeTab === TAB_IDS.overview && <MissionOverview onNavigate={navigate} />}
-          {activeTab === TAB_IDS.pipeline && <PipelineDemoView onNavigate={navigate} />}
-          {activeTab === TAB_IDS.telemetry && <TelemetryView />}
-          {activeTab === TAB_IDS.investigation && (
-            <FaultInvestigationView onNavigate={navigate} />
-          )}
-          {activeTab === TAB_IDS.reconciliation && <ReconciliationView />}
-          {activeTab === TAB_IDS.physics && <PhysicsView />}
-          {activeTab === TAB_IDS.recovery && <RecoveryView />}
-          {activeTab === TAB_IDS.evidence && <EvidenceView onNavigate={navigate} />}
-          {activeTab === TAB_IDS.audit && <AuditView />}
-          {activeTab === TAB_IDS.evaluation && <EvaluationView />}
-        </div>
-      </main>
-      <footer className="ops-footer">
-        <span className="mono fs-sm">
-          SENTINEL — every value on this console is served by the backend API.
-          Absent data renders as N/A; nothing is simulated client-side.
-        </span>
-      </footer>
+    <div className="app-layout-wrapper">
+      <SidebarNav activeTab={activeTab} onSelectTab={navigate} />
+      <div className="app-shell">
+        <HeaderNav activeTab={activeTab} onSelectTab={navigate} />
+        <main className="ops-main" id="ops-main">
+          <FlowGuide activeTab={activeTab} onSelectTab={navigate} />
+          <div
+            key={activeTab}
+            role="tabpanel"
+            id={`panel-${activeTab}`}
+            aria-labelledby={`tab-${activeTab}`}
+          >
+            {activeTab === TAB_IDS.overview && <MissionOverview onNavigate={navigate} />}
+            {activeTab === TAB_IDS.pipeline && <PipelineDemoView onNavigate={navigate} />}
+            {activeTab === TAB_IDS.telemetry && <TelemetryView />}
+            {activeTab === TAB_IDS.investigation && (
+              <FaultInvestigationView onNavigate={navigate} />
+            )}
+            {activeTab === TAB_IDS.reconciliation && <ReconciliationView />}
+            {activeTab === TAB_IDS.physics && <PhysicsView />}
+            {activeTab === TAB_IDS.recovery && <RecoveryView />}
+            {activeTab === TAB_IDS.evidence && <EvidenceView onNavigate={navigate} />}
+            {activeTab === TAB_IDS.audit && <AuditView />}
+            {activeTab === TAB_IDS.evaluation && <EvaluationView />}
+          </div>
+        </main>
+        <footer className="ops-footer">
+          <span className="mono fs-sm">
+            SENTINEL — every value on this console is served by the backend API.
+            Absent data renders as N/A; nothing is simulated client-side.
+          </span>
+        </footer>
+      </div>
     </div>
   );
 }
 
 export default function App() {
   return (
-    <SentinelProvider>
-      <Console />
-    </SentinelProvider>
+    <ThemeProvider>
+      <SentinelProvider>
+        <Console />
+      </SentinelProvider>
+    </ThemeProvider>
   );
 }
