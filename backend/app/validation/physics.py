@@ -1726,6 +1726,19 @@ def validate_crash_dump(crash_dump: Optional[dict[str, Any]]) -> tuple[
         # Fail-safe: input errors in 3-axis telemetry do not crash the pipeline
         pass
 
+    # Phase 8: Deterministic Multi-Node Spacecraft Thermal Network
+    try:
+        from app.validation.thermal_dynamics import (
+            validate_multinode_thermal_from_dump,
+            integrate_multinode_thermal_into_physics_report,
+        )
+        thermal_verdict = validate_multinode_thermal_from_dump(dump)
+        if thermal_verdict is not None:
+            physics = integrate_multinode_thermal_into_physics_report(physics, thermal_verdict)
+    except Exception:  # pragma: no cover
+        # Fail-safe: input errors in thermal telemetry do not crash the pipeline
+        pass
+
     return physics, hypothesis_set, residual_report, sequence
 
 
