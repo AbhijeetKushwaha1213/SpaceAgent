@@ -79,7 +79,9 @@ class TestPhase7AttitudeDynamics(unittest.TestCase):
         )
 
         self.assertEqual(verdict.status, DynamicsStatus.VALID)
+        self.assertEqual(verdict.status, DynamicsStatus.CONSISTENT)
         self.assertTrue(verdict.is_valid)
+        self.assertTrue(verdict.is_consistent)
         self.assertFalse(verdict.is_refuted)
         self.assertLessEqual(verdict.residual_norm, 1e-9)
         self.assertIn("VALID", verdict.explanation)

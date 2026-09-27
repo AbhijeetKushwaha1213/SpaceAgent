@@ -553,6 +553,7 @@ class DynamicsStatus(str, Enum):
     """Deterministic verdict status for 3-axis attitude dynamics checks."""
 
     VALID = "VALID"
+    CONSISTENT = "VALID"  # Alias CONSISTENT to VALID for explicit compatibility
     """Motion is consistent with Euler dynamics and quaternion kinematics."""
 
     REFUTED = "REFUTED"
@@ -582,7 +583,11 @@ class DynamicsVerdict:
 
     @property
     def is_valid(self) -> bool:
-        return self.status is DynamicsStatus.VALID
+        return self.status in (DynamicsStatus.VALID, DynamicsStatus.CONSISTENT)
+
+    @property
+    def is_consistent(self) -> bool:
+        return self.status in (DynamicsStatus.VALID, DynamicsStatus.CONSISTENT)
 
     def as_dict(self) -> dict[str, Any]:
         return {
