@@ -19,7 +19,7 @@ from __future__ import annotations
 import math
 from datetime import datetime
 from enum import Enum
-from typing import Dict, List, Optional
+from typing import Any, Dict, List, Optional
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 
@@ -536,6 +536,14 @@ class SSEEvent(BaseModel):
         default=None,
         ge=1,
         description="Agent reasoning step index (for trace events)",
+    )
+    run_id: Optional[str] = Field(
+        default=None,
+        description="Correlation / run identifier for distributed tracing and audit correlation",
+    )
+    metadata: Optional[dict[str, Any]] = Field(
+        default=None,
+        description="Structured stage-level execution metadata",
     )
 # ---------------------------------------------------------------------------
 # INPUT SCHEMAS — Crash Dump Intake Validation

@@ -919,11 +919,12 @@ async def analyze_endpoint_v1(crash_dump: CrashDumpRequest):
             opened = SSEEvent(
                 event_type=SSEEventType.STATUS,
                 data=f"Audit run: {recorder.run_id}",
+                run_id=recorder.run_id,
             )
             yield f"data: {opened.model_dump_json()}\n\n"
 
             for event in agent.analyze_crash_dump_stream(
-                payload, recorder=recorder,
+                payload, recorder=recorder, run_id=recorder.run_id,
             ):
                 if event.event_type == SSEEventType.ERROR:
                     status = RunStatus.FAILED
@@ -954,6 +955,7 @@ async def analyze_endpoint_v1(crash_dump: CrashDumpRequest):
             err = SSEEvent(
                 event_type=SSEEventType.ERROR,
                 data="Streaming analysis encountered an error. Check the server logs.",
+                run_id=recorder.run_id,
             )
             yield f"data: {err.model_dump_json()}\n\n"
         else:
@@ -967,6 +969,8 @@ async def analyze_endpoint_v1(crash_dump: CrashDumpRequest):
                     f"{len(record.entries)} entries, seal "
                     f"{record.outcome.final_hash[:16]}"
                 ),
+                run_id=recorder.run_id,
+                metadata={"final_hash": record.outcome.final_hash, "entry_count": len(record.entries)},
             )
             yield f"data: {done.model_dump_json()}\n\n"
             return

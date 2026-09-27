@@ -1523,6 +1523,7 @@ class SentinelAgent:
         fault_cues: list[str] | None = None,
         system_prompt_override: str | None = None,
         recorder: Any = None,
+        run_id: str | None = None,
     ):
         """Analyze a crash dump and yield SSEEvent objects as the pipeline runs.
 
@@ -1537,11 +1538,26 @@ class SentinelAgent:
         """
         from app.api.models import SSEEvent, SSEEventType
 
+        _pipeline_started = time.perf_counter()
+        effective_run_id = run_id or (getattr(recorder, "run_id", None) if recorder is not None else None)
+
+        def _make_event(
+            event_type: SSEEventType,
+            data: str,
+            step_number: int | None = None,
+            metadata: dict[str, Any] | None = None,
+        ) -> SSEEvent:
+            return SSEEvent(
+                event_type=event_type,
+                data=data,
+                step_number=step_number,
+                run_id=effective_run_id,
+                metadata=metadata,
+            )
+
         # ── Stage 1: Ingest ────────────────────────────────────────────────
-        yield SSEEvent(event_type=SSEEventType.STATUS,
-                       data="Connecting to Sentinel FDIR telemetry stream...")
-        yield SSEEvent(event_type=SSEEventType.STATUS,
-                       data="[INGESTION] Ingesting raw spacecraft crash dump...")
+        yield _make_event(SSEEventType.STATUS, "Connecting to Sentinel FDIR telemetry stream...")
+        yield _make_event(SSEEventType.STATUS, "[INGESTION] Ingesting raw spacecraft crash dump...")
 
         if isinstance(crash_dump, str):
             try:
@@ -2111,7 +2127,7 @@ class SentinelAgent:
                 _audit_record_safety(recorder, validation, _safety_ms)
                 _audit_record_diagnosis(
                     recorder, result,
-                    (time.time() - time.time()) * 1000.0,
+                    (time.perf_counter() - _pipeline_started) * 1000.0,
                 )
 
             # ── Stage 9: Recovery Plan Gating ──────────────────────────────
